@@ -20,22 +20,23 @@ RETRIES = 3
 
 
 def load_items():
-    """解析 vocabulary.js，返回 [(id, word, sentence), ...]"""
-    text = (ROOT / "data" / "vocabulary.js").read_text(encoding="utf-8")
+    """解析 data/vocabulary*.js 全部文件，返回 [(id, word, sentence), ...]"""
     items = []
     theme_id = None
     index = 0
-    for line in text.splitlines():
-        m = re.search(r"id:\s*'([\w-]+)'", line)
-        if m:
-            theme_id = m.group(1)
-            index = 0
-            continue
-        if theme_id and line.lstrip().startswith("['"):
-            parts = re.findall(r"'((?:[^'\\]|\\.)*)'", line)
-            if len(parts) >= 5:
-                items.append((f"{theme_id}-{index}", parts[0], parts[3]))
-                index += 1
+    for vf in sorted((ROOT / "data").glob("vocabulary*.js")):
+        text = vf.read_text(encoding="utf-8")
+        for line in text.splitlines():
+            m = re.search(r"id:\s*'([\w-]+)'", line)
+            if m:
+                theme_id = m.group(1)
+                index = 0
+                continue
+            if theme_id and line.lstrip().startswith("['"):
+                parts = re.findall(r"'((?:[^'\\]|\\.)*)'", line)
+                if len(parts) >= 5:
+                    items.append((f"{theme_id}-{index}", parts[0], parts[3]))
+                    index += 1
     return items
 
 

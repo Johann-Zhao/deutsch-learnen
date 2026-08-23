@@ -168,33 +168,50 @@ test('replaceState 导入合并默认设置', function () {
 });
 
 console.log('\n数据完整性：');
-test('词汇 12 主题、每条 5 元素', function () {
+test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', function () {
   global.window = {};
   require('../data/vocabulary.js');
+  require('../data/vocabulary_a2.js');
+  require('../data/vocabulary_b1.js');
   var t = window.VOCAB_THEMES;
-  assert.strictEqual(t.length, 12);
-  var total = 0;
+  assert.ok(t.length >= 36, '主题数应≥36，实际 ' + t.length);
+  var total = 0, ids = [], levels = {};
   t.forEach(function (th) {
-    th.words.forEach(function (w) {
+    assert.ok(['A1', 'A2', 'B1'].indexOf(th.level) >= 0, th.id + ' 缺少合法 level');
+    levels[th.level] = (levels[th.level] || 0) + th.words.length;
+    th.words.forEach(function (w, i) {
       assert.strictEqual(w.length, 5, th.id + ' 存在异常词条');
-      assert.ok(['m', 'f', 'n', 'pl', 'v', 'adj', 'adv', 'num', 'pron'].indexOf(w[1]) >= 0, w[0] + ' 词性标注异常');
+      assert.ok(['m', 'f', 'n', 'pl', 'v', 'adj', 'adv', 'num', 'pron', 'phrase', 'conj', 'part'].indexOf(w[1]) >= 0, w[0] + ' 词性标注异常');
+      ids.push(th.id + '-' + i);
+      total++;
     });
-    total += th.words.length;
   });
-  assert.ok(total >= 500, '词数应≥500，实际 ' + total);
+  assert.ok(total >= 1900, '词数应≥1900，实际 ' + total);
+  assert.ok(levels.A1 > 500 && levels.A2 > 500 && levels.B1 > 600, '各级别词量异常: ' + JSON.stringify(levels));
+  var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
+  assert.strictEqual(dup.length, 0, '存在重复词条 id: ' + dup.slice(0, 3));
 });
-test('语法 10 专题、练习结构合法', function () {
+test('语法 ≥34 专题、id 唯一、练习结构合法', function () {
   global.window = {};
   require('../data/grammar.js');
+  require('../data/grammar_a2.js');
+  require('../data/grammar_b1.js');
   var g = window.GRAMMAR;
-  assert.strictEqual(g.length, 10);
+  assert.ok(g.length >= 34, '语法专题应≥34，实际 ' + g.length);
+  var ids = g.map(function (t) { return t.id; });
+  var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
+  assert.strictEqual(dup.length, 0, '存在重复语法 id');
+  var byLevel = {};
   g.forEach(function (t) {
+    assert.ok(['A1', 'A2', 'B1'].indexOf(t.level) >= 0, t.id + ' 缺少 level');
+    byLevel[t.level] = (byLevel[t.level] || 0) + 1;
     assert.ok(t.exercises.length >= 5, t.id + ' 练习不足 5 题');
     t.exercises.forEach(function (e) {
       if (e.type === 'choice') { assert.ok(e.opts && e.a >= 0 && e.a < e.opts.length, t.id + ' 选择题参数异常'); }
       else { assert.ok(e.a, t.id + ' 填空题缺答案'); }
     });
   });
+  assert.ok(byLevel.A1 === 10 && byLevel.A2 >= 12 && byLevel.B1 >= 14, '各级专题数异常: ' + JSON.stringify(byLevel));
 });
 
 console.log('变位查询（conjugate.js）：');
