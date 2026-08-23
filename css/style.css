@@ -210,6 +210,28 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
   font-size: 14px; font-family: inherit; background: var(--card); color: var(--ink);
 }
 
+/* 级别切换 */
+.level-switch { display: flex; gap: 2px; margin-left: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.level-switch button {
+  border: none; background: transparent; color: var(--ink-2); font-family: inherit;
+  font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+}
+.level-switch button:hover { color: var(--ink); }
+.level-switch button.on { background: var(--ink); color: #fff; }
+@media (max-width: 640px) { .level-switch { margin-left: 0; } }
+
+/* 词条图片与主题封面 */
+.word-img {
+  display: block; width: 200px; max-width: 100%; height: auto;
+  border-radius: var(--radius-s); margin: 12px 0 4px; border: 1px solid var(--line);
+  background: var(--bg);
+}
+.theme-cover {
+  width: 52px; height: 52px; border-radius: var(--radius-s); object-fit: cover;
+  flex: none; border: 1px solid var(--line); background: var(--bg);
+}
+.theme-cover-empty { background: var(--bg); }
+
 /* 空状态（行动邀请） */
 .empty { text-align: center; padding: 48px 20px; color: var(--ink-2); }
 .empty .btn { margin-top: 16px; }

@@ -3,7 +3,7 @@
    exercises: { type: 'choice'(单选) | 'fill'(输入), q, opts?(choice 选项), a(答案), tip(解析) } */
 window.GRAMMAR = [
 {
-  id: 'g-aussprache', title: '字母与发音',
+  id: 'g-aussprache', title: '字母与发音', level: 'A1',
   summary: '德语字母表、变元音 ä ö ü、ß 的读法，以及拼读基本规则。',
   lesson: `
 <p>德语共有 30 个字母：26 个基本字母 + 变元音 <b>ä、ö、ü</b> 和 <b>ß</b>（Eszett，读作 /ɛsˈtsɛt/）。ß 等同于双写 ss，永远小写。</p>
@@ -35,7 +35,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-praesens', title: '动词现在时变位',
+  id: 'g-praesens', title: '动词现在时变位', level: 'A1',
   summary: '规则动词词尾、不规则变化动词，以及 sein / haben / werden 三巨头。',
   lesson: `
 <p>德语动词原形（Infinitiv）多以 <b>-en</b> 结尾。去掉词尾 -en 得到词干，再加人称词尾：</p>
@@ -77,7 +77,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-kasus', title: '名词与四个格',
+  id: 'g-kasus', title: '名词与四个格', level: 'A1',
   summary: '名词词性、Nominativ / Akkusativ / Dativ 冠词变化。',
   lesson: `
 <p>每个德语名词都有词性：<span class="g-m">der（阳性 m）</span>、<span class="g-f">die（阴性 f）</span>、<span class="g-n">das（中性 n）</span>。词性没有绝对规律，必须和单词一起记（本站用颜色帮你记：<span class="g-m">蓝=der</span>，<span class="g-f">红=die</span>，<span class="g-n">绿=das</span>）。</p>
@@ -114,7 +114,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-pronomen', title: '人称代词与物主代词',
+  id: 'g-pronomen', title: '人称代词与物主代词', level: 'A1',
   summary: 'ich–du–er… 与 mein, dein, sein 等物主冠词。',
   lesson: `
 <h3>人称代词（第一格）</h3>
@@ -146,7 +146,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-frage', title: '疑问词与疑问句',
+  id: 'g-frage', title: '疑问词与疑问句', level: 'A1',
   summary: 'wer, was, wo, wohin, wann, wie, warum 以及 ja/nein 问句。',
   lesson: `
 <h3>常用疑问词</h3>
@@ -178,7 +178,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-satzbau', title: '语序与可分动词',
+  id: 'g-satzbau', title: '语序与可分动词', level: 'A1',
   summary: '动词第二位、框架结构、可分动词（aufstehen, anrufen…）。',
   lesson: `
 <h3>规则一：变位动词永远在第二位</h3>
@@ -207,7 +207,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-negation', title: '否定：nicht 与 kein',
+  id: 'g-negation', title: '否定：nicht 与 kein', level: 'A1',
   summary: '什么时候用 nicht，什么时候用 kein。',
   lesson: `
 <h3>kein- ：否定带不定冠词或无冠词的名词</h3>
@@ -237,7 +237,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-modal', title: '情态动词',
+  id: 'g-modal', title: '情态动词', level: 'A1',
   summary: 'möchten, können, müssen, wollen, dürfen —— 句子里的第二把交椅。',
   lesson: `
 <p>情态动词表示"想要/能够/必须/允许"，与动词原形搭配：情态动词变位放第二位，原形扔句尾。</p>
@@ -269,7 +269,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-perfekt', title: '现在完成时 Perfekt',
+  id: 'g-perfekt', title: '现在完成时 Perfekt', level: 'A1',
   summary: 'haben/sein + Partizip II，德语口语里讲过去就用它。',
   lesson: `
 <p>口语中谈论过去，德语几乎只用 Perfekt：<b>haben/sein（变位）+ 第二分词（句尾）</b>。</p>
@@ -308,7 +308,7 @@ window.GRAMMAR = [
   ]
 },
 {
-  id: 'g-praep', title: '介词',
+  id: 'g-praep', title: '介词', level: 'A1',
   summary: 'in, an, auf, mit, für, nach, bei…… 与格的搭配。',
   lesson: `
 <h3>第三格介词（静三动四里"静"的那批，永远 Dat.）</h3>

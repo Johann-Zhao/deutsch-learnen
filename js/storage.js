@@ -3,7 +3,7 @@
   'use strict';
 
   var KEY = 'deA1.progress.v1';
-  var DEFAULT_SETTINGS = { dailyNew: 10, ttsRate: 1.0 };
+  var DEFAULT_SETTINGS = { dailyNew: 10, ttsRate: 1.0, level: 'A1' };
 
   function emptyState() {
     return {

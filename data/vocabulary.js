@@ -1,7 +1,7 @@
 /* A1 词汇数据。格式：[德语, 词性 m/f/n/pl, 中文, 例句, 例句中文] */
 window.VOCAB_THEMES = [
 {
-  id: 'greet', name: '问候与自我介绍',
+  id: 'greet', name: '问候与自我介绍', level: 'A1',
   words: [
     ['der Tag', 'm', '白天；天', 'Guten Tag!', '你好！'],
     ['der Morgen', 'm', '早晨', 'Guten Morgen!', '早上好！'],
@@ -56,7 +56,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'time', name: '数字、时间与日期',
+  id: 'time', name: '数字、时间与日期', level: 'A1',
   words: [
     ['eins', 'num', '一', 'Ich habe eins.', '我有一个。'],
     ['zwei', 'num', '二', 'Zwei Kaffee, bitte.', '请来两杯咖啡。'],
@@ -112,7 +112,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'family', name: '家庭与人',
+  id: 'family', name: '家庭与人', level: 'A1',
   words: [
     ['die Mutter', 'f', '母亲', 'Meine Mutter kocht gut.', '我妈妈做饭很好吃。'],
     ['der Vater', 'm', '父亲', 'Mein Vater fährt Rad.', '我爸爸骑自行车。'],
@@ -168,7 +168,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'food', name: '饮食',
+  id: 'food', name: '饮食', level: 'A1',
   words: [
     ['das Essen', 'n', '吃饭；食物', 'Das Essen schmeckt gut.', '饭菜很好吃。'],
     ['das Frühstück', 'n', '早餐', 'Zum Frühstück trinke ich Tee.', '早餐我喝茶。'],
@@ -228,7 +228,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'shop', name: '购物与金钱',
+  id: 'shop', name: '购物与金钱', level: 'A1',
   words: [
     ['das Geschäft', 'n', '商店', 'Das Geschäft öffnet um neun.', '商店九点开门。'],
     ['der Laden', 'm', '小店', 'Der Laden ist klein.', '这家店很小。'],
@@ -286,7 +286,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'home', name: '居住与家居',
+  id: 'home', name: '居住与家居', level: 'A1',
   words: [
     ['das Haus', 'n', '房子', 'Das Haus ist alt.', '这房子很旧。'],
     ['die Wohnung', 'f', '住宅；公寓', 'Meine Wohnung ist klein.', '我的公寓很小。'],
@@ -342,7 +342,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'traffic', name: '交通与旅行',
+  id: 'traffic', name: '交通与旅行', level: 'A1',
   words: [
     ['der Bahnhof', 'm', '火车站', 'Der Bahnhof ist groß.', '火车站很大。'],
     ['die Haltestelle', 'f', '公交站', 'Die Haltestelle ist hier.', '公交站在这里。'],
@@ -398,7 +398,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'work', name: '职业与工作',
+  id: 'work', name: '职业与工作', level: 'A1',
   words: [
     ['der Beruf', 'm', '职业', 'Was sind Sie von Beruf?', '您的职业是什么？'],
     ['die Arbeit', 'f', '工作', 'Die Arbeit macht Spaß.', '工作很有意思。'],
@@ -454,7 +454,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'free', name: '空闲活动与爱好',
+  id: 'free', name: '空闲活动与爱好', level: 'A1',
   words: [
     ['die Freizeit', 'f', '空闲时间', 'In meiner Freizeit lese ich.', '空闲时我读书。'],
     ['das Hobby', 'n', '爱好', 'Mein Hobby ist Schwimmen.', '我的爱好是游泳。'],
@@ -510,7 +510,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'health', name: '身体与健康',
+  id: 'health', name: '身体与健康', level: 'A1',
   words: [
     ['der Körper', 'm', '身体', 'Mein Körper braucht Ruhe.', '我的身体需要休息。'],
     ['der Kopf', 'm', '头', 'Ich habe Kopfschmerzen.', '我头疼。'],
@@ -566,7 +566,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'clothes', name: '颜色与服装',
+  id: 'clothes', name: '颜色与服装', level: 'A1',
   words: [
     ['die Farbe', 'f', '颜色', 'Meine Lieblingsfarbe ist Blau.', '我最喜欢的颜色是蓝色。'],
     ['rot', 'adj', '红色的', 'Der Apfel ist rot.', '苹果是红色的。'],
@@ -623,7 +623,7 @@ window.VOCAB_THEMES = [
   ]
 },
 {
-  id: 'weather', name: '天气与季节',
+  id: 'weather', name: '天气与季节', level: 'A1',
   words: [
     ['das Wetter', 'n', '天气', 'Wie ist das Wetter heute?', '今天天气怎么样？'],
     ['die Sonne', 'f', '太阳', 'Die Sonne scheint.', '阳光明媚。'],

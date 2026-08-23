@@ -1,71 +1,58 @@
-# 德语 A1 学习网站 — 实施计划（v2，含前端设计规范与自检环节）
+# 德语学习站 A2/B1 扩展 + 图片辅助计划
 
-## 一、产品定位与痛点分析
+## 一、范围（按用户确认）
 
-面向中文母语的德语零基础学习者，本地网页应用（纯静态，双击 index.html 即可使用），数据保存在 localStorage。界面为中文，学习内容为德语。
+1. **内容扩展到 A2、B1（完整版）**
+   - A2：12 主题 ≈600 词 + 12 个语法专题
+   - B1：14 主题 ≈700 词 + 14 个语法专题
+   - 加上 A1 共 ≈1900 词、38 主题、36 语法专题
+2. **图片辅助**
+   - **词条图片**：优先全网搜索 —— 用 Wikimedia Commons API（主）+ Openverse API（备）按词义搜索下载免费授权图片，存 `images/words/<主题id-序号>.jpg`，授权信息记录 `images/credits.json`（标题/作者/许可证/来源），README 注明
+   - **主题封面**：调用 LabX 封装的 seedream API（`E:\LabX\backend\.env` 的 key，仿照 `E:\LabX\backend\scripts\seedream_gen.py` 的封装拷贝到本项目 `tools/seedream_client.py`），38 张统一风格的扁平插画封面（无文字、无水印），存 `images/covers/`
+3. **不做视频**（用户确认）
 
-针对 A1 学习者四大痛点：
+## 二、级别框架设计（M1）
 
-| 痛点 | 解决方案 |
-|---|---|
-| 名词词性（der/die/das）记不住 | 全局颜色编码（der 蓝 / die 红 / das 绿），练习时强制先选词性，词性错答单独记入复习 |
-| 格变化与动词变位负担大 | 交互式变位表格 + 专项填空练习，错题自动进入复习队列 |
-| 词汇学了就忘 | SM-2 简化版间隔重复（SRS），每日自动生成"今日复习"计划 |
-| 不敢开口 | 每个单词和例句配浏览器 TTS 朗读（de-De），可调语速 |
+- **数据层**：主题对象加 `level: 'A1'|'A2'|'B1'`；语法专题加 `level` 字段。新数据文件：`data/vocabulary_a2.js`、`data/vocabulary_b1.js`、`data/grammar_a2.js`、`data/grammar_b1.js`（主题 id 全局唯一：A2 用 `a2-*`，B1 用 `b1-*`，语法 id 用 `g-a2-*`/`g-b1-*`），index.html 按序追加 script 标签。词条保持单行 5 元素数组（音频脚本兼容）
+- **存储**：`settings.level` 默认 `'A1'`，localStorage key 不变（老进度无损）
+- **UI**：导航下方加 A1/A2/B1 级别切换条（词汇/语法/仪表盘共用）；仪表盘进度、每日新词计划、主题页、语法列表均按当前级别过滤；**复习队列不分级**（低级别到期词照常复习，符合记忆规律）
+- **成就分级**：「本级 50/200 词」「本级全词汇」「本级语法全通」按当前级别动态计算
+- **文案**：站名改「德语学习站」，清除 A1 硬编码（标题、README、备份文件名 `de-learn-backup-`）
 
-## 二、前端设计规范（基于 Anthropic 官方 frontend-design skill，去除 AI 味）
+## 三、A2 内容（M2）
 
-已调研 GitHub：采纳 [anthropics/claude-code 的 frontend-design skill](https://github.com/anthropics/claude-code/blob/main/plugins/frontend-design/skills/frontend-design/SKILL.md) 的方法论，将其要点落成本项目的设计约束文档 `DESIGN.md` 放入仓库，开发时遵守：
+- **语法 12 专题**：Präteritum（过去时 war/hatte + 常规）、Adjektivendungen（形容词词尾四格）、Komparativ/Superlativ、反身代词 sich、第三格动词汇总（helfen/gefallen…）、weil/dass/ob 从句、简单关系代词 der/die/das、Futur I、N-Deklination（弱变化名词）、方向介词双小结（Wechselpräpositionen 复习+in/an/auf 深化）、不定代词 man/jemand/niemand、副词与时间表达（schon noch/jetzt/damals）
+- **词汇 12 主题**（每主题 50 词）：旅行与假期、职业与办公室、城市与公共设施、媒体与网络、情感与性格、自然与环境、节日与习俗、科技与家电、银行与信件往来、教育与培训、运动与健身、住房与搬家
 
-- **明确禁止的 AI 味默认样式**：① 暖米色背景（≈#F4F1EA）+ 高对比衬线标题 + 赤陶色强调；② 近黑背景配单一荧光绿/朱红；③ 报纸式细线分隔、零圆角、密集分栏。本项目不使用这三套模板。
-- **扎根主题**：视觉灵感取自"德语学习"本身——德语正字法练习本（Kurrent/方格练习纸 Hausaufgabenheft）、词性颜色系统（der 蓝/die 红/das 绿贯穿全站作为功能性色彩，而非装饰）、DIN 风格的清晰信息层级。
-- **签名元素（唯一记忆点）**：词性色环系统——每个名词带一个色环标记其词性，颜色在卡片、练习、例句中高亮该名词，颜色即语法信息的可视化。其余界面保持安静克制。
-- **字体承载个性**：德文用适合阅读的字体（如 IBM Plex Sans / Source Sans 类），中文界面文字用系统级清晰无衬线；标题层级用字重和字号表达，不用渐变、不用发光效果。
-- **结构即信息**：进度、掌握度等数字必须对应真实数据；不用无意义的 01/02/03 编号装饰。
-- **动效克制**：仅在卡片翻转、答对/答错反馈处使用一次编排好的微动效；尊重 `prefers-reduced-motion`。
-- **文案准则**：按钮写明结果（"开始今日复习"而非"提交"）；空状态是行动邀请（"今天没有到期复习，学点新词？"）；错误提示直接说问题和解决方式。
-- **质量底线**：响应式到手机宽屏；可见的键盘焦点样式；色彩对比达 WCAG AA；间距用统一的 4/8px 网格。
+## 四、B1 内容（M3）
 
-## 三、技术方案
+- **语法 14 专题**：Konjunktiv II（虚拟与礼貌）、Passiv 被动态（现/过）、条件与让步从句（wenn/falls/obwohl）、关系从句全解（介词+关系代词、was/wo）、Genitiv 与第二格、动介搭配（sich freuen auf 等）、间接引语基础（sagen, dass…）、Nominalisierung 名词化、Partizip I/II 作定语、Konnektoren 逻辑连接词全家、形容词名词化、构词法（前缀/复合词）、常用强变化动词表、Futur II 与猜测表达（wohl/wahrscheinlich）
+- **词汇 14 主题**（每主题 50 词）：工作与职业发展、经济与消费、媒体与舆论、环境与能源、大学与研究、健康与心理、社会与移民、数字化与人工智能、文化与艺术、欧洲与国际、文学与写作、法律与秩序、日常地道表达（口语搭配）、学术与正式书面语
 
-- 纯静态、无构建：HTML + CSS + 原生 JavaScript（ES 模块）。数据写成 `data/vocabulary.js`、`data/grammar.js` 用 `<script>` 标签加载（规避 `file://` 下 fetch 的 CORS 限制），双击即用。
-- localStorage 存学习进度、SRS 状态、错题本、设置；TTS 用 Web Speech API（de-DE 声音，语速可调）。
-- 目录结构：
-  ```
-  德语学习项目/
-  ├── index.html / css/style.css
-  ├── js/  app.js(路由) storage.js srs.js tts.js vocabulary.js grammar.js stats.js
-  ├── data/ vocabulary.js(A1~650词,12主题) grammar.js(10个语法专题+练习)
-  ├── DESIGN.md  设计规范（上述第二节内容）
-  ├── tests/     srs、storage 等纯逻辑的 Node 单元测试
-  └── README.md
-  ```
+## 五、音频（M4）
 
-## 四、功能模块
+`tools/generate_audio.py` 改为扫描 `data/vocabulary*.js` 全部文件，生成 A2/B1 ≈2600 个 mp3（词+例句，edge-tts Katja，并发 5，后台运行约 20-30 分钟），manifest.js 自动合并。变位音频不变。
 
-1. **仪表盘**：今日任务（新词+到期复习）一键开始、进度条、连续打卡、快速入口
-2. **词汇模块**（核心）：12 个 A1 主题分组；卡片学新词（自评认识/模糊/不认识入 SRS）；SRS 复习（中→德默写含词性选择、听音辨词交替）；多选翻译、词性三选一、例句填空
-3. **语法模块**：10 个 A1 专题（发音、现在时变位、四格、代词、疑问词、语序与可分动词、否定、情态动词、Perfekt、介词），每个 = 中文讲解 + 交互练习（填空/选择/变位表格补全），错题入错题本
-4. **错题本**：词汇+语法统一收集，可单独重练
-5. **设置**：每日新词量、TTS 语速、进度导出/导入 JSON、重置（二次确认）
+## 六、图片管线（M5）
 
-## 五、开发里程碑
+1. `tools/seedream_client.py`：仿 LabX 封装（httpx、b64 落盘、尺寸回退、重试、`output_format: png`、prompt 加「无文字无水印」后缀）；`tools/gen_covers.py` 串行 + 1.5s 间隔生成 38 张主题封面（1024×1024 扁平插画风格统一）
+2. `tools/fetch_images.py`：遍历三级词条，筛选**具体名词**（水果、家具、交通、动物等可视词，预置词性+语义白名单），Wikimedia Commons `generator=search`（File 命名空间、mime 过滤 jpeg/png、尺寸>400px）优先，失败回退 Openverse API；串行 0.3s 间隔，下载到 `images/words/`，写 `images/credits.json`；无合适结果的词自动跳过（预期覆盖率 50-70%，宁缺毋滥）
+3. **前端**：生成 `images/manifest.js`（`window.IMAGE_WORDS` Set 清单 + `window.IMAGE_COVERS`）；`wordCard()` 有图则显示（`<img class="word-img">`，约 220px 宽，懒加载）；主题列表项显示封面缩略图；CSS 加 `.word-img`（圆角、无文字背景色）
+4. 不改词条数据格式（图片按 id 约定路径 + manifest 判断），对判分/复习/音频管线零侵入
 
-- **M1 框架+数据**：目录、路由、storage/tts 封装、DESIGN.md、前 4 个主题词汇
-- **M2 词汇核心**：学新词、SRS、复习、词性练习、仪表盘
-- **M3 语法模块**：10 专题内容、变位表格、练习判分、错题入本
-- **M4 补全打磨**：词汇补至 650 词、错题本、统计、设置、进度导出/导入、响应式 UI
-- **M5 自检与收尾**（见下）
+## 七、测试与验收（M6）
 
-## 六、完成前自检（用户要求，必做）
+- 单元测试改为动态断言（主题数≥32、词条 5 元素、语法专题≥32、id 全局唯一性校验新增）；新增级别过滤逻辑测试
+- GUI 走查：级别切换、A2/B1 学新词（含图片卡片）、语法专题、仪表盘分级进度、音频 HTTP 抽查、图片显示
+- README 全面更新（级别说明、图片来源与授权、生图脚本用法）
 
-1. **单元测试**：`node tests/` 跑通 srs 调度、storage、判分逻辑的测试
-2. **GUI 自检**：用浏览器自动化（web-gui-tester skill）实际打开页面，走完「学新词 → 复习 → 语法练习 → 错题本」全流程，截图逐页核对：是否出现 AI 味样式、词性颜色是否正确贯穿、中文文案是否自然、移动端宽度是否正常
-3. **对照 DESIGN.md 逐条自查**，发现问题当场修复后再提交
-4. Git 规范：`git init`，每个里程碑一次提交（中文提交信息）
+## 八、实施顺序与提交
 
-## 七、风险说明
+M1 框架 → M2 A2 内容 → M3 B1 内容 → M4 音频（后台）→ M5 生图+图片（后台）→ M6 测试+GUI+README，每个里程碑一次 git 提交。内容数据编写量大（1300 词 + 2600 例句 + 26 个语法专题），按主题分批写入多个 data 文件。
 
-- Windows 自带德语 TTS 音色一般，README 说明如何安装更好的德语语音
-- localStorage 绑定浏览器，M4 提供导出/导入 JSON 备份
-- 650 词 + 10 专题内容量大，按里程碑分批录入
+## 九、风险
+
+- seedream API 费用：38 张封面（用户已确认规模）
+- Wikimedia 图片覆盖不全：可接受的降级（无图词正常显示纯文字卡）
+- edge-tts 网络波动：脚本已支持断点续跑
+- 内容体量大：若单次会话未完成，按里程碑分批提交，进度可见

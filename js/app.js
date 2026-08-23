@@ -21,11 +21,34 @@
   var WORDS = [];
   window.VOCAB_THEMES.forEach(function (t) {
     t.words.forEach(function (w, i) {
-      WORDS.push({ id: t.id + '-' + i, theme: t.id, themeName: t.name, de: w[0], g: w[1], zh: w[2], ex: w[3], exZh: w[4] });
+      WORDS.push({ id: t.id + '-' + i, theme: t.id, themeName: t.name, level: t.level || 'A1', de: w[0], g: w[1], zh: w[2], ex: w[3], exZh: w[4] });
     });
   });
   window.ALL_WORDS = WORDS;
+  window.LEVELS = ['A1', 'A2', 'B1'];
+  window.wordsOfLevel = function (lv) { return WORDS.filter(function (w) { return w.level === lv; }); };
+  window.grammarOfLevel = function (lv) { return GRAMMAR.filter(function (t) { return (t.level || 'A1') === lv; }); };
   window.wordById = function (id) { return WORDS.find(function (w) { return w.id === id; }); };
+
+  // 级别切换
+  window.currentLevel = function () { return store.state.settings.level || 'A1'; };
+  function paintLevelSwitch() {
+    var cur = window.currentLevel();
+    document.querySelectorAll('#levelSwitch button').forEach(function (b) {
+      var on = b.getAttribute('data-level') === cur;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+  document.querySelectorAll('#levelSwitch button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      store.state.settings.level = b.getAttribute('data-level');
+      store.save();
+      paintLevelSwitch();
+      render();
+    });
+  });
+  paintLevelSwitch();
 
   window.speakBtn = function (text, kind, id) {
     var b = el('button', 'speak-btn ' + (arguments[3] || ''), '🔊');
@@ -45,8 +68,10 @@
   function dashboard() {
     var today = DeStorage.today();
     var s = store.state;
-    var learned = Object.keys(s.srs).length;
-    var mastered = Object.keys(s.srs).filter(function (id) { return s.srs[id].mastered; }).length;
+    var cur = window.currentLevel();
+    var pool = window.wordsOfLevel(cur);
+    var learned = pool.filter(function (w) { return s.srs[w.id]; }).length;
+    var mastered = pool.filter(function (w) { return s.srs[w.id] && s.srs[w.id].mastered; }).length;
     var due = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today); }).length;
     var t = s.daily[today] || { new: 0, reviewed: 0, correct: 0 };
 
@@ -75,7 +100,7 @@
     v.appendChild(card);
 
     var stats = el('div', 'grid grid-3');
-    [['已学 / 总词数', learned + ' / ' + WORDS.length], ['已掌握', mastered], ['连续打卡', s.streak.count + ' 天']].forEach(function (x) {
+    [['已学 / ' + cur + ' 词量', learned + ' / ' + pool.length], ['已掌握', mastered], ['连续打卡', s.streak.count + ' 天']].forEach(function (x) {
       var c = el('div', 'card');
       c.appendChild(el('div', 'stat-num', String(x[1])));
       c.appendChild(el('div', 'stat-label', x[0]));
@@ -83,13 +108,13 @@
     });
     v.appendChild(stats);
 
-    var pc = Math.round(learned / WORDS.length * 100);
+    var pc = Math.round(learned / pool.length * 100);
     var prog = el('div', 'card');
-    prog.appendChild(el('h3', null, 'A1 词汇进度'));
+    prog.appendChild(el('h3', null, cur + ' 词汇进度'));
     var bar = el('div', 'bar');
     var fill = el('div', 'bar-fill'); fill.style.width = pc + '%';
     bar.appendChild(fill); prog.appendChild(bar);
-    prog.appendChild(el('p', 'stat-label', pc + '%（' + learned + ' / ' + WORDS.length + '）'));
+    prog.appendChild(el('p', 'stat-label', pc + '%（' + learned + ' / ' + pool.length + '）'));
     v.appendChild(prog);
 
     // 连胜日历（最近 5 周）+ 冻结券
@@ -123,14 +148,14 @@
     var topicsDone = Object.keys(s.grammarDone).length;
     var ACHV = [
       ['第一个单词', learned >= 1],
-      ['词汇 50', learned >= 50],
-      ['词汇 200', learned >= 200],
-      ['A1 全词汇', learned >= WORDS.length],
+      [cur + ' 词汇 50', learned >= 50],
+      [cur + ' 词汇 200', learned >= 200],
+      [cur + ' 全词汇', learned >= pool.length],
       ['连续 3 天', s.streak.count >= 3],
       ['连续 7 天', s.streak.count >= 7],
       ['连续 30 天', s.streak.count >= 30],
       ['语法第一课', topicsDone >= 1],
-      ['语法过半', topicsDone >= 5],
+      ['语法过半', topicsDone >= Math.ceil(GRAMMAR.length / 2)],
       ['语法全通', topicsDone >= GRAMMAR.length],
       ['复习 100 题', totalReviewed >= 100]
     ];
@@ -187,7 +212,7 @@
       var blob = new Blob([JSON.stringify(store.state, null, 2)], { type: 'application/json' });
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'de-a1-backup-' + DeStorage.today() + '.json';
+      a.download = 'de-learn-backup-' + DeStorage.today() + '.json';
       a.click(); URL.revokeObjectURL(a.href);
     };
     row.appendChild(bExp);

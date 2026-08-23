@@ -4,10 +4,12 @@ var Grammar = (function () {
 
   function listPage() {
     var s = store.state;
+    var lv = window.currentLevel();
+    var topics = GRAMMAR.filter(function (t) { return (t.level || 'A1') === lv; });
     var v = UI.el('div');
-    v.appendChild(UI.el('h1', 'page-title', '语法'));
-    v.appendChild(UI.el('p', 'page-sub', '10 个 A1 专题，每个专题 = 讲解 + 交互练习。做错的题会进入错题本。'));
-    GRAMMAR.forEach(function (t) {
+    v.appendChild(UI.el('h1', 'page-title', '语法 · ' + lv));
+    v.appendChild(UI.el('p', 'page-sub', topics.length + ' 个 ' + lv + ' 专题，每个专题 = 讲解 + 交互练习。做错的题会进入错题本。'));
+    topics.forEach(function (t) {
       var done = s.grammarDone[t.id];
       var a = UI.el('a', 'topic-item');
       a.href = '#/topic/' + t.id;

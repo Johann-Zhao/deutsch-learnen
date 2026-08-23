@@ -16,7 +16,15 @@ var Vocab = (function () {
 
   function wordCard(w) {
     var c = UI.el('div', 'card word-card g-' + w.g);
-    c.appendChild(UI.el('div', null, genderTag(w.g) + '<span class="stat-label">' + w.themeName + '</span>'));
+    c.appendChild(UI.el('div', null, genderTag(w.g) + '<span class="stat-label">' + w.themeName + ' · ' + (w.level || 'A1') + '</span>'));
+    var hasImg = !!(window.IMAGE_WORDS && window.IMAGE_WORDS.indexOf && window.IMAGE_WORDS.indexOf(w.id) >= 0);
+    if (hasImg) {
+      var img = UI.el('img', 'word-img');
+      img.src = 'images/words/' + w.id + '.jpg';
+      img.alt = w.zh;
+      img.loading = 'lazy';
+      c.appendChild(img);
+    }
     var de = UI.el('div', 'word-de');
     de.innerHTML = UI.esc(w.de);
     de.appendChild(speakBtn(w.de, 'word', w.id));
@@ -64,16 +72,22 @@ var Vocab = (function () {
   /* ---------- 主题列表 ---------- */
   function themesPage() {
     var s = store.state;
+    var lv = window.currentLevel();
+    var themes = VOCAB_THEMES.filter(function (t) { return (t.level || 'A1') === lv; });
+    var total = themes.reduce(function (n, t) { return n + t.words.length; }, 0);
     var v = UI.el('div');
-    v.appendChild(UI.el('h1', 'page-title', '词汇'));
-    v.appendChild(UI.el('p', 'page-sub', '12 个主题 · ' + ALL_WORDS.length + ' 个 A1 核心词。点进主题学习，或从「今日」开始每日计划。'));
+    v.appendChild(UI.el('h1', 'page-title', '词汇 · ' + lv));
+    v.appendChild(UI.el('p', 'page-sub', themes.length + ' 个主题 · ' + total + ' 个核心词。点进主题学习，或从「今日」开始每日计划。'));
     var list = UI.el('div', 'theme-list');
-    VOCAB_THEMES.forEach(function (t) {
+    themes.forEach(function (t) {
       var learned = 0;
       t.words.forEach(function (w, i) { if (s.srs[t.id + '-' + i]) learned++; });
       var a = UI.el('a', 'theme-item');
       a.href = '#/theme/' + t.id;
-      a.innerHTML = '<span class="t-name">' + UI.esc(t.name) + '</span>' +
+      var cover = (window.IMAGE_COVERS && window.IMAGE_COVERS.indexOf(t.id) >= 0)
+        ? '<img class="theme-cover" loading="lazy" src="images/covers/' + t.id + '.png" alt="">'
+        : '<div class="theme-cover theme-cover-empty"></div>';
+      a.innerHTML = cover + '<span class="t-name">' + UI.esc(t.name) + '</span>' +
         '<span class="t-meta">' + learned + ' / ' + t.words.length + ' 已学</span>';
       list.appendChild(a);
     });
@@ -88,8 +102,9 @@ var Vocab = (function () {
      全部完成后组末小结 */
   function pickNewWords(themeId, limit) {
     var s = store.state;
+    var lv = window.currentLevel();
     var pool = ALL_WORDS.filter(function (w) {
-      return (!themeId || w.theme === themeId) && !s.srs[w.id];
+      return w.level === lv && (!themeId || w.theme === themeId) && !s.srs[w.id];
     });
     return pool.slice(0, limit);
   }

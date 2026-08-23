@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>德语 A1 学习站</title>
+<title>德语学习站 A1–B1</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="#/">德语 A1<small>DEUTSCH LERNEN</small></a>
+    <a class="brand" href="#/">德语学习站<small>DEUTSCH LERNEN · A1–B1</small></a>
     <nav class="nav" id="nav">
       <a href="#/" data-route="/">今日</a>
       <a href="#/vocab" data-route="/vocab">词汇</a>
@@ -18,13 +18,23 @@
       <a href="#/mistakes" data-route="/mistakes">错题本</a>
       <a href="#/settings" data-route="/settings">设置</a>
     </nav>
+    <div class="level-switch" id="levelSwitch" role="group" aria-label="级别切换">
+      <button data-level="A1">A1</button>
+      <button data-level="A2">A2</button>
+      <button data-level="B1">B1</button>
+    </div>
   </div>
 </header>
 <main id="view"></main>
 
 <script src="data/vocabulary.js"></script>
+<script src="data/vocabulary_a2.js"></script>
+<script src="data/vocabulary_b1.js"></script>
 <script src="data/grammar.js"></script>
+<script src="data/grammar_a2.js"></script>
+<script src="data/grammar_b1.js"></script>
 <script src="audio/manifest.js"></script>
+<script src="images/manifest.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/srs.js"></script>
 <script src="js/tts.js"></script>
