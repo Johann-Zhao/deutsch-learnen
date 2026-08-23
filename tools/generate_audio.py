@@ -67,8 +67,21 @@ async def main():
     total = len(items) * 2
     print(f"共 {len(items)} 词 × 2（单词+例句）= {total} 个文件，语音 {VOICE}")
 
+    # 变位表音频清单（tools/dump_conj.js 输出）
+    import subprocess, json as _json
+    conj = []
+    try:
+        out = subprocess.run(["node", str(ROOT / "tools" / "dump_conj.js")],
+                             capture_output=True, text=True, check=True, timeout=30)
+        conj = _json.loads(out.stdout)
+        total += len(conj)
+        print(f"另加变位形式 {len(conj)} 个")
+    except Exception as e:
+        print(f"（跳过变位音频：{e}）")
+
     (ROOT / "audio" / "word").mkdir(parents=True, exist_ok=True)
     (ROOT / "audio" / "sent").mkdir(parents=True, exist_ok=True)
+    (ROOT / "audio" / "conj").mkdir(parents=True, exist_ok=True)
 
     sem = asyncio.Semaphore(CONCURRENCY)
 
@@ -82,6 +95,9 @@ async def main():
     for wid, word, sent in items:
         tasks.append(gen_one(sem, mk(word), "word", wid, word, done, total))
         tasks.append(gen_one(sem, mk(sent), "sent", wid, sent, done, total))
+    for c in conj:
+        cid = f"{c['verb']}-{c['idx']}"
+        tasks.append(gen_one(sem, mk(c["text"]), "conj", cid, c["text"], done, total))
     await asyncio.gather(*tasks)
 
     # 写 manifest.js
@@ -89,11 +105,14 @@ async def main():
                 if (ROOT / "audio" / "word" / f"{wid}.mp3").exists()]
     sent_ids = [wid for wid, _, _ in items
                 if (ROOT / "audio" / "sent" / f"{wid}.mp3").exists()]
+    conj_ids = [f"{c['verb']}-{c['idx']}" for c in conj
+                if (ROOT / "audio" / "conj" / f"{c['verb']}-{c['idx']}.mp3").exists()]
     manifest = ("// 由 tools/generate_audio.py 自动生成，勿手改\n"
                 f"window.AUDIO_WORDS = {repr(word_ids).replace(chr(39), chr(34))};\n"
-                f"window.AUDIO_SENTS = {repr(sent_ids).replace(chr(39), chr(34))};\n")
+                f"window.AUDIO_SENTS = {repr(sent_ids).replace(chr(39), chr(34))};\n"
+                f"window.AUDIO_CONJ = {repr(conj_ids).replace(chr(39), chr(34))};\n")
     (ROOT / "audio" / "manifest.js").write_text(manifest, encoding="utf-8")
-    print(f"完成：单词 {len(word_ids)}，例句 {len(sent_ids)} → audio/manifest.js")
+    print(f"完成：单词 {len(word_ids)}，例句 {len(sent_ids)}，变位 {len(conj_ids)} → audio/manifest.js")
 
 
 if __name__ == "__main__":

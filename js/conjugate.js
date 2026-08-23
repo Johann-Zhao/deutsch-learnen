@@ -38,6 +38,8 @@ var Conjugate = (function () {
   };
 
   var COMMON = ['sein', 'haben', 'werden', 'möchten', 'können', 'müssen', 'essen', 'fahren', 'sprechen', 'lesen', 'gehen', 'aufstehen', 'anrufen', 'lernen', 'arbeiten', 'wohnen'];
+  // 额外为这些规则动词也预生成音频
+  var REGULAR_WITH_AUDIO = ['lernen', 'arbeiten', 'wohnen', 'machen', 'kaufen', 'trinken', 'kommen', 'spielen'];
 
   function regularForms(inf) {
     var stem = inf.replace(/en$/, '');
@@ -116,12 +118,29 @@ var Conjugate = (function () {
       }
       t.innerHTML = html;
       result.appendChild(t);
-      DeTTS.speak(data.forms[2]);
+      // 每行朗读按钮（有预生成音频用标准音频，否则回退系统朗读）
+      var rows = t.querySelectorAll('tr');
+      rows.forEach(function (row, i) {
+        if (i === 0) return;
+        var cell = row.children[1];
+        var formText = cell.textContent;
+        var speakIdx = i - 1; // 0-5 人称，6 = Perfekt
+        var sp = speakBtn(formText, 'conj', data.verb + '-' + speakIdx);
+        sp.style.marginLeft = '8px';
+        cell.appendChild(sp);
+      });
+      // 自动朗读第三人称单数
+      DeAudio.playConj(data.verb + '-2', data.forms[2]);
+      if (!DeAudio.hasConj(data.verb + '-2')) {
+        var note = UI.el('p', 'stat-label', '这个动词暂无预生成的标准音频，朗读使用系统语音（质量取决于系统德语语音包）。');
+        note.style.marginTop = '8px';
+        result.appendChild(note);
+      }
     }
     btn.onclick = run;
     input.onkeydown = function (e) { if (e.key === 'Enter') run(); };
     return v;
   }
 
-  return { page: page, lookup: lookup };
+  return { page: page, lookup: lookup, irr: IRR, regularAudio: REGULAR_WITH_AUDIO, persons: PERSONS };
 })();

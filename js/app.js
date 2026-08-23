@@ -35,6 +35,7 @@
       e.stopPropagation();
       if (kind === 'word' && id) DeAudio.playWord(id, text);
       else if (kind === 'sent' && id) DeAudio.playSentence(id, text);
+      else if (kind === 'conj' && id) DeAudio.playConj(id, text);
       else DeTTS.speak(text);
     };
     return b;
@@ -252,7 +253,8 @@
 
   function navActive(hash) {
     if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';
-    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0 || hash.indexOf('#/conjugate') === 0) return '/grammar';
+    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
+    if (hash.indexOf('#/conjugate') === 0) return '/conjugate';
     if (hash.indexOf('#/mistakes') === 0) return '/mistakes';
     if (hash.indexOf('#/settings') === 0) return '/settings';
     return '/';

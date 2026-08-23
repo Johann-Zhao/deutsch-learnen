@@ -197,5 +197,41 @@ test('语法 10 专题、练习结构合法', function () {
   });
 });
 
+console.log('变位查询（conjugate.js）：');
+(function () {
+  var fs = require('fs');
+  var src = fs.readFileSync(__dirname + '/../js/conjugate.js', 'utf8');
+  global.window = global.window || {};
+  var C = new Function(src + '\nreturn Conjugate;')();
+  test('不规则动词 fahren', function () {
+    var d = C.lookup('fahren');
+    assert.deepStrictEqual(d.forms.slice(0, 3), ['fahre', 'fährst', 'fährt']);
+    assert.strictEqual(d.pp[1], 'gefahren');
+  });
+  test('规则动词 lernen', function () {
+    var d = C.lookup('lernen');
+    assert.deepStrictEqual(d.forms, ['lerne', 'lernst', 'lernt', 'lernen', 'lernt', 'lernen']);
+  });
+  test('词干以 t 结尾：arbeiten → du arbeitest', function () {
+    var d = C.lookup('arbeiten');
+    assert.strictEqual(d.forms[1], 'arbeitest');
+    assert.strictEqual(d.forms[2], 'arbeitet');
+  });
+  test('词干以 s 结尾：reisen → du reist', function () {
+    assert.strictEqual(C.lookup('reisen').forms[1], 'reist');
+  });
+  test('-ieren 动词分词不加 ge', function () {
+    assert.strictEqual(C.lookup('studieren').pp[1], 'studiert');
+  });
+  test('可分动词 aufstehen', function () {
+    var d = C.lookup('aufstehen');
+    assert.strictEqual(d.forms[2], 'steht auf');
+    assert.strictEqual(d.pp[1], 'aufgestanden');
+  });
+  test('非动词输入返回 null', function () {
+    assert.strictEqual(C.lookup(''), null);
+  });
+})();
+
 console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
 process.exit(failed ? 1 : 0);
