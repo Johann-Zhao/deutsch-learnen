@@ -27,11 +27,16 @@
   window.ALL_WORDS = WORDS;
   window.wordById = function (id) { return WORDS.find(function (w) { return w.id === id; }); };
 
-  window.speakBtn = function (text, cls) {
-    var b = el('button', 'speak-btn ' + (cls || ''), '🔊');
+  window.speakBtn = function (text, kind, id) {
+    var b = el('button', 'speak-btn ' + (arguments[3] || ''), '🔊');
     b.title = '朗读';
     b.setAttribute('aria-label', '朗读 ' + text);
-    b.onclick = function (e) { e.stopPropagation(); DeTTS.speak(text); };
+    b.onclick = function (e) {
+      e.stopPropagation();
+      if (kind === 'word' && id) DeAudio.playWord(id, text);
+      else if (kind === 'sent' && id) DeAudio.playSentence(id, text);
+      else DeTTS.speak(text);
+    };
     return b;
   };
 
@@ -84,29 +89,59 @@
     var fill = el('div', 'bar-fill'); fill.style.width = pc + '%';
     bar.appendChild(fill); prog.appendChild(bar);
     prog.appendChild(el('p', 'stat-label', pc + '%（' + learned + ' / ' + WORDS.length + '）'));
-
-    // 最近 7 天活动
-    var chart = el('div', 'week-chart');
-    var max = 1;
-    var days = [];
-    for (var i = 6; i >= 0; i--) {
-      var d = new Date(); d.setDate(d.getDate() - i);
-      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      var rec = s.daily[key] || { new: 0, reviewed: 0 };
-      var n = rec.new + rec.reviewed;
-      max = Math.max(max, n);
-      days.push({ label: '日一二三四五六'[d.getDay()], n: n, today: i === 0 });
-    }
-    days.forEach(function (d) {
-      var col = el('div', 'week-col');
-      var b = el('div', 'week-bar'); b.style.height = Math.round(d.n / max * 68) + 'px';
-      if (d.today) b.style.background = 'var(--m)';
-      col.appendChild(b);
-      col.appendChild(el('span', 'day', d.label));
-      chart.appendChild(col);
-    });
-    prog.appendChild(chart);
     v.appendChild(prog);
+
+    // 连胜日历（最近 5 周）+ 冻结券
+    var cal = el('div', 'card');
+    cal.appendChild(el('h3', null, '连胜 ' + s.streak.count + ' 天 · 冻结券 × ' + (s.streak.freezes || 0)));
+    cal.appendChild(el('p', 'stat-label', '漏卡一天会自动用冻结券保住连胜（每满 7 天补 1 张，最多 2 张）。'));
+    var grid = el('div', 'cal-grid');
+    var protectedDays = {};
+    (s.streak.protected || []).forEach(function (d) { protectedDays[d] = 1; });
+    // 从上周日开始排 35 格
+    var start = new Date(); start.setDate(start.getDate() - 6 - start.getDay());
+    for (var ci = 0; ci < 35; ci++) {
+      var day = new Date(start); day.setDate(start.getDate() + ci);
+      var key = day.getFullYear() + '-' + String(day.getMonth() + 1).padStart(2, '0') + '-' + String(day.getDate()).padStart(2, '0');
+      var cell = el('div', 'cal-cell');
+      if (s.daily[key] && (s.daily[key].new + s.daily[key].reviewed) > 0) cell.classList.add('cal-on');
+      else if (protectedDays[key]) { cell.classList.add('cal-protected'); cell.title = '冻结券保住'; }
+      if (key === today) cell.classList.add('cal-today');
+      cell.title = cell.title || key;
+      grid.appendChild(cell);
+    }
+    cal.appendChild(grid);
+    cal.appendChild(el('p', 'stat-label', '■ 已学习 · ▨ 冻结保护 · □ 空缺'));
+    v.appendChild(cal);
+
+    // 成就
+    var ach = el('div', 'card');
+    ach.appendChild(el('h3', null, '成就'));
+    var totalReviewed = 0;
+    Object.keys(s.daily).forEach(function (k) { totalReviewed += (s.daily[k].reviewed || 0); });
+    var topicsDone = Object.keys(s.grammarDone).length;
+    var ACHV = [
+      ['第一个单词', learned >= 1],
+      ['词汇 50', learned >= 50],
+      ['词汇 200', learned >= 200],
+      ['A1 全词汇', learned >= WORDS.length],
+      ['连续 3 天', s.streak.count >= 3],
+      ['连续 7 天', s.streak.count >= 7],
+      ['连续 30 天', s.streak.count >= 30],
+      ['语法第一课', topicsDone >= 1],
+      ['语法过半', topicsDone >= 5],
+      ['语法全通', topicsDone >= GRAMMAR.length],
+      ['复习 100 题', totalReviewed >= 100]
+    ];
+    var rowAch = el('div', null);
+    rowAch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
+    ACHV.forEach(function (a) {
+      var b = el('span', 'badge' + (a[1] ? ' badge-on' : ''), a[0]);
+      if (!a[1]) b.style.opacity = '.45';
+      rowAch.appendChild(b);
+    });
+    ach.appendChild(rowAch);
+    v.appendChild(ach);
     return v;
   }
 
@@ -134,7 +169,7 @@
     });
     sel.value = String(s.settings.ttsRate);
     if (!sel.value) sel.value = '1';
-    sel.onchange = function () { s.settings.ttsRate = parseFloat(sel.value); DeTTS.setRate(s.settings.ttsRate); store.save(); };
+    sel.onchange = function () { s.settings.ttsRate = parseFloat(sel.value); DeTTS.setRate(s.settings.ttsRate); DeAudio.setRate(s.settings.ttsRate); store.save(); };
     r2.appendChild(sel); c1.appendChild(r2);
 
     if (!DeTTS.available()) {
@@ -208,6 +243,7 @@
     else if ((m = hash.match(/^#\/theme\/([\w-]+)$/))) view.appendChild(Vocab.learnSession(m[1]));
     else if (hash === '#/grammar') view.appendChild(Grammar.listPage());
     else if ((m = hash.match(/^#\/topic\/([\w-]+)$/))) view.appendChild(Grammar.topicPage(m[1]));
+    else if (hash === '#/conjugate') view.appendChild(Conjugate.page());
     else if (hash === '#/mistakes') view.appendChild(Mistakes.page());
     else if (hash === '#/settings') view.appendChild(settingsPage());
     else view.appendChild(dashboard());
@@ -216,13 +252,16 @@
 
   function navActive(hash) {
     if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';
-    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
+    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0 || hash.indexOf('#/conjugate') === 0) return '/grammar';
     if (hash.indexOf('#/mistakes') === 0) return '/mistakes';
     if (hash.indexOf('#/settings') === 0) return '/settings';
     return '/';
   }
 
   window.addEventListener('hashchange', render);
+  store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
+  DeAudio.init();
   DeTTS.setRate(store.state.settings.ttsRate);
+  DeAudio.setRate(store.state.settings.ttsRate);
   render();
 })();

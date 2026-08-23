@@ -193,6 +193,14 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .mistake-item:last-child { border-bottom: none; }
 .mistake-item .m-body { flex: 1; }
 .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--bg); color: var(--ink-2); border: 1px solid var(--line); }
+.badge-on { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+/* 连胜日历（35 格，7 列） */
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; max-width: 308px; margin-top: 10px; }
+.cal-cell { aspect-ratio: 1; border-radius: 4px; background: var(--bg); border: 1px solid var(--line); }
+.cal-cell.cal-on { background: var(--ink); border-color: var(--ink); }
+.cal-cell.cal-protected { background: repeating-linear-gradient(45deg, #C9CFD8 0 3px, var(--bg) 3px 6px); }
+.cal-cell.cal-today { outline: 2px solid var(--m); outline-offset: 1px; }
 
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .setting-row:last-child { border-bottom: none; }

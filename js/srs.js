@@ -1,9 +1,20 @@
-/* 间隔重复调度（简化 SM-2，5 个记忆盒子，纯逻辑，Node 可测试）
-   间隔天数：盒子 0-4 -> [0(当天再见), 1, 3, 7, 16, 35] */
+/* 间隔重复调度（FSRS-4.5 核心实现，默认参数，纯逻辑，Node 可测试）
+   对外接口与旧版 SM-2 保持一致：
+   - newCard(today) / review(card, quality 0|1|2, today) / isDue(card, today)
+   quality: 0=不认识(rating 1 Again) 1=模糊(rating 2 Hard) 2=认识(rating 3 Good)
+   参考 github.com/open-spaced-repetition/fsrs4anki */
 (function (global) {
   'use strict';
 
-  var INTERVALS = [0, 1, 3, 7, 16, 35];
+  // FSRS-4.5 默认权重（17 个）
+  var W = [0.4872, 1.4003, 3.7145, 13.8206, 5.1618, 1.2298, 0.8975, 0.031,
+           1.6474, 0.1367, 1.0461, 2.1072, 0.0793, 0.3246, 1.587, 0.2272, 2.8755];
+  var DECAY = -0.5;
+  var FACTOR = 19 / 81;
+  var MASTERED_STABILITY = 21; // 稳定度≥21天视为"掌握"
+  var MAX_S = 36500;
+
+  function clamp(x, lo, hi) { return Math.min(hi, Math.max(lo, x)); }
 
   function addDays(dateStr, n) {
     var p = dateStr.split('-').map(Number);
@@ -12,21 +23,55 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  // quality: 2=认识 1=模糊 0=不认识
+  function daysBetween(a, b) {
+    var pa = a.split('-').map(Number), pb = b.split('-').map(Number);
+    var da = new Date(pa[0], pa[1] - 1, pa[2]), db = new Date(pb[0], pb[1] - 1, pb[2]);
+    return Math.round((db - da) / 86400000);
+  }
+
+  function initialStability(rating) { return W[rating - 1]; }
+  function initialDifficulty(rating) { return clamp(W[4] - (rating - 3) * W[5], 1, 10); }
+
+  // 可提取性（遗忘曲线）：t 天后还能记住的概率
+  function retrievability(s, tDays) {
+    return Math.pow(1 + FACTOR * tDays / s, DECAY);
+  }
+
+  function newCard(todayStr) {
+    return { stability: 0, difficulty: 0, reps: 0, lapses: 0, due: todayStr, learned: todayStr, last: null };
+  }
+
   function review(card, quality, todayStr) {
-    card = card || { box: 0, reps: 0, lapses: 0 };
-    card.reps = (card.reps || 0) + 1;
-    if (quality === 2) {
-      card.box = Math.min(5, (card.box || 0) + 1);
-    } else if (quality === 1) {
-      // 模糊：降一级但不低于盒子 1（次日还会见到）
-      card.box = Math.max(1, (card.box || 0) - 1);
+    var rating = quality + 1; // 1 Again / 2 Hard / 3 Good
+    if (!card || card.reps === 0 || !card.last) {
+      // 首次评分
+      card = card || newCard(todayStr);
+      card.stability = initialStability(rating);
+      card.difficulty = initialDifficulty(rating);
+      card.reps = 1;
+      card.lapses = rating === 1 ? 1 : 0;
+      card.last = todayStr;
     } else {
-      card.box = 0;
-      card.lapses = (card.lapses || 0) + 1;
+      var t = Math.max(0, daysBetween(card.last, todayStr));
+      var R = retrievability(card.stability, t);
+      // 难度更新 + 均值回归
+      var d1 = clamp(card.difficulty - W[6] * (rating - 3), 1, 10);
+      card.difficulty = clamp(W[7] * W[4] + (1 - W[7]) * d1, 1, 10);
+      // 稳定度增长
+      var inc = 1 + Math.exp(W[8]) * (11 - card.difficulty) *
+        Math.pow(card.stability, -W[9]) * (Math.exp(w10(1 - R)) - 1);
+      function w10(x) { return W[10] * x; }
+      if (rating === 2) inc *= W[15];        // Hard 惩罚
+      if (rating === 4) inc *= W[16];        // Easy 奖励（本站未用）
+      card.stability = clamp(card.stability * inc, 0.1, MAX_S);
+      card.reps += 1;
+      if (rating === 1) card.lapses += 1;
+      card.last = todayStr;
     }
-    card.due = addDays(todayStr, INTERVALS[card.box]);
-    card.mastered = card.box >= 5;
+    // 到期日：稳定度不足 1 天 → 当天再见
+    var waitDays = card.stability < 1 ? 0 : Math.round(card.stability);
+    card.due = addDays(todayStr, waitDays);
+    card.mastered = card.stability >= MASTERED_STABILITY;
     return card;
   }
 
@@ -34,12 +79,21 @@
     return !!card && !!card.due && card.due <= todayStr;
   }
 
-  function newCard(todayStr) {
-    return { box: 0, reps: 0, lapses: 0, due: todayStr, learned: todayStr };
+  // 旧版 SM-2 盒子进度迁移：box → 稳定度
+  var OLD_INTERVALS = [0, 1, 3, 7, 16, 35];
+  function migrate(card) {
+    if (card && card.box !== undefined && card.stability === undefined) {
+      card.stability = OLD_INTERVALS[card.box] || 1;
+      card.difficulty = 6;
+      card.last = card.learned || card.due;
+      if (!card.last) card.last = card.due;
+      delete card.box;
+    }
+    return card;
   }
 
   // 德语答案匹配：忽略大小写与多余空格，ß≈ss，ä/ö/ü≈ae/oe/ue，
-  // 名词作答时可写可不写冠词
+  // 名词作答时可写可不写冠词（写错冠词不算对）
   function normalize(s) {
     return String(s || '').trim().toLowerCase()
       .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
@@ -56,17 +110,19 @@
 
   function matches(input, answer) {
     if (normalize(input) === normalize(answer)) return true;
-    // 未写冠词 → 只比名词本身；写了冠词但写错 → 不算对
-    if (hasArticle(input) || hasArticle(answer)) {
-      if (hasArticle(input) !== hasArticle(answer)) {
-        return stripArticle(input) === stripArticle(answer);
-      }
-      return false;
+    if (hasArticle(input) !== hasArticle(answer)) {
+      return stripArticle(input) === stripArticle(answer);
     }
-    return normalize(input) === normalize(answer);
+    return false;
   }
 
-  var api = { review: review, isDue: isDue, newCard: newCard, INTERVALS: INTERVALS, addDays: addDays, normalize: normalize, stripArticle: stripArticle, matches: matches };
+  var api = {
+    review: review, isDue: isDue, newCard: newCard, migrate: migrate,
+    addDays: addDays, daysBetween: daysBetween,
+    retrievability: retrievability,
+    normalize: normalize, stripArticle: stripArticle, matches: matches,
+    MASTERED_STABILITY: MASTERED_STABILITY
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else global.DeSRS = api;
 })(typeof window !== 'undefined' ? window : this);

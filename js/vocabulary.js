@@ -20,12 +20,12 @@ var Vocab = (function () {
     c.appendChild(UI.el('div', null, genderTag(w.g) + '<span class="stat-label">' + w.themeName + '</span>'));
     var de = UI.el('div', 'word-de');
     de.innerHTML = UI.esc(w.de);
-    de.appendChild(speakBtn(w.de));
+    de.appendChild(speakBtn(w.de, 'word', w.id));
     c.appendChild(de);
     c.appendChild(UI.el('div', 'word-zh', UI.esc(w.zh)));
     var ex = UI.el('div', 'word-ex');
     ex.innerHTML = highlightEx(w) + '<br><span>' + UI.esc(w.exZh) + '</span>';
-    var sp = speakBtn(w.ex, ''); sp.title = '朗读例句';
+    var sp = speakBtn(w.ex, 'sent', w.id); sp.title = '朗读例句';
     ex.insertBefore(sp, ex.firstChild);
     c.appendChild(ex);
     return c;
@@ -98,7 +98,7 @@ var Vocab = (function () {
       dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
       var w = queue[idx];
       stage.appendChild(wordCard(w));
-      DeTTS.speak(w.de);
+      DeAudio.playWord(w.id, w.de);
       var rate = UI.el('div', 'self-rate');
       [['rate-no', '不认识', 0], ['rate-mid btn-ghost', '有点模糊', 1], ['rate-yes', '认识', 2]].forEach(function (x) {
         var b = UI.el('button', 'btn ' + x[0], x[1]);
@@ -188,7 +188,7 @@ var Vocab = (function () {
 
     // 为每个词生成一种题型
     function buildQuestion(w) {
-      var types = ['gender', 'trans', 'listen', 'cloze'];
+      var types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
       var type = types[Math.floor(Math.random() * types.length)];
       if (type === 'cloze' && !w.ex) type = 'trans';
       var q = { w: w, type: type, answered: false };
@@ -208,6 +208,13 @@ var Vocab = (function () {
         var wrongL = wrongOptions(w, function (x) { return x.de; });
         q.options = shuffle([w].concat(wrongL)).map(function (x) { return { word: x, text: x.de }; });
         q.explain = w.de + ' = ' + w.zh;
+      } else if (type === 'dict') {
+        // 听写：听音频拼写整个词（名词建议带冠词）
+        q.prompt = '听音频，拼写出这个词' + (/^(der|die|das) /.test(w.de) ? '（含冠词，如 der Tag）' : '') +
+          '<br><input id="cloze-input" autocomplete="off" placeholder="输入德语单词">';
+        q.answerText = w.de;
+        q.explain = w.de + ' = ' + w.zh;
+        q.autoPlay = true;
       } else {
         var blank = w.ex.replace(new RegExp('\\b' + w.de.replace(/^(der|die|das) /, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), '＿＿＿');
         q.prompt = '填空：' + UI.esc(blank) + '<br><span class="stat-label">' + UI.esc(w.exZh) + '</span>' +
@@ -232,12 +239,12 @@ var Vocab = (function () {
       var w = queue[idx];
       var q = buildQuestion(w);
       var card = UI.el('div', 'card');
-      if (q.type === 'listen') {
+      if (q.type === 'listen' || q.type === 'dict') {
         var play = UI.el('button', 'btn btn-ghost btn-sm', '🔊 播放读音');
-        play.onclick = function () { DeTTS.speak(w.de); };
+        play.onclick = function () { DeAudio.playWord(w.id, w.de); };
         play.style.marginBottom = '12px';
         card.appendChild(play);
-        DeTTS.speak(w.de);
+        DeAudio.playWord(w.id, w.de);
       }
       var p = UI.el('div', 'quiz-prompt');
       p.innerHTML = q.prompt;
@@ -267,7 +274,7 @@ var Vocab = (function () {
         reveal();
       }
       function reveal() {
-        DeTTS.speak(w.de);
+        DeAudio.playWord(w.id, w.de);
         next.style.display = 'inline-block';
         next.focus();
       }

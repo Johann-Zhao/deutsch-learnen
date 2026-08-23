@@ -10,44 +10,59 @@ function test(name, fn) {
   catch (e) { failed++; console.error('  ✗ ' + name + '\n    ' + e.message); }
 }
 
-console.log('DeSRS.review：');
-test('答对（quality 2）盒子递增', function () {
+console.log('DeSRS（FSRS）：');
+test('首次"不认识"：当天就会再见到', function () {
   var c = DeSRS.newCard('2026-08-01');
-  DeSRS.review(c, 2, '2026-08-01');
-  assert.strictEqual(c.box, 1);
-  assert.strictEqual(c.due, '2026-08-02');
-});
-test('连对五次后掌握', function () {
-  var c = DeSRS.newCard('2026-08-01');
-  for (var i = 0; i < 5; i++) DeSRS.review(c, 2, c.due);
-  assert.strictEqual(c.box, 5);
-  assert.strictEqual(c.mastered, true);
-  assert.strictEqual(c.due, '2026-10-02'); // 最后一次在 08-28，+35 天
-});
-test('答错（quality 0）回盒子 0 且次日到期', function () {
-  var c = { box: 4, reps: 5 };
   DeSRS.review(c, 0, '2026-08-01');
-  assert.strictEqual(c.box, 0);
-  assert.strictEqual(c.due, '2026-08-01'); // 盒子 0 当天/次日再见
+  assert.strictEqual(c.due, '2026-08-01'); // 稳定度 <1 天 → 当天到期
+  assert.ok(c.stability < 1);
   assert.strictEqual(c.lapses, 1);
 });
-test('模糊（quality 1）降一级但不低于 1', function () {
-  var c = { box: 3, reps: 3 };
-  DeSRS.review(c, 1, '2026-08-01');
-  assert.strictEqual(c.box, 2);
-  var c2 = { box: 1, reps: 2 };
-  DeSRS.review(c2, 1, '2026-08-01');
-  assert.strictEqual(c2.box, 1);
+test('首次"认识"：约 4 天后再复习', function () {
+  var c = DeSRS.newCard('2026-08-01');
+  DeSRS.review(c, 2, '2026-08-01');
+  assert.strictEqual(c.due, '2026-08-05'); // S0=3.71 → 4 天
+});
+test('重复答对稳定度递增（间隔越拉越长）', function () {
+  var c = DeSRS.newCard('2026-08-01');
+  DeSRS.review(c, 2, '2026-08-01');
+  var s1 = c.stability, due1 = c.due;
+  DeSRS.review(c, 2, due1); // 到期日按时复习再答对
+  assert.ok(c.stability > s1, '稳定度应增长: ' + s1 + ' -> ' + c.stability);
+  assert.ok(c.due > due1);
+});
+test('"模糊"比"认识"增长少', function () {
+  var a = DeSRS.newCard('2026-08-01'); DeSRS.review(a, 2, '2026-08-01');
+  DeSRS.review(a, 2, a.due);
+  var b = DeSRS.newCard('2026-08-01'); DeSRS.review(b, 2, '2026-08-01');
+  DeSRS.review(b, 1, b.due); // 同样第二次，但答"模糊"
+  assert.ok(b.stability <= a.stability);
+});
+test('难度随评分调整且有界（1-10）', function () {
+  var c = DeSRS.newCard('2026-08-01');
+  DeSRS.review(c, 0, '2026-08-01'); // 不认识 → 难度高
+  var d1 = c.difficulty;
+  for (var i = 0; i < 20; i++) DeSRS.review(c, 0, c.due);
+  assert.ok(c.difficulty <= 10 && c.difficulty >= 1);
+  assert.ok(c.difficulty >= d1 - 0.01, '连错难度不应下降');
+});
+test('稳定度 ≥21 天视为掌握', function () {
+  var c = DeSRS.newCard('2026-08-01');
+  DeSRS.review(c, 2, '2026-08-01');
+  for (var i = 0; i < 5 && !c.mastered; i++) DeSRS.review(c, 2, c.due);
+  assert.ok(c.stability >= DeSRS.MASTERED_STABILITY);
+  assert.strictEqual(c.mastered, true);
+});
+test('旧版 SM-2 盒子迁移', function () {
+  var migrated = DeSRS.migrate({ box: 3, reps: 2, due: '2026-08-10', learned: '2026-08-01' });
+  assert.strictEqual(migrated.stability, 7);
+  assert.strictEqual(migrated.box, undefined);
 });
 test('isDue 判断当天到期', function () {
   assert.ok(DeSRS.isDue({ due: '2026-08-01' }, '2026-08-01'));
   assert.ok(DeSRS.isDue({ due: '2026-07-31' }, '2026-08-01'));
   assert.ok(!DeSRS.isDue({ due: '2026-08-02' }, '2026-08-01'));
   assert.ok(!DeSRS.isDue({}, '2026-08-01'));
-});
-test('addDays 跨月', function () {
-  assert.strictEqual(DeSRS.addDays('2026-08-31', 1), '2026-09-01');
-  assert.strictEqual(DeSRS.addDays('2026-12-31', 1), '2027-01-01');
 });
 
 console.log('DeSRS.matches（判分）：');
@@ -100,6 +115,42 @@ test('touchToday 连续打卡', function () {
   s.touchToday('reviewed', 1); // 同一天不重复计
   assert.strictEqual(s.state.streak.count, 1);
   assert.strictEqual(s.state.daily[DeStorage.today()].new, 2);
+});
+test('冻结券：漏一天不清零并消耗一张', function () {
+  var s = new DeStorage.Storage(mockBackend());
+  var t = DeStorage.today();
+  // 模拟前天学过
+  var d = new Date(); d.setDate(d.getDate() - 2);
+  var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  s.state.daily[key] = { new: 5, reviewed: 0, correct: 0 };
+  s.state.streak = { last: key, count: 3, freezes: 1, protected: [] };
+  s.touchToday('new', 1);
+  assert.strictEqual(s.state.streak.count, 4, '应消耗冻结券保持连胜');
+  assert.strictEqual(s.state.streak.freezes, 0);
+  assert.strictEqual(s.state.streak.protected.length, 1);
+});
+test('无冻结券时断卡重新计数', function () {
+  var s = new DeStorage.Storage(mockBackend());
+  var d = new Date(); d.setDate(d.getDate() - 2);
+  var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  s.state.streak = { last: key, count: 5, freezes: 0, protected: [] };
+  s.touchToday('new', 1);
+  assert.strictEqual(s.state.streak.count, 1);
+});
+test('每满 7 天补发冻结券（上限 2）', function () {
+  var s = new DeStorage.Storage(mockBackend());
+  var d = new Date(); d.setDate(d.getDate() - 1);
+  var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  s.state.streak = { last: key, count: 6, freezes: 0, protected: [] };
+  s.touchToday('new', 1);
+  assert.strictEqual(s.state.streak.count, 7);
+  assert.strictEqual(s.state.streak.freezes, 1);
+});
+test('migrateCards 迁移旧卡片', function () {
+  var s = new DeStorage.Storage(mockBackend());
+  s.state.srs['old'] = { box: 2, reps: 1, due: '2026-08-01' };
+  s.migrateCards(DeSRS.migrate);
+  assert.strictEqual(s.state.srs['old'].stability, 3);
 });
 test('错题记录与移除', function () {
   var s = new DeStorage.Storage(mockBackend());

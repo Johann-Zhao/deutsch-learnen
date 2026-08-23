@@ -16,7 +16,8 @@
       mistakes: {},
       // 已完成的语法专题练习 id 列表 -> 最佳正确率
       grammarDone: {},
-      streak: { last: null, count: 0 }
+      // streak: last 最后学习日 / count 连续天数 / freezes 冻结券数量 / protected 使用冻结保住的日子
+      streak: { last: null, count: 0, freezes: 1, protected: [] }
     };
   }
 
@@ -60,20 +61,50 @@
     this.save();
   };
 
-  // 记录一次学习活动，并维护连续打卡
+  // 记录一次学习活动，并维护连续打卡（含冻结券：漏一天不清零，每满 7 天补 1 张，上限 2）
   Storage.prototype.touchToday = function (field, n) {
     var t = today();
     var d = this.state.daily[t] || (this.state.daily[t] = { new: 0, reviewed: 0, correct: 0 });
     d[field] = (d[field] || 0) + (n || 0);
     var st = this.state.streak;
     if (st.last !== t) {
-      // 若昨天有记录则连续 +1，否则重新从 1 开始
-      var y = new Date(); y.setDate(y.getDate() - 1);
-      var ys = y.getFullYear() + '-' + String(y.getMonth() + 1).padStart(2, '0') + '-' + String(y.getDate()).padStart(2, '0');
-      st.count = (st.last === ys) ? st.count + 1 : 1;
+      if (st.last === addDaysStr(t, -1)) {
+        st.count += 1;
+      } else if (st.freezes > 0 && st.last === addDaysStr(t, -2)) {
+        // 昨天 missed，用冻结券补上
+        st.freezes -= 1;
+        if (!st.protected) st.protected = [];
+        st.protected.push(addDaysStr(t, -1));
+        st.count += 1;
+      } else {
+        st.count = 1;
+      }
       st.last = t;
+      if (st.count > 0 && st.count % 7 === 0) {
+        st.freezes = Math.min(2, (st.freezes || 0) + 1);
+      }
     }
     this.save();
+  };
+
+  function addDaysStr(dateStr, n) {
+    var p = dateStr.split('-').map(Number);
+    var d = new Date(p[0], p[1] - 1, p[2]);
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // 旧版 SM-2 卡片迁移为 FSRS 字段
+  Storage.prototype.migrateCards = function (fn) {
+    var srs = this.state.srs, changed = false;
+    Object.keys(srs).forEach(function (id) {
+      var before = JSON.stringify(srs[id]);
+      fn(srs[id]);
+      if (JSON.stringify(srs[id]) !== before) changed = true;
+    });
+    if (!this.state.streak.freezes) this.state.streak.freezes = 1;
+    if (!this.state.streak.protected) this.state.streak.protected = [];
+    if (changed) this.save();
   };
 
   Storage.prototype.addMistake = function (type, itemId) {
