@@ -26,11 +26,16 @@
 
 ## 开发
 
-```
-node tests/run.js   # 单元测试（算法、判分、数据完整性，31 项）
+```bash
+npm install         # 安装构建依赖（仅 esbuild）
+npm run dev         # watch 模式构建 src/main.js → js/bundle.js
+npm test            # 运行单元测试（算法、判分、数据完整性）
+npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
-结构：`data/` 内容数据（按级别分文件）、`js/` 逻辑与页面、`audio/` 语音、`images/` 配图、`tools/` 生成脚本、`DESIGN.md` 设计规范。
+> 说明：本项目当前仍处于 S2 工程化阶段。`src/main.js` 是构建入口占位，Task 6 迁移完成后将切换 `index.html` 引用 `js/bundle.js`；当前双击 `index.html` 仍沿用现有 `js/*.js`，行为不变。
+
+结构：`data/` 内容数据（按级别分文件）、`js/` 逻辑与页面与构建产物、`src/` 未来 ESM 源码、`audio/` 语音、`images/` 配图、`tools/` 生成脚本、`DESIGN.md` 设计规范。
 
 ## 针对的痛点
 
