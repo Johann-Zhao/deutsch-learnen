@@ -1,9 +1,10 @@
-/* 存储层：localStorage 读写封装（纯逻辑，Node 可测试） */
+/* 存储层：IndexedDB 主存 + localStorage 镜像/回退（纯逻辑，Node 可测试） */
 (function (global) {
   'use strict';
 
   var KEY = 'deA1.progress.v1';
   var DEFAULT_SETTINGS = { dailyNew: 10, ttsRate: 1.0, level: 'A1' };
+  var DEBOUNCE_MS = 300;
 
   function emptyState() {
     return {
@@ -26,27 +27,185 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  function Storage(backend) {
-    this.backend = backend || (typeof localStorage !== 'undefined' ? localStorage : null);
-    this.state = this._load();
+  function makeMemoryBackend() {
+    var m = {};
+    return {
+      getItem: function (k) { return m[k] || null; },
+      setItem: function (k, v) { m[k] = v; },
+      removeItem: function (k) { delete m[k]; }
+    };
   }
 
+  function makeLocalStorageBackend(ls) {
+    return {
+      getItem: function (k) { try { return ls.getItem(k); } catch (e) { return null; } },
+      setItem: function (k, v) { try { ls.setItem(k, v); } catch (e) { /* QuotaExceeded 等吞掉 */ } },
+      removeItem: function (k) { try { ls.removeItem(k); } catch (e) { } }
+    };
+  }
+
+  // 原生 IndexedDB 封装，不依赖任何库
+  function idbBackend() {
+    var db = null;
+    var DB_NAME = 'deutsch-lernen';
+    var STORE = 'kv';
+    var STATE_KEY = 'state';
+    return {
+      type: 'indexedDB',
+      open: function () {
+        return new Promise(function (resolve, reject) {
+          var req = indexedDB.open(DB_NAME, 1);
+          req.onerror = function () { reject(req.error); };
+          req.onblocked = function () { reject(new Error('indexedDB blocked')); };
+          req.onsuccess = function () { db = req.result; resolve(); };
+          req.onupgradeneeded = function (e) {
+            var d = e.target.result;
+            if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+          };
+        });
+      },
+      get: function () {
+        return new Promise(function (resolve, reject) {
+          if (!db) { resolve(null); return; }
+          var tx = db.transaction(STORE, 'readonly');
+          var store = tx.objectStore(STORE);
+          var req = store.get(STATE_KEY);
+          req.onsuccess = function () { resolve(req.result || null); };
+          req.onerror = function () { reject(req.error); };
+        });
+      },
+      set: function (state) {
+        return new Promise(function (resolve, reject) {
+          if (!db) { reject(new Error('indexedDB not open')); return; }
+          var tx = db.transaction(STORE, 'readwrite');
+          var store = tx.objectStore(STORE);
+          var req = store.put(state, STATE_KEY);
+          req.onsuccess = function () { resolve(); };
+          req.onerror = function () { reject(req.error); };
+        });
+      }
+    };
+  }
+
+  function Storage(syncBackend, asyncBackend) {
+    this._saveTimer = null;
+    this._readyPromise = null;
+    this._readyResolve = null;
+    this._readyDone = false;
+    this._async = asyncBackend || null;
+
+    if (syncBackend) {
+      this.backend = syncBackend;
+    } else if (typeof localStorage !== 'undefined') {
+      this.backend = makeLocalStorageBackend(localStorage);
+    } else {
+      this.backend = makeMemoryBackend();
+    }
+
+    // 同步初始化内存 state：app.js 仍可在脚本加载后立即读取 store.state
+    this.state = this._load();
+
+    var self = this;
+    this._readyPromise = new Promise(function (resolve) { self._readyResolve = resolve; });
+
+    if (this._async) {
+      this._initAsync();
+    } else if (!syncBackend && typeof indexedDB !== 'undefined' && typeof localStorage !== 'undefined') {
+      // 浏览器环境且未注入测试后端：使用 IndexedDB
+      this._async = idbBackend();
+      this._initAsync();
+    } else {
+      // Node、隐私模式或 IDB 不可用：localStorage/内存路径，行为与旧版一致
+      this._resolveReady();
+    }
+  }
+
+  Storage.prototype._mergeState = function (s) {
+    var base = emptyState();
+    if (s && typeof s === 'object') Object.assign(base, s);
+    base.settings = Object.assign({}, DEFAULT_SETTINGS, base.settings || {});
+    return base;
+  };
+
   Storage.prototype._load = function () {
-    if (!this.backend) return emptyState();
+    var raw = null;
     try {
-      var raw = this.backend.getItem(KEY);
-      if (!raw) return emptyState();
-      var s = JSON.parse(raw);
-      var base = emptyState();
-      s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings || {});
-      return Object.assign(base, s);
+      raw = this.backend ? this.backend.getItem(KEY) : null;
+    } catch (e) { raw = null; }
+    if (!raw) return emptyState();
+    try {
+      return this._mergeState(JSON.parse(raw));
     } catch (e) {
       return emptyState();
     }
   };
 
+  Storage.prototype._resolveReady = function () {
+    if (!this._readyDone) {
+      this._readyDone = true;
+      if (this._readyResolve) this._readyResolve();
+    }
+  };
+
+  Storage.prototype._initAsync = function () {
+    var self = this;
+    self._async.open()
+      .then(function () { return self._async.get(); })
+      .then(function (idbState) {
+        if (idbState) {
+          // IDB 有数据：用 IDB 数据替换内存中的初始状态
+          self.state = self._mergeState(idbState);
+        } else {
+          // IDB 为空但 localStorage 有旧数据：迁移进 IDB，保留 localStorage 作为回退
+          var raw = self.backend.getItem(KEY);
+          if (raw) {
+            try {
+              var lsState = JSON.parse(raw);
+              self.state = self._mergeState(lsState);
+              return self._async.set(self.state);
+            } catch (e) { /* 解析失败则保留默认状态 */ }
+          }
+        }
+      })
+      .then(function () { self._resolveReady(); }, function () {
+        // IDB 打开或读写失败：退回到同步后端
+        self._async = null;
+        self._resolveReady();
+      });
+  };
+
+  Storage.prototype.ready = function () {
+    return this._readyPromise;
+  };
+
+  Storage.prototype._persist = function () {
+    if (!this.backend && !this._async) return;
+    var data = JSON.stringify(this.state);
+    if (this.backend) {
+      try { this.backend.setItem(KEY, data); } catch (e) { /* 镜像写入失败忽略 */ }
+    }
+    if (this._async) {
+      this._async.set(this.state).catch(function () {});
+    }
+  };
+
+  // 防抖落盘：内存 state 立即更新，只有存在异步后端时才延迟落盘
   Storage.prototype.save = function () {
-    if (this.backend) this.backend.setItem(KEY, JSON.stringify(this.state));
+    if (this._async) {
+      var self = this;
+      if (this._saveTimer) clearTimeout(this._saveTimer);
+      this._saveTimer = setTimeout(function () { self.flush(); }, DEBOUNCE_MS);
+    } else {
+      this._persist();
+    }
+  };
+
+  Storage.prototype.flush = function () {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    this._persist();
   };
 
   Storage.prototype.reset = function () {
@@ -55,9 +214,7 @@
   };
 
   Storage.prototype.replaceState = function (newState) {
-    var base = emptyState();
-    base.settings = Object.assign({}, DEFAULT_SETTINGS, newState.settings || {});
-    this.state = Object.assign(base, newState);
+    this.state = this._mergeState(newState);
     this.save();
   };
 

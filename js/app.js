@@ -3,6 +3,11 @@
   'use strict';
   var store = new DeStorage.Storage();
   window.store = store; // 各模块共用同一实例
+  var ready = false;
+
+  // 异步加载 IndexedDB 进度期间显示简单提示
+  var view = document.getElementById('view');
+  if (view) view.innerHTML = '<div class="card"><p>加载学习进度...</p></div>';
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -42,6 +47,7 @@
   }
   document.querySelectorAll('#levelSwitch button').forEach(function (b) {
     b.addEventListener('click', function () {
+      if (!ready) return;
       store.state.settings.level = b.getAttribute('data-level');
       store.save();
       paintLevelSwitch();
@@ -296,10 +302,20 @@
     return '/';
   }
 
-  window.addEventListener('hashchange', render);
-  store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
-  DeAudio.init();
-  DeTTS.setRate(store.state.settings.ttsRate);
-  DeAudio.setRate(store.state.settings.ttsRate);
-  render();
+  // 等 IndexedDB 进度就绪后再启动路由，避免旧 localStorage 数据与 IDB 数据竞争
+  store.ready().then(function () {
+    ready = true;
+    store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
+    DeAudio.init();
+    DeTTS.setRate(store.state.settings.ttsRate);
+    DeAudio.setRate(store.state.settings.ttsRate);
+    window.addEventListener('hashchange', render);
+    render();
+  });
+
+  // 页面离开/隐藏时强制落盘，避免防抖导致进度丢失
+  window.addEventListener('beforeunload', function () { store.flush(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') store.flush();
+  });
 })();

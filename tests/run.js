@@ -5,8 +5,17 @@ var DeSRS = require('../js/srs.js');
 var DeStorage = require('../js/storage.js');
 
 var passed = 0, failed = 0;
+var asyncQueue = [];
 function test(name, fn) {
-  try { fn(); passed++; console.log('  ✓ ' + name); }
+  try {
+    var r = fn();
+    if (r && typeof r.then === 'function') {
+      asyncQueue.push(r.then(function () { passed++; console.log('  ✓ ' + name); },
+        function (e) { failed++; console.error('  ✗ ' + name + '\n    ' + (e.message || e)); }));
+    } else {
+      passed++; console.log('  ✓ ' + name);
+    }
+  }
   catch (e) { failed++; console.error('  ✗ ' + name + '\n    ' + e.message); }
 }
 
@@ -182,6 +191,86 @@ test('replaceState 导入合并默认设置', function () {
   assert.ok(s.state.srs.a);
 });
 
+// 内存版 fake 异步 KV 后端，用于验证 IndexedDB 路径逻辑而不依赖真实 indexedDB
+function fakeAsyncBackend() {
+  var mem = null, sets = 0, opens = 0;
+  return {
+    type: 'indexedDB',
+    open: function () { opens++; return Promise.resolve(); },
+    get: function () { return Promise.resolve(mem); },
+    set: function (v) { sets++; mem = JSON.parse(JSON.stringify(v)); return Promise.resolve(); },
+    _preload: function (v) { mem = JSON.parse(JSON.stringify(v)); },
+    _mem: function () { return mem; },
+    _sets: function () { return sets; },
+    _opens: function () { return opens; }
+  };
+}
+
+console.log('DeStorage（IndexedDB 路径，fake 异步后端）：');
+test('Node/无 IDB 路径 ready() 立即 resolve', function () {
+  var s = new DeStorage.Storage();
+  return s.ready().then(function () { assert.ok(true); });
+});
+test('异步就绪：IDB 空时从 localStorage 迁移旧数据', function () {
+  var b = mockBackend();
+  var old = { srs: { 'a-1': { stability: 3, due: '2026-08-01' } }, settings: { dailyNew: 15 } };
+  b.setItem(DeStorage.KEY, JSON.stringify(old));
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    assert.strictEqual(s.state.srs['a-1'].stability, 3);
+    assert.strictEqual(s.state.settings.dailyNew, 15);
+    assert.ok(asyncBE._mem(), '迁移后应写入 IDB');
+    assert.strictEqual(asyncBE._mem().srs['a-1'].stability, 3);
+    assert.ok(b.getItem(DeStorage.KEY), 'localStorage 原记录应保留');
+  });
+});
+test('ready 使用 IDB 数据覆盖内存初始状态', function () {
+  var b = mockBackend();
+  b.setItem(DeStorage.KEY, JSON.stringify({ srs: { a: { stability: 1 } } }));
+  var asyncBE = fakeAsyncBackend();
+  asyncBE._preload({ srs: { a: { stability: 9 } } });
+  var s = new DeStorage.Storage(b, asyncBE);
+  assert.strictEqual(s.state.srs.a.stability, 1, '构造时仍读 localStorage');
+  return s.ready().then(function () {
+    assert.strictEqual(s.state.srs.a.stability, 9, 'ready 后改用 IDB 数据');
+  });
+});
+test('防抖合并：连续 3 次 save 只落盘 1 次', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  s.state.srs['x'] = { stability: 1 };
+  s.save();
+  s.state.srs['y'] = { stability: 2 };
+  s.save();
+  s.state.srs['z'] = { stability: 3 };
+  s.save();
+  assert.strictEqual(asyncBE._sets(), 0, '防抖期间不应落盘');
+  s.flush();
+  assert.strictEqual(asyncBE._sets(), 1, 'flush 后应只落盘 1 次');
+  assert.strictEqual(asyncBE._mem().srs['z'].stability, 3);
+});
+test('flush 立即落盘', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  s.state.srs['x'] = { stability: 5 };
+  s.save();
+  s.flush();
+  assert.strictEqual(asyncBE._sets(), 1);
+  assert.strictEqual(asyncBE._mem().srs['x'].stability, 5);
+});
+test('IDB 落盘同时写 localStorage 镜像', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  s.state.srs['x'] = { stability: 7 };
+  s.flush();
+  var mirrored = JSON.parse(b.getItem(DeStorage.KEY));
+  assert.strictEqual(mirrored.srs['x'].stability, 7);
+});
+
 console.log('\n数据完整性：');
 test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', function () {
   global.window = {};
@@ -266,5 +355,7 @@ console.log('变位查询（conjugate.js）：');
   });
 })();
 
-console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
-process.exit(failed ? 1 : 0);
+Promise.all(asyncQueue).then(function () {
+  console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
+  process.exit(failed ? 1 : 0);
+});
