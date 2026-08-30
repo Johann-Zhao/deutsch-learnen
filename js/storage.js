@@ -92,6 +92,7 @@
     this._readyPromise = null;
     this._readyResolve = null;
     this._readyDone = false;
+    this._pendingSave = false; // ready 完成前调用 save() 会先标记，就绪后统一触发
     this._async = asyncBackend || null;
 
     if (syncBackend) {
@@ -144,6 +145,12 @@
     if (!this._readyDone) {
       this._readyDone = true;
       if (this._readyResolve) this._readyResolve();
+      // ready 前被 save() 标记的待落盘请求，在异步后端就绪后统一触发一次防抖落盘。
+      // 这避免了迁移写与早期 save() 的定时器写发生库级竞态。
+      if (this._pendingSave) {
+        this._pendingSave = false;
+        this.save();
+      }
     }
   };
 
@@ -180,6 +187,8 @@
 
   Storage.prototype._persist = function () {
     if (!this.backend && !this._async) return;
+    // 一旦真正开始落盘，清除待落盘标记，避免 ready 后重复触发。
+    this._pendingSave = false;
     var data = JSON.stringify(this.state);
     if (this.backend) {
       try { this.backend.setItem(KEY, data); } catch (e) { /* 镜像写入失败忽略 */ }
@@ -189,9 +198,15 @@
     }
   };
 
-  // 防抖落盘：内存 state 立即更新，只有存在异步后端时才延迟落盘
+  // 防抖落盘：内存 state 立即更新。
+  // 异步后端就绪前不会直接落盘，而是标记 _pendingSave，等 ready() 后统一触发，
+  // 避免与 _initAsync 中的迁移/初始写入产生竞态。
   Storage.prototype.save = function () {
     if (this._async) {
+      if (!this._readyDone) {
+        this._pendingSave = true;
+        return;
+      }
       var self = this;
       if (this._saveTimer) clearTimeout(this._saveTimer);
       this._saveTimer = setTimeout(function () { self.flush(); }, DEBOUNCE_MS);

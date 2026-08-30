@@ -236,39 +236,76 @@ test('ready 使用 IDB 数据覆盖内存初始状态', function () {
     assert.strictEqual(s.state.srs.a.stability, 9, 'ready 后改用 IDB 数据');
   });
 });
-test('防抖合并：连续 3 次 save 只落盘 1 次', function () {
+test('ready 前 save 不直接落盘，ready 后统一触发', function () {
   var b = mockBackend();
   var asyncBE = fakeAsyncBackend();
   var s = new DeStorage.Storage(b, asyncBE);
   s.state.srs['x'] = { stability: 1 };
   s.save();
-  s.state.srs['y'] = { stability: 2 };
   s.save();
-  s.state.srs['z'] = { stability: 3 };
-  s.save();
-  assert.strictEqual(asyncBE._sets(), 0, '防抖期间不应落盘');
-  s.flush();
-  assert.strictEqual(asyncBE._sets(), 1, 'flush 后应只落盘 1 次');
-  assert.strictEqual(asyncBE._mem().srs['z'].stability, 3);
+  assert.strictEqual(asyncBE._sets(), 0, 'ready 完成前不应落盘');
+  return s.ready().then(function () {
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1, 'ready 后应统一落盘 1 次');
+    assert.strictEqual(asyncBE._mem().srs['x'].stability, 1);
+  });
+});
+test('防抖合并：连续 3 次 save 只落盘 1 次', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 1 };
+    s.save();
+    s.state.srs['y'] = { stability: 2 };
+    s.save();
+    s.state.srs['z'] = { stability: 3 };
+    s.save();
+    assert.strictEqual(asyncBE._sets(), 0, '防抖期间不应落盘');
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1, 'flush 后应只落盘 1 次');
+    assert.strictEqual(asyncBE._mem().srs['z'].stability, 3);
+  });
 });
 test('flush 立即落盘', function () {
   var b = mockBackend();
   var asyncBE = fakeAsyncBackend();
   var s = new DeStorage.Storage(b, asyncBE);
-  s.state.srs['x'] = { stability: 5 };
-  s.save();
-  s.flush();
-  assert.strictEqual(asyncBE._sets(), 1);
-  assert.strictEqual(asyncBE._mem().srs['x'].stability, 5);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 5 };
+    s.save();
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1);
+    assert.strictEqual(asyncBE._mem().srs['x'].stability, 5);
+  });
 });
 test('IDB 落盘同时写 localStorage 镜像', function () {
   var b = mockBackend();
   var asyncBE = fakeAsyncBackend();
   var s = new DeStorage.Storage(b, asyncBE);
-  s.state.srs['x'] = { stability: 7 };
-  s.flush();
-  var mirrored = JSON.parse(b.getItem(DeStorage.KEY));
-  assert.strictEqual(mirrored.srs['x'].stability, 7);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 7 };
+    s.flush();
+    var mirrored = JSON.parse(b.getItem(DeStorage.KEY));
+    assert.strictEqual(mirrored.srs['x'].stability, 7);
+  });
+});
+test('防抖 300ms 到期后自动落盘', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 8 };
+    s.save();
+    assert.strictEqual(asyncBE._sets(), 0, '定时器触发前不应落盘');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(asyncBE._sets(), 1, '300ms 后应自动落盘且仅 1 次');
+        assert.strictEqual(asyncBE._mem().srs['x'].stability, 8);
+        resolve();
+      }, 350);
+    });
+  });
 });
 
 console.log('\n数据完整性：');
