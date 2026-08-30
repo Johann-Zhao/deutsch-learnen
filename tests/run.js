@@ -78,6 +78,10 @@ test('名词可不带冠词', function () {
   assert.ok(DeSRS.matches('Apfel', 'der Apfel'));
   assert.ok(DeSRS.matches('der Apfel', 'Apfel'));
   assert.ok(!DeSRS.matches('die Apfel', 'der Apfel'));
+  assert.ok(!DeSRS.matches('Hause', 'zu Hause'));
+  assert.ok(DeSRS.matches('Kind', 'das Kind'));
+  assert.ok(!DeSRS.matches('die Kind', 'das Kind'));
+  assert.ok(DeSRS.matches('nach Hause', 'nach Hause'));
 });
 test('不同词不匹配', function () {
   assert.ok(!DeSRS.matches('Birne', 'Apfel'));
