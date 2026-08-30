@@ -145,7 +145,7 @@
     var pool = window.wordsOfLevel(cur);
     var learned = pool.filter(function (w) { return s.srs[w.id]; }).length;
     var mastered = pool.filter(function (w) { return s.srs[w.id] && s.srs[w.id].mastered; }).length;
-    var due = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today); }).length;
+    var due = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') === -1 && DeSRS.isDue(s.srs[id], today); }).length;
     var grammarDue = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') >= 0 && DeSRS.isDue(s.srs[id], today); }).length;
     var t = s.daily[today] || { new: 0, reviewed: 0, correct: 0 };
 
@@ -380,7 +380,6 @@
   }).catch(function (e) {
     console.error('启动加载当前级别失败，回退到 A1', e);
     store.state.settings.level = 'A1';
-    store.save();
   }).then(function () {
     ready = true;
     store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
