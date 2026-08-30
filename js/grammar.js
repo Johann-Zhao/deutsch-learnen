@@ -83,7 +83,20 @@ var Grammar = (function () {
     var topic = GRAMMAR.find(function (t) { return t.id === id; });
     var today = DeStorage.today();
     var v = UI.el('div');
-    if (!topic) { location.hash = '#/grammar'; return v; }
+    if (!topic) {
+      // 跨级别防御：若专题属于尚未加载的级别，先懒加载
+      var lv = (window.GRAMMAR_LEVELS && window.GRAMMAR_LEVELS[id]) || (window.inferLevelFromId && window.inferLevelFromId(id));
+      if (lv && lv !== 'A1' && window.isLevelLoaded && !window.isLevelLoaded(lv) && window.loadLevelData) {
+        var loading = UI.el('div', 'card', '<p>加载 ' + lv + ' 语法数据...</p>');
+        window.loadLevelData(lv).then(function () { if (window.render) window.render(); }).catch(function (e) {
+          console.error(e);
+          loading.innerHTML = '<p>加载失败，请重试。</p>';
+        });
+        return loading;
+      }
+      location.hash = '#/grammar';
+      return v;
+    }
     v.appendChild(UI.el('h1', 'page-title', UI.esc(topic.title)));
     v.appendChild(UI.el('p', 'page-sub', UI.esc(topic.summary)));
 
@@ -166,6 +179,24 @@ var Grammar = (function () {
     var today = DeStorage.today();
     var v = UI.el('div');
     v.appendChild(UI.el('h1', 'page-title', '语法复习'));
+
+    // 跨级别防御：到期语法卡若属于未加载级别，先懒加载
+    var needed = {};
+    Object.keys(s.srs).forEach(function (id) {
+      if (id.indexOf('#') === -1 || !DeSRS.isDue(s.srs[id], today)) return;
+      var topicId = id.split('#')[0];
+      var lv = (window.GRAMMAR_LEVELS && window.GRAMMAR_LEVELS[topicId]) || (window.inferLevelFromId && window.inferLevelFromId(topicId));
+      if (lv && lv !== 'A1' && window.isLevelLoaded && !window.isLevelLoaded(lv)) needed[lv] = true;
+    });
+    var levels = Object.keys(needed);
+    if (levels.length && window.loadLevelData) {
+      var loading = UI.el('div', 'card', '<p>加载语法复习数据...</p>');
+      Promise.all(levels.map(window.loadLevelData)).then(function () { if (window.render) window.render(); }).catch(function (e) {
+        console.error(e);
+        loading.innerHTML = '<p>加载失败，请重试。</p>';
+      });
+      return loading;
+    }
 
     // 取 store.state.srs 中 key 含 # 且到期的语法卡，按 due 升序
     var queue = Object.keys(s.srs).filter(function (id) {
@@ -258,6 +289,32 @@ var Mistakes = (function () {
     var s = store.state;
     var v = UI.el('div');
     v.appendChild(UI.el('h1', 'page-title', '错题本'));
+
+    // 跨级别防御：错题若属于未加载级别，先懒加载
+    var needed = {};
+    Object.keys(s.mistakes).forEach(function (id) {
+      var m = s.mistakes[id];
+      var lv;
+      if (m.type === 'vocab') {
+        var dash = id.lastIndexOf('-');
+        var themeId = dash > 0 ? id.substring(0, dash) : id;
+        lv = (window.THEME_LEVELS && window.THEME_LEVELS[themeId]) || (window.inferLevelFromId && window.inferLevelFromId(themeId));
+      } else {
+        var topicId = id.split('#')[0];
+        lv = (window.GRAMMAR_LEVELS && window.GRAMMAR_LEVELS[topicId]) || (window.inferLevelFromId && window.inferLevelFromId(topicId));
+      }
+      if (lv && lv !== 'A1' && window.isLevelLoaded && !window.isLevelLoaded(lv)) needed[lv] = true;
+    });
+    var levels = Object.keys(needed);
+    if (levels.length && window.loadLevelData) {
+      var loading = UI.el('div', 'card', '<p>加载错题数据...</p>');
+      Promise.all(levels.map(window.loadLevelData)).then(function () { if (window.render) window.render(); }).catch(function (e) {
+        console.error(e);
+        loading.innerHTML = '<p>加载失败，请重试。</p>';
+      });
+      return loading;
+    }
+
     var entries = Object.keys(s.mistakes).map(function (id) {
       return { id: id, m: s.mistakes[id] };
     });

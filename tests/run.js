@@ -308,6 +308,43 @@ test('防抖 300ms 到期后自动落盘', function () {
   });
 });
 
+console.log('\n词汇索引 buildWordIndex：');
+(function () {
+  var DeVocabIndex = require('../js/vocabulary.js');
+  test('展平 id 唯一性', function () {
+    var idx = DeVocabIndex.buildWordIndex([
+      { id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！'], ['die Nacht', 'f', '夜晚', 'Gute Nacht!', '晚安！']] },
+      { id: 'a2-travel', name: '旅行', level: 'A2', words: [['die Reise', 'f', '旅行', 'Die Reise.', '旅行。']] }
+    ]);
+    var ids = idx.map(function (w) { return w.id; });
+    var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
+    assert.strictEqual(dup.length, 0);
+    assert.ok(idx.every(function (w) { return w.level && w.de && w.g && w.zh; }));
+  });
+  test('重复调用幂等', function () {
+    var themes = [{ id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！']] }];
+    var a = DeVocabIndex.buildWordIndex(themes);
+    var b = DeVocabIndex.buildWordIndex(themes);
+    assert.deepStrictEqual(a, b);
+  });
+  test('增量级别数据合并后查找正确', function () {
+    var a1 = [{ id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！']] }];
+    var a2 = [{ id: 'a2-travel', name: '旅行', level: 'A2', words: [['die Reise', 'f', '旅行', 'Die Reise.', '旅行。']] }];
+    var idx = DeVocabIndex.buildWordIndex(a1.concat(a2));
+    var w1 = idx.find(function (w) { return w.id === 'greet-0'; });
+    var w2 = idx.find(function (w) { return w.id === 'a2-travel-0'; });
+    assert.ok(w1 && w2);
+    assert.strictEqual(w1.level, 'A1');
+    assert.strictEqual(w2.level, 'A2');
+    assert.strictEqual(w1.themeName, '问候');
+    assert.strictEqual(w2.de, 'die Reise');
+  });
+  test('空数组返回空索引', function () {
+    assert.deepStrictEqual(DeVocabIndex.buildWordIndex([]), []);
+    assert.deepStrictEqual(DeVocabIndex.buildWordIndex(null), []);
+  });
+})();
+
 console.log('\n数据完整性：');
 test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', function () {
   global.window = {};

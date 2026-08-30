@@ -1,3 +1,20 @@
+/* 词汇索引构建：纯逻辑，可被 Node 测试，也可在浏览器被 app.js 调用重建索引 */
+(function (global) {
+  'use strict';
+  function buildWordIndex(themes) {
+    var words = [];
+    (themes || []).forEach(function (t) {
+      var level = t.level || 'A1';
+      t.words.forEach(function (w, i) {
+        words.push({ id: t.id + '-' + i, theme: t.id, themeName: t.name, level: level, de: w[0], g: w[1], zh: w[2], ex: w[3], exZh: w[4] });
+      });
+    });
+    return words;
+  }
+  global.buildWordIndex = buildWordIndex;
+  if (typeof module !== 'undefined' && module.exports) module.exports = { buildWordIndex: buildWordIndex };
+})(typeof window !== 'undefined' ? window : this);
+
 /* 词汇模块：主题列表、学新词（百词斩式：预览分流→选择→拼写→小结）、SRS 复习 */
 var Vocab = (function () {
   'use strict';
@@ -110,6 +127,18 @@ var Vocab = (function () {
   }
 
   function learnSession(themeId) {
+    // 跨级别防御：若主题属于尚未加载的级别，先懒加载
+    if (themeId && window.loadLevelData) {
+      var lv = (window.THEME_LEVELS && window.THEME_LEVELS[themeId]) || (window.inferLevelFromId && window.inferLevelFromId(themeId));
+      if (lv && lv !== 'A1' && window.isLevelLoaded && !window.isLevelLoaded(lv)) {
+        var loading = UI.el('div', 'card', '<p>加载 ' + lv + ' 词汇数据...</p>');
+        window.loadLevelData(lv).then(function () { if (window.render) window.render(); }).catch(function (e) {
+          console.error(e);
+          loading.innerHTML = '<p>加载失败，请重试。</p>';
+        });
+        return loading;
+      }
+    }
     var s = store.state;
     var today = DeStorage.today();
     var queue = pickNewWords(themeId, s.settings.dailyNew);
@@ -353,6 +382,29 @@ var Vocab = (function () {
 
   function reviewSession(onlyMistakes) {
     var s = store.state, today = DeStorage.today();
+    // 跨级别防御：到期/错词卡若属于未加载级别，先懒加载
+    var ids;
+    if (onlyMistakes) {
+      ids = Object.keys(s.mistakes).filter(function (id) { return s.mistakes[id].type === 'vocab' && s.srs[id]; });
+    } else {
+      ids = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today) && id.indexOf('#') === -1; });
+    }
+    var needed = {};
+    ids.forEach(function (id) {
+      var dash = id.lastIndexOf('-');
+      var themeId = dash > 0 ? id.substring(0, dash) : id;
+      var lv = (window.THEME_LEVELS && window.THEME_LEVELS[themeId]) || (window.inferLevelFromId && window.inferLevelFromId(themeId));
+      if (lv && lv !== 'A1' && window.isLevelLoaded && !window.isLevelLoaded(lv)) needed[lv] = true;
+    });
+    var levels = Object.keys(needed);
+    if (levels.length && window.loadLevelData) {
+      var loading = UI.el('div', 'card', '<p>加载复习数据...</p>');
+      Promise.all(levels.map(window.loadLevelData)).then(function () { if (window.render) window.render(); }).catch(function (e) {
+        console.error(e);
+        loading.innerHTML = '<p>加载失败，请重试。</p>';
+      });
+      return loading;
+    }
     var queue = dueWords(onlyMistakes).slice(0, 30);
     var v = UI.el('div');
     v.appendChild(UI.el('h1', 'page-title', onlyMistakes ? '错词重练' : '今日复习'));
