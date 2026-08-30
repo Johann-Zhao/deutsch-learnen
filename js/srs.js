@@ -101,7 +101,7 @@
   }
 
   function stripArticle(s) {
-    return normalize(s).replace(/^(der|die|das|ein|eine|einen|to|zu) /, '');
+    return normalize(s).replace(/^(der|die|das|ein|eine|einen) /, '');
   }
 
   function hasArticle(s) {

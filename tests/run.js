@@ -5,8 +5,17 @@ var DeSRS = require('../js/srs.js');
 var DeStorage = require('../js/storage.js');
 
 var passed = 0, failed = 0;
+var asyncQueue = [];
 function test(name, fn) {
-  try { fn(); passed++; console.log('  ✓ ' + name); }
+  try {
+    var r = fn();
+    if (r && typeof r.then === 'function') {
+      asyncQueue.push(r.then(function () { passed++; console.log('  ✓ ' + name); },
+        function (e) { failed++; console.error('  ✗ ' + name + '\n    ' + (e.message || e)); }));
+    } else {
+      passed++; console.log('  ✓ ' + name);
+    }
+  }
   catch (e) { failed++; console.error('  ✗ ' + name + '\n    ' + e.message); }
 }
 
@@ -78,9 +87,24 @@ test('名词可不带冠词', function () {
   assert.ok(DeSRS.matches('Apfel', 'der Apfel'));
   assert.ok(DeSRS.matches('der Apfel', 'Apfel'));
   assert.ok(!DeSRS.matches('die Apfel', 'der Apfel'));
+  assert.ok(!DeSRS.matches('Hause', 'zu Hause'));
+  assert.ok(DeSRS.matches('Kind', 'das Kind'));
+  assert.ok(!DeSRS.matches('die Kind', 'das Kind'));
+  assert.ok(DeSRS.matches('nach Hause', 'nach Hause'));
 });
 test('不同词不匹配', function () {
   assert.ok(!DeSRS.matches('Birne', 'Apfel'));
+});
+
+console.log('语法 SRS 调度：');
+test('语法卡生命周期：首错当天到期，隔天再对推后', function () {
+  var c = DeSRS.review(null, 0, '2026-08-01');
+  assert.strictEqual(c.due, '2026-08-01', '首错应今天到期');
+  assert.ok(DeSRS.isDue(c, '2026-08-01'));
+  c = DeSRS.review(c, 2, '2026-08-02');
+  assert.ok(c.due > '2026-08-02', '答对后到期日应推后: ' + c.due);
+  assert.ok(!DeSRS.isDue(c, '2026-08-02'));
+  assert.ok(DeSRS.isDue(c, c.due));
 });
 
 console.log('DeStorage：');
@@ -167,6 +191,160 @@ test('replaceState 导入合并默认设置', function () {
   assert.ok(s.state.srs.a);
 });
 
+// 内存版 fake 异步 KV 后端，用于验证 IndexedDB 路径逻辑而不依赖真实 indexedDB
+function fakeAsyncBackend() {
+  var mem = null, sets = 0, opens = 0;
+  return {
+    type: 'indexedDB',
+    open: function () { opens++; return Promise.resolve(); },
+    get: function () { return Promise.resolve(mem); },
+    set: function (v) { sets++; mem = JSON.parse(JSON.stringify(v)); return Promise.resolve(); },
+    _preload: function (v) { mem = JSON.parse(JSON.stringify(v)); },
+    _mem: function () { return mem; },
+    _sets: function () { return sets; },
+    _opens: function () { return opens; }
+  };
+}
+
+console.log('DeStorage（IndexedDB 路径，fake 异步后端）：');
+test('Node/无 IDB 路径 ready() 立即 resolve', function () {
+  var s = new DeStorage.Storage();
+  return s.ready().then(function () { assert.ok(true); });
+});
+test('异步就绪：IDB 空时从 localStorage 迁移旧数据', function () {
+  var b = mockBackend();
+  var old = { srs: { 'a-1': { stability: 3, due: '2026-08-01' } }, settings: { dailyNew: 15 } };
+  b.setItem(DeStorage.KEY, JSON.stringify(old));
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    assert.strictEqual(s.state.srs['a-1'].stability, 3);
+    assert.strictEqual(s.state.settings.dailyNew, 15);
+    assert.ok(asyncBE._mem(), '迁移后应写入 IDB');
+    assert.strictEqual(asyncBE._mem().srs['a-1'].stability, 3);
+    assert.ok(b.getItem(DeStorage.KEY), 'localStorage 原记录应保留');
+  });
+});
+test('ready 使用 IDB 数据覆盖内存初始状态', function () {
+  var b = mockBackend();
+  b.setItem(DeStorage.KEY, JSON.stringify({ srs: { a: { stability: 1 } } }));
+  var asyncBE = fakeAsyncBackend();
+  asyncBE._preload({ srs: { a: { stability: 9 } } });
+  var s = new DeStorage.Storage(b, asyncBE);
+  assert.strictEqual(s.state.srs.a.stability, 1, '构造时仍读 localStorage');
+  return s.ready().then(function () {
+    assert.strictEqual(s.state.srs.a.stability, 9, 'ready 后改用 IDB 数据');
+  });
+});
+test('ready 前 save 不直接落盘，ready 后统一触发', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  s.state.srs['x'] = { stability: 1 };
+  s.save();
+  s.save();
+  assert.strictEqual(asyncBE._sets(), 0, 'ready 完成前不应落盘');
+  return s.ready().then(function () {
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1, 'ready 后应统一落盘 1 次');
+    assert.strictEqual(asyncBE._mem().srs['x'].stability, 1);
+  });
+});
+test('防抖合并：连续 3 次 save 只落盘 1 次', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 1 };
+    s.save();
+    s.state.srs['y'] = { stability: 2 };
+    s.save();
+    s.state.srs['z'] = { stability: 3 };
+    s.save();
+    assert.strictEqual(asyncBE._sets(), 0, '防抖期间不应落盘');
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1, 'flush 后应只落盘 1 次');
+    assert.strictEqual(asyncBE._mem().srs['z'].stability, 3);
+  });
+});
+test('flush 立即落盘', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 5 };
+    s.save();
+    s.flush();
+    assert.strictEqual(asyncBE._sets(), 1);
+    assert.strictEqual(asyncBE._mem().srs['x'].stability, 5);
+  });
+});
+test('IDB 落盘同时写 localStorage 镜像', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 7 };
+    s.flush();
+    var mirrored = JSON.parse(b.getItem(DeStorage.KEY));
+    assert.strictEqual(mirrored.srs['x'].stability, 7);
+  });
+});
+test('防抖 300ms 到期后自动落盘', function () {
+  var b = mockBackend();
+  var asyncBE = fakeAsyncBackend();
+  var s = new DeStorage.Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 8 };
+    s.save();
+    assert.strictEqual(asyncBE._sets(), 0, '定时器触发前不应落盘');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(asyncBE._sets(), 1, '300ms 后应自动落盘且仅 1 次');
+        assert.strictEqual(asyncBE._mem().srs['x'].stability, 8);
+        resolve();
+      }, 350);
+    });
+  });
+});
+
+console.log('\n词汇索引 buildWordIndex：');
+(function () {
+  var DeVocabIndex = require('../js/vocabulary.js');
+  test('展平 id 唯一性', function () {
+    var idx = DeVocabIndex.buildWordIndex([
+      { id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！'], ['die Nacht', 'f', '夜晚', 'Gute Nacht!', '晚安！']] },
+      { id: 'a2-travel', name: '旅行', level: 'A2', words: [['die Reise', 'f', '旅行', 'Die Reise.', '旅行。']] }
+    ]);
+    var ids = idx.map(function (w) { return w.id; });
+    var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
+    assert.strictEqual(dup.length, 0);
+    assert.ok(idx.every(function (w) { return w.level && w.de && w.g && w.zh; }));
+  });
+  test('重复调用幂等', function () {
+    var themes = [{ id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！']] }];
+    var a = DeVocabIndex.buildWordIndex(themes);
+    var b = DeVocabIndex.buildWordIndex(themes);
+    assert.deepStrictEqual(a, b);
+  });
+  test('增量级别数据合并后查找正确', function () {
+    var a1 = [{ id: 'greet', name: '问候', level: 'A1', words: [['der Tag', 'm', '白天', 'Guten Tag!', '你好！']] }];
+    var a2 = [{ id: 'a2-travel', name: '旅行', level: 'A2', words: [['die Reise', 'f', '旅行', 'Die Reise.', '旅行。']] }];
+    var idx = DeVocabIndex.buildWordIndex(a1.concat(a2));
+    var w1 = idx.find(function (w) { return w.id === 'greet-0'; });
+    var w2 = idx.find(function (w) { return w.id === 'a2-travel-0'; });
+    assert.ok(w1 && w2);
+    assert.strictEqual(w1.level, 'A1');
+    assert.strictEqual(w2.level, 'A2');
+    assert.strictEqual(w1.themeName, '问候');
+    assert.strictEqual(w2.de, 'die Reise');
+  });
+  test('空数组返回空索引', function () {
+    assert.deepStrictEqual(DeVocabIndex.buildWordIndex([]), []);
+    assert.deepStrictEqual(DeVocabIndex.buildWordIndex(null), []);
+  });
+})();
+
 console.log('\n数据完整性：');
 test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', function () {
   global.window = {};
@@ -190,6 +368,7 @@ test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', funct
   assert.ok(levels.A1 > 500 && levels.A2 > 500 && levels.B1 > 600, '各级别词量异常: ' + JSON.stringify(levels));
   var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
   assert.strictEqual(dup.length, 0, '存在重复词条 id: ' + dup.slice(0, 3));
+  assert.ok(ids.every(function (id) { return id.indexOf('#') === -1; }), '词汇 id 不应含 #，否则会与语法卡 id 冲突');
 });
 test('语法 ≥34 专题、id 唯一、练习结构合法', function () {
   global.window = {};
@@ -250,5 +429,7 @@ console.log('变位查询（conjugate.js）：');
   });
 })();
 
-console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
-process.exit(failed ? 1 : 0);
+Promise.all(asyncQueue).then(function () {
+  console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
+  process.exit(failed ? 1 : 0);
+});

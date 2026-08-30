@@ -3,6 +3,11 @@
   'use strict';
   var store = new DeStorage.Storage();
   window.store = store; // 各模块共用同一实例
+  var ready = false;
+
+  // 异步加载 IndexedDB 进度期间显示简单提示
+  var view = document.getElementById('view');
+  if (view) view.innerHTML = '<div class="card"><p>加载学习进度...</p></div>';
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -17,18 +22,70 @@
   }
   window.UI = { el: el, esc: esc };
 
-  // 全站词汇展开成带 id 的列表
-  var WORDS = [];
-  window.VOCAB_THEMES.forEach(function (t) {
-    t.words.forEach(function (w, i) {
-      WORDS.push({ id: t.id + '-' + i, theme: t.id, themeName: t.name, level: t.level || 'A1', de: w[0], g: w[1], zh: w[2], ex: w[3], exZh: w[4] });
-    });
-  });
-  window.ALL_WORDS = WORDS;
+  // 全站词汇展开成带 id 的列表；可重入，供懒加载后重建索引
+  window.rebuildWordIndex = function () {
+    window.ALL_WORDS = buildWordIndex(window.VOCAB_THEMES || []);
+    window.THEME_LEVELS = {};
+    window.ALL_WORDS.forEach(function (w) { window.THEME_LEVELS[w.theme] = w.level; });
+  };
+  window.rebuildGrammarLevels = function () {
+    window.GRAMMAR_LEVELS = {};
+    (window.GRAMMAR || []).forEach(function (t) { window.GRAMMAR_LEVELS[t.id] = t.level || 'A1'; });
+  };
   window.LEVELS = ['A1', 'A2', 'B1'];
-  window.wordsOfLevel = function (lv) { return WORDS.filter(function (w) { return w.level === lv; }); };
-  window.grammarOfLevel = function (lv) { return GRAMMAR.filter(function (t) { return (t.level || 'A1') === lv; }); };
-  window.wordById = function (id) { return WORDS.find(function (w) { return w.id === id; }); };
+  window.wordsOfLevel = function (lv) { return window.ALL_WORDS.filter(function (w) { return w.level === lv; }); };
+  window.grammarOfLevel = function (lv) { return window.GRAMMAR.filter(function (t) { return (t.level || 'A1') === lv; }); };
+  window.wordById = function (id) { return window.ALL_WORDS.find(function (w) { return w.id === id; }); };
+  window.rebuildWordIndex();
+  window.rebuildGrammarLevels();
+
+  // 按级别懒加载 A2/B1 数据文件；A1 已在 index.html 静态加载
+  (function () {
+    var loaded = new Set(['A1']);
+    var inflight = {};
+    var LEVEL_FILES = {
+      A2: ['data/vocabulary_a2.js', 'data/grammar_a2.js'],
+      B1: ['data/vocabulary_b1.js', 'data/grammar_b1.js']
+    };
+    window.loadLevelData = function (level) {
+      level = (level || 'A1').toUpperCase();
+      if (level === 'A1' || loaded.has(level)) return Promise.resolve();
+      if (inflight[level]) return inflight[level];
+      var files = LEVEL_FILES[level];
+      if (!files) return Promise.reject(new Error('未知级别: ' + level));
+      inflight[level] = Promise.all(files.map(function (src) {
+        return new Promise(function (resolve, reject) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = true;
+          s.onload = function () { resolve(); };
+          s.onerror = function () {
+            console.error('加载失败: ' + src);
+            reject(new Error('加载失败: ' + src));
+          };
+          document.head.appendChild(s);
+        });
+      })).then(function () {
+        loaded.add(level);
+        delete inflight[level];
+        window.rebuildWordIndex();
+        window.rebuildGrammarLevels();
+      }).catch(function (e) {
+        delete inflight[level];
+        console.error(e);
+        return Promise.reject(e);
+      });
+      return inflight[level];
+    };
+    window.isLevelLoaded = function (level) { return loaded.has((level || 'A1').toUpperCase()); };
+  })();
+
+  // 根据主题/专题 id 前缀推断级别（兜底，实际以 THEME_LEVELS / GRAMMAR_LEVELS 为准）
+  window.inferLevelFromId = function (id) {
+    if (/^(b1-|g-b1-)/i.test(id)) return 'B1';
+    if (/^(a2-|g-a2-)/i.test(id)) return 'A2';
+    return 'A1';
+  };
 
   // 级别切换
   window.currentLevel = function () { return store.state.settings.level || 'A1'; };
@@ -42,10 +99,26 @@
   }
   document.querySelectorAll('#levelSwitch button').forEach(function (b) {
     b.addEventListener('click', function () {
-      store.state.settings.level = b.getAttribute('data-level');
-      store.save();
-      paintLevelSwitch();
-      render();
+      if (!ready) return;
+      var level = b.getAttribute('data-level');
+      var cur = window.currentLevel();
+      if (level === cur) return;
+      var buttons = document.querySelectorAll('#levelSwitch button');
+      buttons.forEach(function (btn) { btn.disabled = true; });
+      var loading = UI.el('div', 'card', '<p>正在加载 ' + level + ' 数据...</p>');
+      var view = document.getElementById('view');
+      if (view) { view.innerHTML = ''; view.appendChild(loading); }
+      window.loadLevelData(level).then(function () {
+        store.state.settings.level = level;
+        store.save();
+        paintLevelSwitch();
+        render();
+      }).catch(function (e) {
+        console.error(e);
+        if (view) view.innerHTML = '<div class="card"><p>加载 ' + level + ' 数据失败，请检查网络后重试。</p></div>';
+      }).finally(function () {
+        buttons.forEach(function (btn) { btn.disabled = false; });
+      });
     });
   });
   paintLevelSwitch();
@@ -72,7 +145,8 @@
     var pool = window.wordsOfLevel(cur);
     var learned = pool.filter(function (w) { return s.srs[w.id]; }).length;
     var mastered = pool.filter(function (w) { return s.srs[w.id] && s.srs[w.id].mastered; }).length;
-    var due = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today); }).length;
+    var due = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') === -1 && DeSRS.isDue(s.srs[id], today); }).length;
+    var grammarDue = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') >= 0 && DeSRS.isDue(s.srs[id], today); }).length;
     var t = s.daily[today] || { new: 0, reviewed: 0, correct: 0 };
 
     var v = el('div');
@@ -97,6 +171,15 @@
     bRev.onclick = function () { location.hash = '#/review'; };
     row.appendChild(bRev);
     card.appendChild(row);
+
+    var gRow = el('div', null);
+    gRow.style.cssText = 'margin-top:10px';
+    var bGram = el('button', 'btn btn-sm ' + (grammarDue ? '' : 'btn-ghost'), grammarDue ? '语法复习 ' + grammarDue + ' 题' : '无到期语法复习');
+    bGram.disabled = !grammarDue;
+    bGram.onclick = function () { location.hash = '#/review-grammar'; };
+    gRow.appendChild(bGram);
+    card.appendChild(gRow);
+
     v.appendChild(card);
 
     var stats = el('div', 'grid grid-3');
@@ -268,6 +351,7 @@
     else if (hash === '#/review-mistakes') view.appendChild(Vocab.reviewSession(true));
     else if ((m = hash.match(/^#\/theme\/([\w-]+)$/))) view.appendChild(Vocab.learnSession(m[1]));
     else if (hash === '#/grammar') view.appendChild(Grammar.listPage());
+    else if (hash === '#/review-grammar') view.appendChild(Grammar.reviewPage());
     else if ((m = hash.match(/^#\/topic\/([\w-]+)$/))) view.appendChild(Grammar.topicPage(m[1]));
     else if (hash === '#/conjugate') view.appendChild(Conjugate.page());
     else if (hash === '#/mistakes') view.appendChild(Mistakes.page());
@@ -277,18 +361,38 @@
   }
 
   function navActive(hash) {
+    if (hash === '#/review-grammar' || hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
     if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';
-    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
     if (hash.indexOf('#/conjugate') === 0) return '/conjugate';
     if (hash.indexOf('#/mistakes') === 0) return '/mistakes';
     if (hash.indexOf('#/settings') === 0) return '/settings';
     return '/';
   }
 
-  window.addEventListener('hashchange', render);
-  store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
-  DeAudio.init();
-  DeTTS.setRate(store.state.settings.ttsRate);
-  DeAudio.setRate(store.state.settings.ttsRate);
-  render();
+  // 跨级别复习/错题本会调用 render() 重新进入页面
+  window.render = render;
+
+  // 等 IndexedDB 进度就绪后，先懒加载当前级别数据，再启动路由
+  store.ready().then(function () {
+    var level = store.state.settings.level || 'A1';
+    if (level !== 'A1' && view) view.innerHTML = '<div class="card"><p>加载 ' + level + ' 数据...</p></div>';
+    return window.loadLevelData(level);
+  }).catch(function (e) {
+    console.error('启动加载当前级别失败，回退到 A1', e);
+    store.state.settings.level = 'A1';
+  }).then(function () {
+    ready = true;
+    store.migrateCards(DeSRS.migrate);   // 旧版 SM-2 进度 → FSRS
+    DeAudio.init();
+    DeTTS.setRate(store.state.settings.ttsRate);
+    DeAudio.setRate(store.state.settings.ttsRate);
+    window.addEventListener('hashchange', render);
+    render();
+  });
+
+  // 页面离开/隐藏时强制落盘，避免防抖导致进度丢失
+  window.addEventListener('beforeunload', function () { store.flush(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') store.flush();
+  });
 })();
