@@ -1,6 +1,7 @@
 {
   "name": "deutsch-lernen",
   "private": true,
+  "type": "module",
   "version": "2.1.0",
   "description": "纯静态德语学习站 A1–B1",
   "scripts": {
