@@ -2,6 +2,64 @@
 var Grammar = (function () {
   'use strict';
 
+  // 渲染单道语法题（choice/fill），供专题练习与语法复习共用
+  // onAnswer(ok) 在答题后被调用；nextText 为下一题按钮文案
+  function renderExerciseItem(ex, number, onAnswer, nextText) {
+    var item = UI.el('div');
+    item.appendChild(UI.el('div', 'quiz-prompt', '第 ' + number + ' 题：' + UI.esc(ex.q)));
+    var fb = UI.el('div');
+    var next = UI.el('button', 'btn', nextText);
+    next.style.display = 'none';
+    var answered = false;
+    var input;
+
+    function finishAnswer(ok) {
+      if (answered) return;
+      answered = true;
+      onAnswer(ok);
+      fb.innerHTML = '<div class="feedback ' + (ok ? 'ok' : 'bad') + '">' +
+        (ok ? '正确 · ' : '不对。') + UI.esc(ex.tip || '') + '</div>';
+      next.style.display = 'inline-block';
+      next.focus();
+    }
+
+    if (ex.type === 'choice') {
+      var opts = UI.el('div', 'opts');
+      ex.opts.forEach(function (text, i) {
+        var b = UI.el('button', 'opt', UI.esc(text));
+        b.onclick = function () {
+          if (answered) return;
+          if (i === ex.a) { b.classList.add('correct'); finishAnswer(true); }
+          else { b.classList.add('wrong'); opts.children[ex.a].classList.add('correct'); finishAnswer(false); }
+        };
+        opts.appendChild(b);
+      });
+      item.appendChild(opts);
+    } else {
+      input = UI.el('input');
+      input.type = 'text'; input.autocomplete = 'off';
+      input.style.cssText = 'font-size:17px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:380px;font-family:inherit;background:var(--card);color:var(--ink)';
+      input.placeholder = '输入答案（不区分大小写）';
+      item.appendChild(input);
+      var check = UI.el('button', 'btn btn-sm', '检查答案');
+      check.style.cssText = 'margin-top:12px;margin-left:0;display:block';
+      check.onclick = function () {
+        if (answered) return;
+        if (!input.value.trim()) { input.focus(); return; }
+        var ok = DeSRS.matches(input.value, ex.a);
+        input.disabled = true;
+        finishAnswer(ok);
+        if (!ok) input.style.borderColor = 'var(--bad)';
+      };
+      input.onkeydown = function (ev) { if (ev.key === 'Enter') { answered ? next.click() : check.click(); } };
+      item.appendChild(check);
+    }
+
+    item.appendChild(fb);
+    item.appendChild(next);
+    return { element: item, next: next, focus: function () { if (input) input.focus(); } };
+  }
+
   function listPage() {
     var s = store.state;
     var lv = window.currentLevel();
@@ -23,6 +81,7 @@ var Grammar = (function () {
 
   function topicPage(id) {
     var topic = GRAMMAR.find(function (t) { return t.id === id; });
+    var today = DeStorage.today();
     var v = UI.el('div');
     if (!topic) { location.hash = '#/grammar'; return v; }
     v.appendChild(UI.el('h1', 'page-title', UI.esc(topic.title)));
@@ -56,66 +115,24 @@ var Grammar = (function () {
         box.innerHTML = '';
         dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
         var ex = topic.exercises[idx];
-        var item = UI.el('div');
-        item.appendChild(UI.el('div', 'quiz-prompt', '第 ' + (idx + 1) + ' 题：' + UI.esc(ex.q)));
-        var fb = UI.el('div');
-        var next = UI.el('button', 'btn', idx < topic.exercises.length - 1 ? '下一题' : '看结果');
-        next.style.display = 'none';
-        var answered = false;
 
         function onAnswer(ok) {
-          if (answered) return;
-          answered = true;
           var mid = topic.id + '#' + idx;
+          // 无论对错都进入 FSRS 调度，卡片 id 复用错题 key 格式
+          store.state.srs[mid] = DeSRS.review(store.state.srs[mid] || null, ok ? 2 : 0, today);
           if (ok) {
             right++;
             store.removeMistake(mid);
-            fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(ex.tip) + '</div>';
           } else {
             store.addMistake('grammar', mid);
-            fb.innerHTML = '<div class="feedback bad">不对。' + UI.esc(ex.tip) + '</div>';
           }
           store.save();
-          next.style.display = 'inline-block';
-          next.focus();
         }
-        next.onclick = function () { idx++; if (idx < topic.exercises.length) show(); else finish(); };
 
-        if (ex.type === 'choice') {
-          var opts = UI.el('div', 'opts');
-          ex.opts.forEach(function (text, i) {
-            var b = UI.el('button', 'opt', UI.esc(text));
-            b.onclick = function () {
-              if (answered) return;
-              if (i === ex.a) { b.classList.add('correct'); onAnswer(true); }
-              else { b.classList.add('wrong'); opts.children[ex.a].classList.add('correct'); onAnswer(false); }
-            };
-            opts.appendChild(b);
-          });
-          item.appendChild(opts);
-        } else {
-          var input = UI.el('input');
-          input.type = 'text'; input.autocomplete = 'off';
-          input.style.cssText = 'font-size:17px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:380px;font-family:inherit;background:var(--card);color:var(--ink)';
-          input.placeholder = '输入答案（不区分大小写）';
-          item.appendChild(input);
-          var check = UI.el('button', 'btn btn-sm', '检查答案');
-          check.style.cssText = 'margin-top:12px;margin-left:0;display:block';
-          check.onclick = function () {
-            if (answered) return;
-            if (!input.value.trim()) { input.focus(); return; }
-            var ok = DeSRS.matches(input.value, ex.a);
-            input.disabled = true;
-            onAnswer(ok);
-            if (!ok) input.style.borderColor = 'var(--bad)';
-          };
-          input.onkeydown = function (ev) { if (ev.key === 'Enter') { answered ? next.click() : check.click(); } };
-          item.appendChild(check);
-        }
-        item.appendChild(fb);
-        item.appendChild(next);
-        box.appendChild(item);
-        if (input) input.focus();
+        var built = renderExerciseItem(ex, idx + 1, onAnswer, idx < topic.exercises.length - 1 ? '下一题' : '看结果');
+        built.next.onclick = function () { idx++; if (idx < topic.exercises.length) show(); else finish(); };
+        box.appendChild(built.element);
+        built.focus();
       }
 
       function finish() {
@@ -144,7 +161,94 @@ var Grammar = (function () {
     return v;
   }
 
-  return { listPage: listPage, topicPage: topicPage };
+  function reviewPage() {
+    var s = store.state;
+    var today = DeStorage.today();
+    var v = UI.el('div');
+    v.appendChild(UI.el('h1', 'page-title', '语法复习'));
+
+    // 取 store.state.srs 中 key 含 # 且到期的语法卡，按 due 升序
+    var queue = Object.keys(s.srs).filter(function (id) {
+      return id.indexOf('#') >= 0 && DeSRS.isDue(s.srs[id], today);
+    }).map(function (id) {
+      var parts = id.split('#');
+      var t = GRAMMAR.find(function (g) { return g.id === parts[0]; });
+      var ex = t && t.exercises[+parts[1]];
+      return { id: id, card: s.srs[id], ex: ex, due: s.srs[id].due };
+    }).filter(function (item) { return item.ex; }).sort(function (a, b) { return a.due.localeCompare(b.due); });
+
+    if (!queue.length) {
+      var empty = UI.el('div', 'card empty');
+      empty.innerHTML = '<p>今天没有到期的语法复习。</p>';
+      var b = UI.el('button', 'btn', '去语法专题');
+      b.onclick = function () { location.hash = '#/grammar'; };
+      empty.appendChild(b);
+      v.appendChild(empty);
+      return v;
+    }
+
+    v.appendChild(UI.el('p', 'page-sub', queue.length + ' 道语法题到期，答对会安排更久的间隔。'));
+
+    var idx = 0, right = 0;
+    var dots = UI.el('div', 'progress-dots');
+    queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
+    v.appendChild(dots);
+    var stage = UI.el('div');
+    v.appendChild(stage);
+
+    function show() {
+      stage.innerHTML = '';
+      dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
+      var item = queue[idx];
+
+      function onAnswer(ok) {
+        store.state.srs[item.id] = DeSRS.review(store.state.srs[item.id], ok ? 2 : 0, today);
+        if (ok) {
+          right++;
+          store.removeMistake(item.id);
+        } else {
+          store.addMistake('grammar', item.id);
+        }
+        store.touchToday('reviewed', 1);
+        if (ok) store.touchToday('correct', 1);
+        store.save();
+      }
+
+      var built = renderExerciseItem(item.ex, idx + 1, onAnswer, idx < queue.length - 1 ? '下一题' : '看结果');
+      built.next.onclick = function () { idx++; if (idx < queue.length) show(); else finish(); };
+      stage.appendChild(built.element);
+      built.focus();
+    }
+
+    function finish() {
+      dots.querySelectorAll('.dot').forEach(function (d) { d.classList.add('done'); });
+      stage.innerHTML = '';
+      var done = UI.el('div', 'card');
+      done.appendChild(UI.el('div', 'result-num', right + ' / ' + queue.length));
+      var rate = Math.round(right / queue.length * 100);
+      done.appendChild(UI.el('p', 'stat-label', '答对率 ' + rate + '%'));
+
+      var dist = {};
+      queue.forEach(function (item) {
+        var c = s.srs[item.id];
+        if (c && c.due) dist[c.due] = (dist[c.due] || 0) + 1;
+      });
+      var dueList = Object.keys(dist).sort().map(function (d) { return d + '：' + dist[d] + ' 题'; }).join(' · ');
+      done.appendChild(UI.el('p', 'stat-label', '下次到期分布：' + (dueList || '—')));
+
+      var row = UI.el('div', null); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;flex-wrap:wrap';
+      var b1 = UI.el('button', 'btn btn-ghost', '回首页');
+      b1.onclick = function () { location.hash = '#/'; };
+      row.appendChild(b1);
+      done.appendChild(row);
+      stage.appendChild(done);
+    }
+
+    show();
+    return v;
+  }
+
+  return { listPage: listPage, topicPage: topicPage, reviewPage: reviewPage };
 })();
 
 /* ---------- 错题本 ---------- */
@@ -201,8 +305,12 @@ var Mistakes = (function () {
         var ex = t && t.exercises[+parts[1]];
         body = '<span class="badge">语法</span> ' + (t ? UI.esc(t.title) + '：' : '') + (ex ? UI.esc(ex.q) : x.id);
       }
+      var dueLabel = '';
+      if (x.m.type === 'grammar' && s.srs[x.id] && s.srs[x.id].due) {
+        dueLabel = ' <span class="badge">下次 ' + s.srs[x.id].due + '</span>';
+      }
       item.innerHTML = '<div class="m-body">' + body + '</div><span class="badge">错 ' + x.m.wrong + ' 次</span>' +
-        (x.m.type === 'vocab' ? '' : ' <a class="btn btn-ghost btn-sm" href="#/topic/' + x.id.split('#')[0] + '">重练</a>');
+        (x.m.type === 'vocab' ? '' : ' <a class="btn btn-ghost btn-sm" href="#/topic/' + x.id.split('#')[0] + '">重练</a>') + dueLabel;
       list.appendChild(item);
     });
     v.appendChild(list);

@@ -73,6 +73,7 @@
     var learned = pool.filter(function (w) { return s.srs[w.id]; }).length;
     var mastered = pool.filter(function (w) { return s.srs[w.id] && s.srs[w.id].mastered; }).length;
     var due = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today); }).length;
+    var grammarDue = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') >= 0 && DeSRS.isDue(s.srs[id], today); }).length;
     var t = s.daily[today] || { new: 0, reviewed: 0, correct: 0 };
 
     var v = el('div');
@@ -97,6 +98,15 @@
     bRev.onclick = function () { location.hash = '#/review'; };
     row.appendChild(bRev);
     card.appendChild(row);
+
+    var gRow = el('div', null);
+    gRow.style.cssText = 'margin-top:10px';
+    var bGram = el('button', 'btn btn-sm ' + (grammarDue ? '' : 'btn-ghost'), grammarDue ? '语法复习 ' + grammarDue + ' 题' : '无到期语法复习');
+    bGram.disabled = !grammarDue;
+    bGram.onclick = function () { location.hash = '#/review-grammar'; };
+    gRow.appendChild(bGram);
+    card.appendChild(gRow);
+
     v.appendChild(card);
 
     var stats = el('div', 'grid grid-3');
@@ -268,6 +278,7 @@
     else if (hash === '#/review-mistakes') view.appendChild(Vocab.reviewSession(true));
     else if ((m = hash.match(/^#\/theme\/([\w-]+)$/))) view.appendChild(Vocab.learnSession(m[1]));
     else if (hash === '#/grammar') view.appendChild(Grammar.listPage());
+    else if (hash === '#/review-grammar') view.appendChild(Grammar.reviewPage());
     else if ((m = hash.match(/^#\/topic\/([\w-]+)$/))) view.appendChild(Grammar.topicPage(m[1]));
     else if (hash === '#/conjugate') view.appendChild(Conjugate.page());
     else if (hash === '#/mistakes') view.appendChild(Mistakes.page());
@@ -277,8 +288,8 @@
   }
 
   function navActive(hash) {
+    if (hash === '#/review-grammar' || hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
     if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';
-    if (hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
     if (hash.indexOf('#/conjugate') === 0) return '/conjugate';
     if (hash.indexOf('#/mistakes') === 0) return '/mistakes';
     if (hash.indexOf('#/settings') === 0) return '/settings';

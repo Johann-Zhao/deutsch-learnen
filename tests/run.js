@@ -87,6 +87,17 @@ test('不同词不匹配', function () {
   assert.ok(!DeSRS.matches('Birne', 'Apfel'));
 });
 
+console.log('语法 SRS 调度：');
+test('语法卡生命周期：首错当天到期，隔天再对推后', function () {
+  var c = DeSRS.review(null, 0, '2026-08-01');
+  assert.strictEqual(c.due, '2026-08-01', '首错应今天到期');
+  assert.ok(DeSRS.isDue(c, '2026-08-01'));
+  c = DeSRS.review(c, 2, '2026-08-02');
+  assert.ok(c.due > '2026-08-02', '答对后到期日应推后: ' + c.due);
+  assert.ok(!DeSRS.isDue(c, '2026-08-02'));
+  assert.ok(DeSRS.isDue(c, c.due));
+});
+
 console.log('DeStorage：');
 function mockBackend() {
   var m = {};
@@ -194,6 +205,7 @@ test('词汇 ≥36 主题、≥1900 词、id 全局唯一、level 合法', funct
   assert.ok(levels.A1 > 500 && levels.A2 > 500 && levels.B1 > 600, '各级别词量异常: ' + JSON.stringify(levels));
   var dup = ids.filter(function (x, i) { return ids.indexOf(x) !== i; });
   assert.strictEqual(dup.length, 0, '存在重复词条 id: ' + dup.slice(0, 3));
+  assert.ok(ids.every(function (id) { return id.indexOf('#') === -1; }), '词汇 id 不应含 #，否则会与语法卡 id 冲突');
 });
 test('语法 ≥34 专题、id 唯一、练习结构合法', function () {
   global.window = {};

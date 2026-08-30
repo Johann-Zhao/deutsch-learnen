@@ -347,6 +347,7 @@ var Vocab = (function () {
     } else {
       ids = Object.keys(s.srs).filter(function (id) { return DeSRS.isDue(s.srs[id], today); });
     }
+    // 语法卡 id 含 '#'（如 g-praesens#2），wordById 返回 undefined，被 filter(Boolean) 天然排除
     return ids.map(window.wordById).filter(Boolean);
   }
 
