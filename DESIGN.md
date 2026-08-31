@@ -55,3 +55,44 @@
 - 键盘焦点样式可见（2px 墨色 outline + offset）
 - 文本对比度达到 WCAG AA
 - 答案判定不区分大小写（句首大写除外需容忍），德语变元音正确处理
+
+## 8. 移动端规范
+
+为 S5 PWA 做准备，所有页面必须在 375px 宽无横向滚动、无遮挡、可单手握持操作。
+
+### 8.1 断点
+
+- 基准断点：`max-width: 480px`。
+- ≥481px 保持现有桌面布局；≤480px 进入紧凑模式。
+- 已有 `max-width: 640px` 断点（grid 单列）保持不变。
+
+### 8.2 触控目标
+
+所有可点击元素有效热区 ≥44×44px：
+
+- 顶部导航 `.nav a`：`min-height: 44px; min-width: 44px`。
+- 级别切换 `.level-switch button`：`min-height: 44px; min-width: 44px`。
+- 主按钮 `.btn`：`min-height: 44px`。
+- 练习选项 `.opt`：`min-height: 44px`。
+- 发音按钮 `.speak-btn`：`min-height: 44px; min-width: 44px`。
+- 自评按钮 `.self-rate .btn`：小屏下纵向铺满宽度。
+
+允许纯文本链接、徽章、进度点等装饰/信息元素例外，但不得作为唯一操作入口。
+
+### 8.3 安全区
+
+- `viewport` meta 已加 `viewport-fit=cover`。
+- `.topbar` 顶部内边距使用 `env(safe-area-inset-top, 0px)`，避免刘海遮挡。
+- `main` 底部内边距使用 `env(safe-area-inset-bottom, 0px)`，避免底部指示条遮挡内容。
+
+### 8.4 触控反馈
+
+- 全局 `touch-action: manipulation`，去除移动端 300ms 点击延迟。
+- `html { -webkit-tap-highlight-color: transparent; }`，避免默认灰色遮罩破坏视觉层级。
+- 悬停/激活反馈仍通过 `:hover` 与 `:focus-visible` 实现，不新增额外动效。
+
+### 8.5 输入与排版
+
+- 所有 `<input>`、`<select>`、`<textarea>` 字体大小 ≥16px，防止 iOS 聚焦时页面自动缩放。
+- 小屏下导航改为横向滚动（`overflow-x: auto`），避免换行挤占内容区。
+- 卡片内边距从 20px 降至 16px，词号字号从 26px 降至 22px，保证 375px 宽度不溢出。
