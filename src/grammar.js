@@ -98,10 +98,10 @@ function topicPage(id) {
   const v = UI.el('div');
   if (!topic) {
     // 跨级别防御：若专题属于尚未加载的级别，先懒加载
-    const lv = (grammarLevels && grammarLevels[id]) || inferLevelFromId(id);
-    if (lv && lv !== 'A1' && isLevelLoaded && !isLevelLoaded(lv) && loadLevelData) {
+    const lv = grammarLevels[id] || inferLevelFromId(id);
+    if (lv && lv !== 'A1' && !isLevelLoaded(lv)) {
       const loading = UI.el('div', 'card', '<p>加载 ' + lv + ' 语法数据...</p>');
-      loadLevelData(lv).then(function () { if (render) render(); }).catch(function (e) {
+      loadLevelData(lv).then(function () { render(); }).catch(function (e) {
         console.error(e);
         loading.innerHTML = '<p>加载失败，请重试。</p>';
       });
@@ -198,13 +198,13 @@ function reviewPage() {
   Object.keys(s.srs).forEach(function (id) {
     if (id.indexOf('#') === -1 || !SRS.isDue(s.srs[id], todayStr)) return;
     const topicId = id.split('#')[0];
-    const lv = (grammarLevels && grammarLevels[topicId]) || inferLevelFromId(topicId);
-    if (lv && lv !== 'A1' && isLevelLoaded && !isLevelLoaded(lv)) needed[lv] = true;
+    const lv = grammarLevels[topicId] || inferLevelFromId(topicId);
+    if (lv && lv !== 'A1' && !isLevelLoaded(lv)) needed[lv] = true;
   });
   const levels = Object.keys(needed);
-  if (levels.length && loadLevelData) {
+  if (levels.length) {
     const loading = UI.el('div', 'card', '<p>加载语法复习数据...</p>');
-    Promise.all(levels.map(loadLevelData)).then(function () { if (render) render(); }).catch(function (e) {
+    Promise.all(levels.map(loadLevelData)).then(function () { render(); }).catch(function (e) {
       console.error(e);
       loading.innerHTML = '<p>加载失败，请重试。</p>';
     });
@@ -309,17 +309,17 @@ const Mistakes = (function () {
       if (m.type === 'vocab') {
         const dash = id.lastIndexOf('-');
         const themeId = dash > 0 ? id.substring(0, dash) : id;
-        lv = (themeLevels && themeLevels[themeId]) || inferLevelFromId(themeId);
+        lv = themeLevels[themeId] || inferLevelFromId(themeId);
       } else {
         const topicId = id.split('#')[0];
-        lv = (grammarLevels && grammarLevels[topicId]) || inferLevelFromId(topicId);
+        lv = grammarLevels[topicId] || inferLevelFromId(topicId);
       }
-      if (lv && lv !== 'A1' && isLevelLoaded && !isLevelLoaded(lv)) needed[lv] = true;
+      if (lv && lv !== 'A1' && !isLevelLoaded(lv)) needed[lv] = true;
     });
     const levels = Object.keys(needed);
-    if (levels.length && loadLevelData) {
+    if (levels.length) {
       const loading = UI.el('div', 'card', '<p>加载错题数据...</p>');
-      Promise.all(levels.map(loadLevelData)).then(function () { if (render) render(); }).catch(function (e) {
+      Promise.all(levels.map(loadLevelData)).then(function () { render(); }).catch(function (e) {
         console.error(e);
         loading.innerHTML = '<p>加载失败，请重试。</p>';
       });

@@ -2,19 +2,17 @@
    清单中没有的词回退到浏览器 speechSynthesis */
 
 import { TTS } from './tts.js';
+import { getAudioWords, getAudioSents, getAudioConj } from './data.js';
 
 let wordSet = null, sentSet = null, conjSet = null, current = null, rate = 1;
 
-function globalWindow() {
-  return typeof window !== 'undefined' ? window : null;
-}
-
 function buildSets() {
-  const w = globalWindow();
-  if (!w) return;
-  if (w.AUDIO_WORDS) wordSet = new Set(w.AUDIO_WORDS);
-  if (w.AUDIO_SENTS) sentSet = new Set(w.AUDIO_SENTS);
-  if (w.AUDIO_CONJ) conjSet = new Set(w.AUDIO_CONJ);
+  const words = getAudioWords();
+  const sents = getAudioSents();
+  const conjs = getAudioConj();
+  if (words.length) wordSet = new Set(words);
+  if (sents.length) sentSet = new Set(sents);
+  if (conjs.length) conjSet = new Set(conjs);
 }
 
 function play(kind, id, fallbackText) {

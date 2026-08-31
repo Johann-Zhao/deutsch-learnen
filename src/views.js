@@ -7,6 +7,7 @@ import * as SRS from './srs.js';
 import { currentLevel, wordsOfLevel, getGrammar } from './data.js';
 import { TTS } from './tts.js';
 import { audio } from './audio.js';
+import { render } from './app.js';
 
 /* ---------- 仪表盘 ---------- */
 export function dashboard() {

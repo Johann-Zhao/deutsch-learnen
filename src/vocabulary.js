@@ -123,11 +123,11 @@ function pickNewWords(themeId, limit) {
 
 function learnSession(themeId) {
   // 跨级别防御：若主题属于尚未加载的级别，先懒加载
-  if (themeId && loadLevelData) {
-    const lv = (themeLevels && themeLevels[themeId]) || inferLevelFromId(themeId);
-    if (lv && lv !== 'A1' && isLevelLoaded && !isLevelLoaded(lv)) {
+  if (themeId) {
+    const lv = themeLevels[themeId] || inferLevelFromId(themeId);
+    if (lv && lv !== 'A1' && !isLevelLoaded(lv)) {
       const loading = UI.el('div', 'card', '<p>加载 ' + lv + ' 词汇数据...</p>');
-      loadLevelData(lv).then(function () { if (render) render(); }).catch(function (e) {
+      loadLevelData(lv).then(function () { render(); }).catch(function (e) {
         console.error(e);
         loading.innerHTML = '<p>加载失败，请重试。</p>';
       });
@@ -390,13 +390,13 @@ function reviewSession(onlyMistakes) {
   ids.forEach(function (id) {
     const dash = id.lastIndexOf('-');
     const themeId = dash > 0 ? id.substring(0, dash) : id;
-    const lv = (themeLevels && themeLevels[themeId]) || inferLevelFromId(themeId);
-    if (lv && lv !== 'A1' && isLevelLoaded && !isLevelLoaded(lv)) needed[lv] = true;
+    const lv = themeLevels[themeId] || inferLevelFromId(themeId);
+    if (lv && lv !== 'A1' && !isLevelLoaded(lv)) needed[lv] = true;
   });
   const levels = Object.keys(needed);
-  if (levels.length && loadLevelData) {
+  if (levels.length) {
     const loading = UI.el('div', 'card', '<p>加载复习数据...</p>');
-    Promise.all(levels.map(loadLevelData)).then(function () { if (render) render(); }).catch(function (e) {
+    Promise.all(levels.map(loadLevelData)).then(function () { render(); }).catch(function (e) {
       console.error(e);
       loading.innerHTML = '<p>加载失败，请重试。</p>';
     });
