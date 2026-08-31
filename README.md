@@ -36,9 +36,9 @@ npm test            # 运行单元测试（算法、判分、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
-> 说明：本项目当前仍处于 S2 工程化阶段。`src/main.js` 是构建入口占位，Task 6 迁移完成后将切换 `index.html` 引用 `js/bundle.js`；当前双击 `index.html` 仍沿用现有 `js/*.js`，行为不变。
+> 说明：`index.html` 已引用 `js/bundle.js`（单文件 IIFE 构建产物，随仓库提交）。修改 `src/` 源码后需运行 `npm run build` 重新生成 `js/bundle.js`，双击 `index.html` 即可使用最新产物。
 
-结构：`data/` 内容数据（按级别分文件）、`js/` 逻辑与页面与构建产物、`src/` 未来 ESM 源码、`audio/` 语音、`images/` 配图、`tools/` 生成脚本、`DESIGN.md` 设计规范。
+结构：`data/` 内容数据（按级别分文件）、`src/` ESM 源码（构建入口 `src/main.js`）、`js/` 构建产物（`bundle.js` + sourcemap）、`audio/` 语音、`images/` 配图、`tools/` 生成脚本、`DESIGN.md` 设计规范。
 
 ## 文档索引
 
