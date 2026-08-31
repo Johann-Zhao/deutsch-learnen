@@ -1,0 +1,6 @@
+# 内容生产管道依赖（Python 工具脚本）
+# 安装：pip install -r tools/requirements.txt
+
+edge-tts==7.2.8        # tools/generate_audio.py 生成德语音频
+httpx==0.28.1          # tools/seedream_client.py + tools/fetch_images.py HTTP 请求
+python-dotenv==1.2.2   # 统一读取项目根 .env 配置

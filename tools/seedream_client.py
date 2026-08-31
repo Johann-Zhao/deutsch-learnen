@@ -1,34 +1,30 @@
 # -*- coding: utf-8 -*-
 """Seedream（火山引擎 Ark）生图客户端。
 
-API 配置读取 E:\\LabX\\backend\\.env（SEEDREAM_API_KEY / SEEDREAM_API_BASE / SEEDREAM_MODEL），
-调用方式仿照 E:\\LabX\\backend\\scripts\\seedream_gen.py（尺寸回退 + 重试 + PNG 校验）。
+API 配置读取项目根 .env（SEEDREAM_API_KEY / SEEDREAM_API_BASE / SEEDREAM_MODEL），
+统一使用 python-dotenv 加载；尺寸回退 + 重试 + PNG 校验。
 """
 import base64
 import pathlib
 import time
 
 import httpx
+from dotenv import load_dotenv
 
-ENV_PATH = pathlib.Path(r"E:\LabX\backend\.env")
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env")
+
 NO_TEXT_SUFFIX = "，扁平矢量插画风格，柔和明亮的配色，简洁现代，无文字，无水印，无logo"
 
 
-def load_env():
-    cfg = {}
-    for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        cfg[k.strip()] = v.strip().strip('"').strip("'")
-    return cfg
+def _getenv(key, default=""):
+    import os
+    return os.getenv(key, default)
 
 
-CFG = load_env()
-API_KEY = CFG.get("SEEDREAM_API_KEY", "")
-API_BASE = CFG.get("SEEDREAM_API_BASE", "https://ark.cn-beijing.volces.com/api/v3")
-MODEL = CFG.get("SEEDREAM_MODEL", "doubao-seedream-5-0-pro-260628")
+API_KEY = _getenv("SEEDREAM_API_KEY", "")
+API_BASE = _getenv("SEEDREAM_API_BASE", "https://ark.cn-beijing.volces.com/api/v3")
+MODEL = _getenv("SEEDREAM_MODEL", "doubao-seedream-5-0-pro-260628")
 
 
 def generate(prompt, out_path, sizes=("1024x1024",), max_retry=3, verbose=True):

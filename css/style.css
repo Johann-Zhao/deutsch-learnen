@@ -21,6 +21,10 @@
 
 html { -webkit-text-size-adjust: 100%; }
 
+/* 全局触控优化：去除 300ms 延迟与默认 tap 高亮 */
+html { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
+
 body {
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
   background: var(--bg);
@@ -39,6 +43,7 @@ a { color: var(--m); text-decoration: none; }
   background: var(--card);
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 10;
+  padding-top: env(safe-area-inset-top, 0px);
 }
 .topbar-inner {
   max-width: 880px; margin: 0 auto; padding: 12px 20px;
@@ -48,13 +53,15 @@ a { color: var(--m); text-decoration: none; }
 .brand small { font-weight: 400; color: var(--ink-3); margin-left: 6px; font-size: 12px; }
 .nav { display: flex; gap: 4px; flex-wrap: wrap; }
 .nav a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; min-width: 44px;
   padding: 6px 12px; border-radius: var(--radius-s); color: var(--ink-2);
   font-size: 14px;
 }
 .nav a:hover { background: var(--bg); color: var(--ink); }
 .nav a.active { background: var(--ink); color: #fff; }
 
-main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
+main { max-width: 880px; margin: 0 auto; padding: 28px 20px calc(72px + env(safe-area-inset-bottom, 0px)); }
 
 .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
 .page-sub { color: var(--ink-2); font-size: 14px; margin-bottom: 24px; }
@@ -73,9 +80,11 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 
 /* ===== 按钮 ===== */
 .btn {
-  display: inline-block; border: 1px solid var(--ink); background: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--ink); background: var(--ink);
   color: #fff; padding: 10px 20px; border-radius: var(--radius-s);
   font-size: 14px; cursor: pointer; font-family: inherit; line-height: 1.4;
+  min-height: 44px;
 }
 .btn:hover { background: #303743; border-color: #303743; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -83,6 +92,16 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .btn-ghost:hover { background: var(--bg); border-color: var(--ink); }
 .btn-sm { padding: 6px 14px; font-size: 13px; }
 .btn-block { display: block; width: 100%; text-align: center; }
+
+/* 单词卡片操作区触控目标 */
+.self-rate { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.self-rate .btn { flex: 1; min-width: 110px; }
+.speak-btn {
+  border: none; background: none; cursor: pointer; color: var(--ink-2);
+  font-size: 15px; padding: 4px 8px; border-radius: 6px; vertical-align: middle;
+  min-height: 44px; min-width: 44px;
+}
+.speak-btn:hover { background: var(--bg); color: var(--ink); }
 
 /* ===== 词性色系统（签名元素）===== */
 .g-m { color: var(--m); }
@@ -109,13 +128,6 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .word-ex b.hl-m { color: var(--m); }
 .word-ex b.hl-f { color: var(--f); }
 .word-ex b.hl-n { color: var(--n); }
-
-/* 发音按钮 */
-.speak-btn {
-  border: none; background: none; cursor: pointer; color: var(--ink-2);
-  font-size: 15px; padding: 4px 8px; border-radius: 6px; vertical-align: middle;
-}
-.speak-btn:hover { background: var(--bg); color: var(--ink); }
 
 /* ===== 进度条 / 统计 ===== */
 .bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
@@ -148,8 +160,10 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .quiz-prompt input:focus { border-color: var(--ink); outline: none; }
 .opts { display: grid; gap: 10px; }
 .opt {
+  display: flex; align-items: center;
   text-align: left; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-s);
   background: var(--card); font-size: 15px; cursor: pointer; font-family: inherit; color: var(--ink);
+  min-height: 44px;
 }
 .opt:hover { border-color: var(--ink); }
 .opt.correct { border-color: var(--ok); background: rgba(27, 138, 90, 0.07); color: var(--ok); font-weight: 600; }
@@ -161,9 +175,7 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .dot { width: 22px; height: 5px; border-radius: 3px; background: var(--line); }
 .dot.done { background: var(--ink); }
 
-/* 自评按钮组 */
-.self-rate { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
-.self-rate .btn { flex: 1; min-width: 110px; }
+/* 自评按钮组颜色 */
 .rate-yes { background: var(--n); border-color: var(--n); }
 .rate-yes:hover { background: #15714A; border-color: #15714A; }
 .rate-mid { background: var(--card); color: var(--ink); }
@@ -207,14 +219,17 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 .setting-row label { font-weight: 600; font-size: 14px; }
 .setting-row input[type=number], .setting-row select {
   padding: 6px 10px; border: 1px solid var(--line); border-radius: var(--radius-s);
-  font-size: 14px; font-family: inherit; background: var(--card); color: var(--ink);
+  font-size: 16px; font-family: inherit; background: var(--card); color: var(--ink);
+  min-height: 44px;
 }
 
 /* 级别切换 */
 .level-switch { display: flex; gap: 2px; margin-left: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .level-switch button {
+  display: inline-flex; align-items: center; justify-content: center;
   border: none; background: transparent; color: var(--ink-2); font-family: inherit;
   font-size: 13px; font-weight: 600; padding: 4px 12px; border-radius: 999px; cursor: pointer;
+  min-height: 44px; min-width: 44px;
 }
 .level-switch button:hover { color: var(--ink); }
 .level-switch button.on { background: var(--ink); color: #fff; }
@@ -247,7 +262,27 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 20px 72px; }
 }
 
 @media (max-width: 480px) {
-  main { padding: 20px 14px 64px; }
+  main { padding: 20px 14px calc(64px + env(safe-area-inset-bottom, 0px)); }
   .word-de { font-size: 22px; }
   .topbar-inner { padding: 10px 14px; gap: 12px; }
+
+  /* 导航：小屏横向滚动，避免换行挤压 */
+  .nav {
+    flex-wrap: nowrap;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -14px; padding: 0 14px;
+    max-width: calc(100% + 28px);
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { flex: 0 0 auto; white-space: nowrap; }
+
+  /* 输入框强制 ≥16px，防止 iOS 聚焦自动缩放 */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* 小屏下卡片与按钮充分利用宽度 */
+  .card { padding: 16px; }
+  .quiz-prompt input, .setting-row input[type=number], .setting-row select { max-width: 100%; }
+  .self-rate { flex-direction: column; }
+  .self-rate .btn { width: 100%; }
 }
