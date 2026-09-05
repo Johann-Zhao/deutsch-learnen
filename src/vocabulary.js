@@ -87,23 +87,29 @@ function themesPage() {
   const themes = getVocabThemes().filter(function (t) { return (t.level || 'A1') === lv; });
   const total = themes.reduce(function (n, t) { return n + t.words.length; }, 0);
   const v = UI.el('div');
+  v.appendChild(UI.el('p', 'micro', 'WORTSCHATZ · ' + lv));
   v.appendChild(UI.el('h1', 'page-title', '词汇 · ' + lv));
-  v.appendChild(UI.el('p', 'page-sub', themes.length + ' 个主题 · ' + total + ' 个核心词。点进主题学习，或从「今日」开始每日计划。'));
-  const list = UI.el('div', 'theme-list');
+  v.appendChild(UI.el('p', 'page-sub', themes.length + ' 个主题 · ' + total + ' 个核心词。点封面进主题学习，或从「今日」开始每日计划。'));
+  const band = UI.el('div', 'level-band');
+  band.appendChild(UI.el('span', 'micro', 'AUSGABE ' + lv));
+  v.appendChild(band);
+  const wall = UI.el('div', 'cover-wall');
   const imageCovers = getImageCovers();
   themes.forEach(function (t) {
     let learned = 0;
     t.words.forEach(function (w, i) { if (s.srs[t.id + '-' + i]) learned++; });
-    const a = UI.el('a', 'theme-item');
+    const a = UI.el('a', 'cover-cell');
     a.href = '#/theme/' + t.id;
-    const cover = (imageCovers.indexOf && imageCovers.indexOf(t.id) >= 0)
-      ? '<img class="theme-cover" loading="lazy" src="images/covers/' + t.id + '.png" alt="">'
-      : '<div class="theme-cover theme-cover-empty"></div>';
-    a.innerHTML = cover + '<span class="t-name">' + UI.esc(t.name) + '</span>' +
-      '<span class="t-meta">' + learned + ' / ' + t.words.length + ' 已学</span>';
-    list.appendChild(a);
+    const hasCover = imageCovers.indexOf && imageCovers.indexOf(t.id) >= 0;
+    const imgHtml = hasCover
+      ? '<img class="cover-img" loading="lazy" src="images/covers/' + t.id + '.png" alt="">'
+      : '<div class="cover-img"></div>';
+    a.innerHTML = imgHtml +
+      '<span class="cover-cap"><span class="t-name">' + UI.esc(t.name) + '</span>' +
+      '<span class="t-meta">' + learned + ' / ' + t.words.length + ' · ' + t.words.length + ' WÖRTER</span></span>';
+    wall.appendChild(a);
   });
-  v.appendChild(list);
+  v.appendChild(wall);
   return v;
 }
 
