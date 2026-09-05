@@ -74,7 +74,7 @@ def update_manifest(cover_ids, word_ids=None):
         m = re.search(r'window\.IMAGE_WORDS = \[(.*?)\];', existing, re.S)
         words = json.loads('[' + m.group(1) + ']') if m else []
     mp.write_text(
-        '// 由 tools/gen_covers.py 与 tools/fetch_images.py 自动更新，勿手改\n'
+        '// 由 tools/gen_zine_covers.py 与 tools/fetch_images.py 自动更新，勿手改\n'
         'window.IMAGE_WORDS = ' + json.dumps(words, ensure_ascii=False) + ';\n'
         'window.IMAGE_COVERS = ' + json.dumps(sorted(cover_ids), ensure_ascii=False) + ';\n',
         encoding='utf-8')

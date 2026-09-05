@@ -22,7 +22,7 @@ pip install -r tools/requirements.txt
 cp .env.example .env
 ```
 
-当前仅 `tools/gen_covers.py`（经 `tools/seedream_client.py`）需要 Seedream API key：
+当前仅 `tools/gen_zine_covers.py`（经 `tools/seedream_client.py`）需要 Seedream API key：
 
 - `SEEDREAM_API_KEY`：火山引擎 Ark API key
 - `SEEDREAM_API_BASE`：默认 `https://ark.cn-beijing.volces.com/api/v3`
@@ -34,25 +34,32 @@ cp .env.example .env
 
 - **用途**：Seedream（火山引擎 Ark）生图客户端，提供 `generate(prompt, out_path)`。
 - **依赖**：`httpx`、`python-dotenv`
-- **调用方**：被 `gen_covers.py` 导入；也可命令行调试：
+- **调用方**：被 `gen_zine_covers.py` 导入；也可命令行调试：
   ```bash
   python tools/seedream_client.py "一只橘猫在读书" test.png
   ```
 - **产物**：指定路径的 PNG 图片。
 
-### `gen_covers.py`
+### `gen_zine_covers.py`
 
-- **用途**：为全部词汇主题生成统一风格的插画封面（38 张）。
-- **依赖**：`seedream_client.py`（需 `.env` 中 Seedream API key）
+- **用途**：当前封面生成工作流——为全部词汇主题生成 **muted zine 纸感风格**封面（2:3 竖版，38 张），并生成装饰刊头插画（`images/zine/*.png`）。
+- **依赖**：`seedream_client.py`（需 `.env` 中 Seedream API key）；从 `gen_covers.py` 导入 `load_themes()` / `update_manifest()`。
 - **用法**：
   ```bash
-  python tools/gen_covers.py        # 跳过已存在文件
-  python tools/gen_covers.py --force # 强制重新生成全部封面
+  python tools/gen_zine_covers.py              # 跳过已存在文件，补齐缺失项
+  python tools/gen_zine_covers.py --force      # 强制重新生成全部封面与装饰图
+  python tools/gen_zine_covers.py --only greet,time  # 只跑指定主题 id
   ```
 - **产物**：
   - `images/covers/<themeId>.png`
+  - `images/zine/*.png`（刊头 / 空状态装饰插画）
   - 更新 `images/manifest.js` 中的 `window.IMAGE_COVERS`
-- **注意**：`images/manifest.js` 由本脚本与 `fetch_images.py` 自动更新，**请勿手改**。
+- **注意**：`images/manifest.js` 由本脚本（经 `gen_covers.py` 的 `update_manifest()`）与 `fetch_images.py` 自动更新，**请勿手改**。
+
+### `gen_covers.py`
+
+- **用途**：**依赖模块，不再直接用于生成封面**。现作为 `gen_zine_covers.py` 的公共库保留，提供 `load_themes()`（读取主题清单）与 `update_manifest()`（写 `images/manifest.js`）。
+- **说明**：历史上它是旧风格封面的生成入口；v4（muted zine）起封面生成请用 `gen_zine_covers.py`。直接运行本脚本会按旧风格重新生成封面，请勿执行。
 
 ### `fetch_images.py`
 
@@ -67,7 +74,7 @@ cp .env.example .env
   - `images/words/<id>.jpg`
   - `images/credits.json`（每张图的来源、作者、许可证、来源页）
   - 更新 `images/manifest.js` 中的 `window.IMAGE_WORDS`
-- **注意**：`images/manifest.js` 由本脚本与 `gen_covers.py` 自动更新，**请勿手改**。
+- **注意**：`images/manifest.js` 由本脚本与 `gen_zine_covers.py` 自动更新，**请勿手改**。
 
 ### `generate_audio.py`
 
@@ -107,7 +114,7 @@ cp .env.example .env
 
 2. **主题封面**（需要 Seedream API key）：
    ```bash
-   python tools/gen_covers.py
+   python tools/gen_zine_covers.py
    ```
 
 3. **词条配图**（无需 API key，依赖网络与外部图库）：
