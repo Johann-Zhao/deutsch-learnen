@@ -18,6 +18,10 @@ export function render() {
   document.querySelectorAll('#nav a').forEach(function (a) {
     a.classList.toggle('active', a.getAttribute('data-route') === cur);
   });
+  document.querySelectorAll('#tabbar a').forEach(function (a) {
+    const r = a.getAttribute('data-route');
+    a.classList.toggle('active', r === cur || (cur === '/mistakes' && r === '/settings'));
+  });
 
   let m;
   if (hash === '#/' || hash === '') view.appendChild(dashboard());
@@ -33,6 +37,7 @@ export function render() {
   else if (hash === '#/mistakes') view.appendChild(Mistakes.page());
   else if (hash === '#/settings') view.appendChild(settingsPage());
   else view.appendChild(dashboard());
+  view.classList.remove('fade-in'); void view.offsetWidth; view.classList.add('fade-in');
   window.scrollTo(0, 0);
 }
 
