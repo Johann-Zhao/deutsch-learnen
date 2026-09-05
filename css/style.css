@@ -112,6 +112,7 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 
 /* 学习/复习流程居中单栏纸卡 */
 .sheet { max-width: 680px; margin: 0 auto; }
+.card.sheet { margin: 0 auto 16px; }
 
 /* ===== 按钮 ===== */
 .btn {
@@ -250,6 +251,7 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .archive-table { border-collapse: collapse; width: 100%; font-size: 15px; }
 .archive-table th, .archive-table td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }
 .archive-table th { background: var(--paper); font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-2); font-weight: 600; }
+.archive-table td:first-child { color: var(--ink-2); font-weight: 400; }
 .archive-table td:last-child { font-weight: 600; }
 
 .mistake-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }

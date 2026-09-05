@@ -82,6 +82,9 @@ function listPage() {
   headTxt.appendChild(UI.el('p', 'micro', 'GRAMMATIK · ' + lv));
   head.appendChild(headTxt);
   v.appendChild(head);
+  const hero = UI.el('img', 'hero-zine');
+  hero.src = 'images/zine/grammar-head.png'; hero.alt = '语法章节刊头插画'; hero.loading = 'lazy';
+  v.appendChild(hero);
   v.appendChild(UI.el('h1', 'page-title', '语法 · ' + lv));
   v.appendChild(UI.el('p', 'page-sub', topics.length + ' 个 ' + lv + ' 专题，每个专题 = 讲解 + 交互练习。做错的题会进入错题本。'));
   topics.forEach(function (t) {
