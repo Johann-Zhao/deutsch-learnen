@@ -46,7 +46,7 @@
 
 ## 4. 图像系统
 
-- **38 张主题封面重生成**：新增 `tools/gen_zine_covers.py`（复用 `seedream_client.py`），每主题按 skill Variation Engine 选不同版式（center-fragment / lower-left-float / upper-right-block / dot-orbit / single-specimen 等），主体与主题强相关（time=闹钟、family=餐桌、traffic=火车…），2:3 竖版纸感。旧扁平风封面全部替换（`images/covers/*.png`），manifest 自动更新。
+- **38 张主题封面重生成**：新增 `tools/gen_zine_covers.py`（复用 `seedream_client.py`），每主题按 skill Variation Engine 选不同版式（center-fragment / lower-left-float / upper-right-block / dot-orbit / single-specimen 等），主体与主题强相关（time=闹钟、family=餐桌、traffic=火车…），2:3 竖版纸感，含一个德语单词微文本。旧扁平风封面全部替换（`images/covers/*.png`），manifest 自动更新。
 - **装饰插图约 6 张**：首页 hero、无到期复习空状态、语法章头、错题本空状态、设置页脚、移动端启动/欢迎图。存入 `images/zine/`。
 - **Cove 提取**：`tools/extract_ornaments.py`（pdfimages 已有产物 + PIL 合成 smask alpha）产出透明 PNG 装饰件至 `images/ornaments/`，挑选可用件（边框、星月、星座、哥特窗）。
 - 生图质量门：逐张目检，出现高饱和色块或跑题即按 skill 规则收紧 prompt 重生成一次；全部图目检合格才算完成。
