@@ -38,7 +38,7 @@
 ## 3. 页面版式（桌面与移动同一套视觉语言）
 
 1. **今日页**：杂志封面式。顶部打字机德语日期 + 衬线大标题"今日"；今日任务卡做成"本期导读"；数据统计为档案式统计栏；连胜日历为纸格点阵；成就为金色印章徽章（"盖下"动效可关）。
-2. **词汇墙**：38 张 3:5 zine 封面组成的封面墙，按 A1/A2/B1 分辑；hover 轻微抬起 + 纸影。
+2. **词汇墙**：38 张 2:3 zine 封面组成的封面墙，按 A1/A2/B1 分辑；hover 轻微抬起 + 纸影。
 3. **学习/复习流程**：居中单栏"卡片纸"（max-width 收敛）；选项为墨线边框按钮；反馈用低饱和词性色；拼写/听写输入框做练习本横线效果。
 4. **语法页**：editorial 章节式，哥特花窗/星月 PNG 做分章装饰，讲解为杂志长文排版。
 5. **变位/错题本/设置**：档案表格风（等宽字体表格、墨线分隔）。
@@ -46,7 +46,7 @@
 
 ## 4. 图像系统
 
-- **38 张主题封面重生成**：新增 `tools/gen_zine_covers.py`（复用 `seedream_client.py`），每主题按 skill Variation Engine 选不同版式（center-fragment / lower-left-float / upper-right-block / dot-orbit / single-specimen 等），主体与主题强相关（time=闹钟、family=餐桌、traffic=火车…），3:5 竖版纸感，含一个德语单词微文本。旧扁平风封面全部替换（`images/covers/*.png`），manifest 自动更新。
+- **38 张主题封面重生成**：新增 `tools/gen_zine_covers.py`（复用 `seedream_client.py`），每主题按 skill Variation Engine 选不同版式（center-fragment / lower-left-float / upper-right-block / dot-orbit / single-specimen 等），主体与主题强相关（time=闹钟、family=餐桌、traffic=火车…），2:3 竖版纸感。旧扁平风封面全部替换（`images/covers/*.png`），manifest 自动更新。
 - **装饰插图约 6 张**：首页 hero、无到期复习空状态、语法章头、错题本空状态、设置页脚、移动端启动/欢迎图。存入 `images/zine/`。
 - **Cove 提取**：`tools/extract_ornaments.py`（pdfimages 已有产物 + PIL 合成 smask alpha）产出透明 PNG 装饰件至 `images/ornaments/`，挑选可用件（边框、星月、星座、哥特窗）。
 - 生图质量门：逐张目检，出现高饱和色块或跑题即按 skill 规则收紧 prompt 重生成一次；全部图目检合格才算完成。
