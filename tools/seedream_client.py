@@ -27,11 +27,11 @@ API_BASE = _getenv("SEEDREAM_API_BASE", "https://ark.cn-beijing.volces.com/api/v
 MODEL = _getenv("SEEDREAM_MODEL", "doubao-seedream-5-0-pro-260628")
 
 
-def generate(prompt, out_path, sizes=("1024x1024",), max_retry=3, verbose=True):
-    """生成一张图并落盘，返回 (ok, out_path|None, note)"""
+def generate(prompt, out_path, sizes=("1024x1024",), max_retry=3, verbose=True, suffix=NO_TEXT_SUFFIX):
+    """生成一张图并落盘，返回 (ok, out_path|None, note)。suffix=None/'' 时不追加默认后缀。"""
     out_path = pathlib.Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    body_prompt = prompt + NO_TEXT_SUFFIX
+    body_prompt = prompt + (suffix or '')
 
     for attempt in range(1, max_retry + 1):
         for size in sizes:
