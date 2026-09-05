@@ -47,7 +47,7 @@ function renderExerciseItem(ex, number, onAnswer, nextText) {
   } else {
     input = UI.el('input');
     input.type = 'text'; input.autocomplete = 'off';
-    input.style.cssText = 'font-size:17px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:380px;font-family:inherit;background:var(--card);color:var(--ink)';
+    input.className = 'spell-input';
     input.placeholder = '输入答案（不区分大小写）';
     item.appendChild(input);
     const check = UI.el('button', 'btn btn-sm', '检查答案');
@@ -74,6 +74,14 @@ function listPage() {
   const lv = currentLevelFromStore();
   const topics = grammarOfLevel(lv);
   const v = UI.el('div');
+  const head = UI.el('div', 'chapter-head');
+  const win = UI.el('img', 'ornament');
+  win.src = 'images/ornaments/gothic-window.png'; win.alt = ''; win.loading = 'lazy';
+  head.appendChild(win);
+  const headTxt = UI.el('div');
+  headTxt.appendChild(UI.el('p', 'micro', 'GRAMMATIK · ' + lv));
+  head.appendChild(headTxt);
+  v.appendChild(head);
   v.appendChild(UI.el('h1', 'page-title', '语法 · ' + lv));
   v.appendChild(UI.el('p', 'page-sub', topics.length + ' 个 ' + lv + ' 专题，每个专题 = 讲解 + 交互练习。做错的题会进入错题本。'));
   topics.forEach(function (t) {
@@ -110,10 +118,11 @@ function topicPage(id) {
     location.hash = '#/grammar';
     return v;
   }
+  v.appendChild(UI.el('p', 'micro', 'KAPITEL · ' + (topic.level || 'A1') + ' · ' + topic.id.toUpperCase()));
   v.appendChild(UI.el('h1', 'page-title', UI.esc(topic.title)));
   v.appendChild(UI.el('p', 'page-sub', UI.esc(topic.summary)));
 
-  const lesson = UI.el('div', 'card lesson');
+  const lesson = UI.el('div', 'card lesson sheet');
   lesson.innerHTML = topic.lesson;
   v.appendChild(lesson);
 
@@ -190,7 +199,7 @@ function topicPage(id) {
 function reviewPage() {
   const s = store.state;
   const todayStr = today();
-  const v = UI.el('div');
+  const v = UI.el('div', 'sheet');
   v.appendChild(UI.el('h1', 'page-title', '语法复习'));
 
   // 跨级别防御：到期语法卡若属于未加载级别，先懒加载
