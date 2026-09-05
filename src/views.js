@@ -22,14 +22,24 @@ export function dashboard() {
   const t = s.daily[todayStr] || { new: 0, reviewed: 0, correct: 0 };
 
   const v = UI.el('div');
-  v.appendChild(UI.el('h1', 'page-title', '今天'));
+  // 刊头：打字机德语日期 + 衬线大标题
+  const deDate = new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  v.appendChild(UI.el('p', 'micro', deDate + ' · Tagesausgabe'));
+  v.appendChild(UI.el('h1', 'page-title', '今日'));
   v.appendChild(UI.el('p', 'page-sub', new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })));
 
+  const hero = UI.el('img', 'hero-zine');
+  hero.src = 'images/zine/hero.png';
+  hero.alt = '德语学习志 · 今日刊头插画';
+  hero.loading = 'lazy';
+  v.appendChild(hero);
+
+  // 本期导读（今日任务）
   const card = UI.el('div', 'card');
+  card.appendChild(UI.el('p', 'micro', 'INHALT · 本期导读'));
   card.appendChild(UI.el('h3', null, '今日任务'));
   if (t.new + t.reviewed === 0 && due === 0) {
-    const empty = UI.el('p', null, '还没有开始。从 10 个新词开始？');
-    card.appendChild(empty);
+    card.appendChild(UI.el('p', null, '还没有开始。从 ' + s.settings.dailyNew + ' 个新词开始？'));
   } else {
     card.appendChild(UI.el('p', null, '已学新词 ' + t.new + ' 个 · 已复习 ' + t.reviewed + ' 个'));
   }
@@ -43,7 +53,6 @@ export function dashboard() {
   bRev.onclick = function () { location.hash = '#/review'; };
   row.appendChild(bRev);
   card.appendChild(row);
-
   const gRow = UI.el('div', null);
   gRow.style.cssText = 'margin-top:10px';
   const bGram = UI.el('button', 'btn btn-sm ' + (grammarDue ? '' : 'btn-ghost'), grammarDue ? '语法复习 ' + grammarDue + ' 题' : '无到期语法复习');
@@ -51,14 +60,14 @@ export function dashboard() {
   bGram.onclick = function () { location.hash = '#/review-grammar'; };
   gRow.appendChild(bGram);
   card.appendChild(gRow);
-
   v.appendChild(card);
 
+  // 档案式统计栏
   const stats = UI.el('div', 'grid grid-3');
   [['已学 / ' + cur + ' 词量', learned + ' / ' + pool.length], ['已掌握', mastered], ['连续打卡', s.streak.count + ' 天']].forEach(function (x) {
     const c = UI.el('div', 'card');
     c.appendChild(UI.el('div', 'stat-num', String(x[1])));
-    c.appendChild(UI.el('div', 'stat-label', x[0]));
+    c.appendChild(UI.el('div', 'micro', x[0]));
     stats.appendChild(c);
   });
   v.appendChild(stats);
@@ -72,14 +81,20 @@ export function dashboard() {
   prog.appendChild(UI.el('p', 'stat-label', pc + '%（' + learned + ' / ' + pool.length + '）'));
   v.appendChild(prog);
 
-  // 连胜日历（最近 5 周）+ 冻结券
+  // 连胜日历（纸格点阵）+ 冻结券
   const cal = UI.el('div', 'card');
-  cal.appendChild(UI.el('h3', null, '连胜 ' + s.streak.count + ' 天 · 冻结券 × ' + (s.streak.freezes || 0)));
-  cal.appendChild(UI.el('p', 'stat-label', '漏卡一天会自动用冻结券保住连胜（每满 7 天补 1 张，最多 2 张）。'));
+  const calHead = UI.el('div', 'chapter-head');
+  const orn = UI.el('img', 'ornament');
+  orn.src = 'images/ornaments/constellation-heart.png'; orn.alt = ''; orn.loading = 'lazy';
+  calHead.appendChild(orn);
+  const calTitle = UI.el('div');
+  calTitle.appendChild(UI.el('h3', null, '连胜 ' + s.streak.count + ' 天 · 冻结券 × ' + (s.streak.freezes || 0)));
+  calTitle.appendChild(UI.el('p', 'stat-label', '漏卡一天会自动用冻结券保住连胜（每满 7 天补 1 张，最多 2 张）。'));
+  calHead.appendChild(calTitle);
+  cal.appendChild(calHead);
   const grid = UI.el('div', 'cal-grid');
   const protectedDays = {};
   (s.streak.protected || []).forEach(function (d) { protectedDays[d] = 1; });
-  // 从上周日开始排 35 格
   const start = new Date(); start.setDate(start.getDate() - 6 - start.getDay());
   for (let ci = 0; ci < 35; ci++) {
     const day = new Date(start); day.setDate(start.getDate() + ci);
@@ -95,9 +110,9 @@ export function dashboard() {
   cal.appendChild(UI.el('p', 'stat-label', '■ 已学习 · ▨ 冻结保护 · □ 空缺'));
   v.appendChild(cal);
 
-  // 成就
+  // 成就（金色印章）
   const ach = UI.el('div', 'card');
-  ach.appendChild(UI.el('h3', null, '成就'));
+  ach.appendChild(UI.el('p', 'micro', 'AUSZEICHNUNGEN · 成就'));
   let totalReviewed = 0;
   Object.keys(s.daily).forEach(function (k) { totalReviewed += (s.daily[k].reviewed || 0); });
   const topicsDone = Object.keys(s.grammarDone).length;
@@ -116,10 +131,10 @@ export function dashboard() {
     ['复习 100 题', totalReviewed >= 100]
   ];
   const rowAch = UI.el('div', null);
-  rowAch.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
-  ACHV.forEach(function (a) {
-    const b = UI.el('span', 'badge' + (a[1] ? ' badge-on' : ''), a[0]);
-    if (!a[1]) b.style.opacity = '.45';
+  rowAch.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;margin-top:10px';
+  ACHV.forEach(function (a, i) {
+    const b = UI.el('span', 'badge-seal' + (a[1] ? '' : ' locked'), a[0]);
+    if (a[1]) b.style.animationDelay = (i * 30) + 'ms';
     rowAch.appendChild(b);
   });
   ach.appendChild(rowAch);
