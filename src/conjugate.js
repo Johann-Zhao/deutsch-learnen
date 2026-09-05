@@ -73,6 +73,7 @@ export function lookup(input) {
 
 export function page() {
   const v = UI.el('div');
+  v.appendChild(UI.el('p', 'micro', 'KONJUGATION · VERBTABELLE'));
   v.appendChild(UI.el('h1', 'page-title', '动词变位'));
   v.appendChild(UI.el('p', 'page-sub', '输入动词原形（如 lernen、fahren、sein），生成现在时变位表和完成时形式。常用不规则动词已内置。'));
 
@@ -80,7 +81,7 @@ export function page() {
   const input = UI.el('input');
   input.type = 'text'; input.autocomplete = 'off';
   input.placeholder = '动词原形，如 fahren';
-  input.style.cssText = 'font-size:17px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:320px;font-family:inherit;background:var(--card);color:var(--ink)';
+  input.className = 'spell-input'; input.style.maxWidth = '320px';
   card.appendChild(input);
   const btn = UI.el('button', 'btn btn-sm', '查询');
   btn.style.marginLeft = '8px';
@@ -109,14 +110,13 @@ export function page() {
       result.innerHTML = '<div class="feedback bad">没有识别这个动词。请输入 -en 结尾的动词原形（如 lernen）。</div>';
       return;
     }
-    const t = UI.el('table', null);
-    t.style.cssText = 'border-collapse:collapse;width:100%;font-size:15px';
-    let html = '<tr><th style="text-align:left;padding:6px 12px;border:1px solid var(--line);background:var(--bg)">人称</th><th style="text-align:left;padding:6px 12px;border:1px solid var(--line);background:var(--bg)">' + UI.esc(data.verb) + '（' + data.note + '）</th></tr>';
+    const t = UI.el('table', 'archive-table');
+    let html = '<tr><th>人称</th><th>' + UI.esc(data.verb) + '（' + data.note + '）</th></tr>';
     PERSONS.forEach(function (p, i) {
-      html += '<tr><td style="padding:6px 12px;border:1px solid var(--line);color:var(--ink-2)">' + p + '</td><td style="padding:6px 12px;border:1px solid var(--line);font-weight:600">' + UI.esc(data.forms[i]) + '</td></tr>';
+      html += '<tr><td>' + p + '</td><td>' + UI.esc(data.forms[i]) + '</td></tr>';
     });
     if (data.pp) {
-      html += '<tr><td style="padding:6px 12px;border:1px solid var(--line);color:var(--ink-2)">Perfekt</td><td style="padding:6px 12px;border:1px solid var(--line);font-weight:600">' + UI.esc(data.pp[0] + ' ' + data.pp[1]) + '</td></tr>';
+      html += '<tr><td>Perfekt</td><td>' + UI.esc(data.pp[0] + ' ' + data.pp[1]) + '</td></tr>';
     }
     t.innerHTML = html;
     result.appendChild(t);

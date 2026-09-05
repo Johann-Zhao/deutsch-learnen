@@ -1,4 +1,4 @@
-# 德语学习站 A1–B1
+# 德语学习志 · Deutsch Zine A1–B1
 
 面向中文母语学习者的德语本地学习应用，覆盖 **A1 / A2 / B1** 三个级别。纯静态网页，无需安装、语音离线可用。
 
@@ -19,7 +19,7 @@
 
 ## 图片说明
 
-- **主题封面**（38 张）：由 Seedream（doubao-seedream-5-0-pro）生成的统一风格扁平插画。重新生成：`python tools/gen_covers.py`（API 配置读取项目根 `.env`，详见 `tools/README.md`）
+- **主题封面**（38 张）：由 Seedream（doubao-seedream-5-0-pro）生成的 zine 纸感风格封面（米色旧纸衬底、衬线刊头）。重新生成：`python tools/gen_zine_covers.py`（API 配置读取项目根 `.env`，详见 `tools/README.md`）
 - **词条配图**：来自 [Wikimedia Commons](https://commons.wikimedia.org/) 与 [Openverse](https://api.openverse.org/) 的免费授权图片（CC 系列或公有领域），仅用于本地学习。每张图的文件、作者、许可证与来源页记录在 `images/credits.json`。补充抓取：`python tools/fetch_images.py`
 - 抓图脚本只处理具体名词并过滤抽象词，未命中即跳过 —— 部分词无图是正常降级
 
@@ -44,7 +44,7 @@ npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 
 | 文档 | 内容 |
 |---|---|
-| `DESIGN.md` | UI/UX 设计规范（色彩、词性色环、动效、文案底线） |
+| `DESIGN.md` | UI/UX 设计规范 v4（muted zine 纸感、设计令牌、词性低饱和三色、动效、文案底线） |
 | `AGENTS.md` | 项目约定速查：目录结构、数据格式、命名约定、标准操作流程 |
 | `CHANGELOG.md` | 版本历史与里程碑（Keep a Changelog 格式） |
 | `tools/README.md` | 内容生产管道说明：脚本用途、运行顺序、产物位置 |
@@ -59,4 +59,4 @@ npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 | 变位与四格难 | 分级语法专题 + 变位查询工具 + 拼写检验 |
 | 学了就忘 | FSRS 间隔重复 + 五种复习题型 |
 | 不敢开口 | 全量真人级神经语音 + 听写题型 |
-| 图文关联弱 | 词条配图 + 主题插画封面 |
+| 图文关联弱 | 词条配图 + zine 纸感主题封面 |

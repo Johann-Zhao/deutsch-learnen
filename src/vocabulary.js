@@ -26,6 +26,7 @@ function highlightEx(word) {
 
 function wordCard(w) {
   const c = UI.el('div', 'card word-card g-' + w.g);
+  c.appendChild(UI.el('p', 'micro', 'WORT DES TAGES'));
   c.appendChild(UI.el('div', null, genderTag(w.g) + '<span class="stat-label">' + w.themeName + ' · ' + (w.level || 'A1') + '</span>'));
   const imageWords = getImageWords();
   const hasImg = !!(imageWords.indexOf && imageWords.indexOf(w.id) >= 0);
@@ -87,23 +88,29 @@ function themesPage() {
   const themes = getVocabThemes().filter(function (t) { return (t.level || 'A1') === lv; });
   const total = themes.reduce(function (n, t) { return n + t.words.length; }, 0);
   const v = UI.el('div');
+  v.appendChild(UI.el('p', 'micro', 'WORTSCHATZ · ' + lv));
   v.appendChild(UI.el('h1', 'page-title', '词汇 · ' + lv));
-  v.appendChild(UI.el('p', 'page-sub', themes.length + ' 个主题 · ' + total + ' 个核心词。点进主题学习，或从「今日」开始每日计划。'));
-  const list = UI.el('div', 'theme-list');
+  v.appendChild(UI.el('p', 'page-sub', themes.length + ' 个主题 · ' + total + ' 个核心词。点封面进主题学习，或从「今日」开始每日计划。'));
+  const band = UI.el('div', 'level-band');
+  band.appendChild(UI.el('span', 'micro', 'AUSGABE ' + lv));
+  v.appendChild(band);
+  const wall = UI.el('div', 'cover-wall');
   const imageCovers = getImageCovers();
   themes.forEach(function (t) {
     let learned = 0;
     t.words.forEach(function (w, i) { if (s.srs[t.id + '-' + i]) learned++; });
-    const a = UI.el('a', 'theme-item');
+    const a = UI.el('a', 'cover-cell');
     a.href = '#/theme/' + t.id;
-    const cover = (imageCovers.indexOf && imageCovers.indexOf(t.id) >= 0)
-      ? '<img class="theme-cover" loading="lazy" src="images/covers/' + t.id + '.png" alt="">'
-      : '<div class="theme-cover theme-cover-empty"></div>';
-    a.innerHTML = cover + '<span class="t-name">' + UI.esc(t.name) + '</span>' +
-      '<span class="t-meta">' + learned + ' / ' + t.words.length + ' 已学</span>';
-    list.appendChild(a);
+    const hasCover = imageCovers.indexOf && imageCovers.indexOf(t.id) >= 0;
+    const imgHtml = hasCover
+      ? '<img class="cover-img" loading="lazy" src="images/covers/' + t.id + '.png" alt="">'
+      : '<div class="cover-img"></div>';
+    a.innerHTML = imgHtml +
+      '<span class="cover-cap"><span class="t-name">' + UI.esc(t.name) + '</span>' +
+      '<span class="t-meta">' + learned + ' / ' + t.words.length + ' · ' + t.words.length + ' WÖRTER</span></span>';
+    wall.appendChild(a);
   });
-  v.appendChild(list);
+  v.appendChild(wall);
   return v;
 }
 
@@ -139,7 +146,7 @@ function learnSession(themeId) {
   const queue = pickNewWords(themeId, s.settings.dailyNew);
   const themeName = themeId ? (getVocabThemes().find(function (t) { return t.id === themeId; }) || {}).name : '每日计划';
 
-  const v = UI.el('div');
+  const v = UI.el('div', 'sheet');
   v.appendChild(UI.el('h1', 'page-title', '学新词' + (themeId ? ' · ' + themeName : '')));
 
   if (!queue.length) {
@@ -178,8 +185,8 @@ function learnSession(themeId) {
     const w = queue[idx];
     stage.appendChild(wordCard(w));
     audio.playWord(w.id, w.de);
-    const hint = UI.el('p', 'stat-label', '认识吗？认识的词直接进入拼写检验，不认识的词走完整练习。');
-    hint.style.margin = '10px 0 0';
+    const hint = UI.el('p', 'micro', '认识吗？认识的词直接进入拼写检验，不认识的词走完整练习。');
+    hint.style.cssText = 'margin:10px 0 0;text-transform:none;letter-spacing:0.06em';
     stage.appendChild(hint);
     const rate = UI.el('div', 'self-rate');
     const bNo = UI.el('button', 'btn rate-no', '不认识');
@@ -206,7 +213,7 @@ function learnSession(themeId) {
       stage.innerHTML = '';
       const kind = steps[si];
       const card = UI.el('div', 'card');
-      const stepLabel = UI.el('p', 'stat-label', '第 ' + (idx + 1) + ' 词 · 步骤 ' + (si + 1) + '/' + steps.length);
+      const stepLabel = UI.el('p', 'micro', 'WORT ' + (idx + 1) + ' · SCHRITT ' + (si + 1) + '/' + steps.length);
       card.appendChild(stepLabel);
       const fb = UI.el('div');
       const next = UI.el('button', 'btn', '继续');
@@ -278,7 +285,7 @@ function learnSession(themeId) {
         card.appendChild(play2);
         const input = UI.el('input');
         input.type = 'text'; input.autocomplete = 'off';
-        input.style.cssText = 'font-size:18px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;width:100%;max-width:380px;font-family:inherit;background:var(--card);color:var(--ink)';
+        input.className = 'spell-input';
         input.placeholder = '输入德语单词';
         card.appendChild(input);
         const check = UI.el('button', 'btn btn-sm', '检查拼写');
@@ -403,11 +410,14 @@ function reviewSession(onlyMistakes) {
     return loading;
   }
   const queue = dueWords(onlyMistakes).slice(0, 30);
-  const v = UI.el('div');
+  const v = UI.el('div', 'sheet');
   v.appendChild(UI.el('h1', 'page-title', onlyMistakes ? '错词重练' : '今日复习'));
   if (!queue.length) {
     const e = UI.el('div', 'card empty');
     e.innerHTML = '<p>' + (onlyMistakes ? '错题本是空的，保持！' : '今天没有到期的复习。学几个新词？') + '</p>';
+    const art = UI.el('img', 'empty-art');
+    art.src = 'images/zine/empty-review.png'; art.alt = ''; art.loading = 'lazy';
+    e.insertBefore(art, e.firstChild);
     const b = UI.el('button', 'btn', '学新词');
     b.onclick = function () { location.hash = '#/learn'; };
     e.appendChild(b);

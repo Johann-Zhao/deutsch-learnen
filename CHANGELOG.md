@@ -6,6 +6,23 @@
 
 无。
 
+## [4.0.0] - 2026-09-06
+
+### Changed
+- 全站视觉重构为 **muted zine 纸感**（v4 设计规范，见 `DESIGN.md`）：
+  - 设计令牌：米色旧纸 `#F2EDE3` 底 + 纸纹噪点、衬线标题、打字机微文本、装饰金 `#A88C4A`。
+  - 词性色换为低饱和三色（der `#4A6FA5` / die `#A85B6E` / das `#4E7D5E`），仅小面积功能性使用。
+  - 组件纸卡化：墨线按钮、印章徽章、档案表格（变位/错题/设置）、editorial 语法章节（章头装饰 + 衬线讲解）。
+  - 词汇主题列表改为 zine 封面墙（2:3 封面 + 微文本进度）；今日页杂志封面化。
+  - 移动端固定 tab bar（今日/词汇/语法/变位/我的，≤768px 启用）。
+- `DESIGN.md` 全文重写为 v4 muted zine 规范（旧的"中性冷白/禁止暖米色衬线"条款作废）。
+
+### Added
+- 38 张主题封面与 6 张装饰插画按 zine 纸感风格重生成（Seedream 5.0 pro），新增 `images/zine/`（刊头/空状态插画）。
+- `tools/gen_zine_covers.py`（zine 风封面生成）与 `tools/extract_ornaments.py`（从 Cove 素材提取装饰），新增 `images/ornaments/`。
+- `tools/shot.mjs`：Playwright 双端截图验收脚本（overflowX 与 jsErrors 断言）。
+- 交付验收：`shots/final_*.png` 10 路由 × 1280/375 双端截图全量通过。
+
 ## [3.0.0] - 2026-08-31
 
 ### Added
