@@ -24,7 +24,9 @@
 │   ├── conj/               # 变位音频
 │   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ
 ├── images/                 # 配图与封面
-│   ├── covers/             # 38 张主题封面
+│   ├── covers/             # 38 张主题 zine 纸感封面
+│   ├── zine/               # 装饰刊头插画（hero / 空状态，zine 纸感）
+│   ├── ornaments/          # Cove 提取的装饰素材（哥特花窗等章头装饰）
 │   ├── words/              # 词条配图
 │   ├── credits.json        # 图片来源与授权信息
 │   └── manifest.js         # 自动生成：IMAGE_WORDS / IMAGE_COVERS
@@ -33,7 +35,9 @@
 │   ├── README.md
 │   ├── generate_audio.py
 │   ├── fetch_images.py
-│   ├── gen_covers.py
+│   ├── gen_zine_covers.py
+│   ├── extract_ornaments.py
+│   ├── shot.mjs            # Playwright 双端截图验收（node tools/shot.mjs <route> <outfile> <width> [height]）
 │   ├── seedream_client.py
 │   └── dump_conj.js
 ├── scripts/                # 构建脚本
@@ -131,9 +135,8 @@ docs(tools): 新增 README 与 requirements.txt
 
 `DESIGN.md` 是 UI/UX 决策的最高依据，不可随意覆盖：
 
-- **词性色环系统**：der 蓝 `#2456C6`、die 红 `#C42B5E`、das 绿 `#1B8A5A`；功能性色彩，非装饰。
-- **禁止三套"AI 味"默认样式**（暖米色衬线、近黑荧光、报纸式布局）。
-- **视觉方向**：中性冷白 `#F6F7F8`，系统无衬线字体，不用渐变/阴影堆叠。
+- **词性低饱和三色系统**：der 蓝 `#4A6FA5`、die 红 `#A85B6E`、das 绿 `#4E7D5E`；唯一功能性色彩，仅小面积使用。
+- **视觉方向**：muted zine 纸感——米色旧纸 `#F2EDE3` + 纸纹噪点、衬线标题、打字机微文本、装饰金 `#A88C4A`；词性三色外无彩色大色块，不用渐变/阴影堆叠。
 - **动效**：仅卡片翻面与答题反馈，≤300ms，尊重 `prefers-reduced-motion`。
 - **文案**：按钮写明结果；空状态是行动邀请；错误提示直接说明问题与解决方式。
 - **质量底线**：响应式 375px、焦点可见、WCAG AA 对比度、答案判定不区分大小写且正确处理变元音。
@@ -157,9 +160,9 @@ docs(tools): 新增 README 与 requirements.txt
 ### 8.1 新增词汇主题
 
 1. 在对应级别的 `data/vocabulary*.js` 中追加主题对象，**严格检查 id 前缀**。
-2. 在 `tools/gen_covers.py` 的 `THEME_PROMPTS` 中为主题补充中文提示词（如不需要重新生成封面可跳过）。
+2. 在 `tools/gen_zine_covers.py` 的 `THEME_PROMPTS` 中为主题补充中文提示词（如不需要重新生成封面可跳过）。
 3. 运行测试：`npm test`。
-4. 重新生成该主题封面：`python tools/gen_covers.py`（如已存在则自动跳过；需强制重跑时加 `--force`）。
+4. 重新生成该主题封面：`python tools/gen_zine_covers.py`（如已存在则自动跳过；需强制重跑时加 `--force`）。
 5. 重新生成音频：`python tools/generate_audio.py`（已存在文件自动跳过，可断点续跑）。
 6. 补充词条配图：`python tools/fetch_images.py`。
 7. 提交：一个 `feat(data)` 提交放数据改动；一个 `chore(tools)` 或 `assets(audio/images)` 提交放生成的资源与 manifest 更新。
@@ -174,7 +177,7 @@ docs(tools): 新增 README 与 requirements.txt
 ### 8.3 重新生成音频 / 图片
 
 - **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。
-- **主题封面**：`python tools/gen_covers.py [--force]`（需 Seedream API key）。
+- **主题封面**：`python tools/gen_zine_covers.py [--force]`（需 Seedream API key，zine 纸感风格）。
 - **词条配图**：`python tools/fetch_images.py [--limit N]`（无需 API key，依赖外部图库可用性）。
 
-> 注意：`audio/manifest.js` 由 `generate_audio.py` 自动生成，`images/manifest.js` 由 `gen_covers.py` 与 `fetch_images.py` 自动更新，**请勿手改**。
+> 注意：`audio/manifest.js` 由 `generate_audio.py` 自动生成，`images/manifest.js` 由 `gen_zine_covers.py` 与 `fetch_images.py` 自动更新，**请勿手改**。
