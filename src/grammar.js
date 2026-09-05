@@ -308,6 +308,7 @@ const Mistakes = (function () {
   function page() {
     const s = store.state;
     const v = UI.el('div');
+    v.appendChild(UI.el('p', 'micro', 'FEHLERBUCH'));
     v.appendChild(UI.el('h1', 'page-title', '错题本'));
 
     // 跨级别防御：错题若属于未加载级别，先懒加载
@@ -341,6 +342,9 @@ const Mistakes = (function () {
     if (!entries.length) {
       const e = UI.el('div', 'card empty');
       e.innerHTML = '<p>还没有错题。做错了题会自动收进来，方便集中攻克。</p>';
+      const art = UI.el('img', 'empty-art');
+      art.src = 'images/zine/empty-mistakes.png'; art.alt = ''; art.loading = 'lazy';
+      e.insertBefore(art, e.firstChild);
       const b = UI.el('button', 'btn', '去练习');
       b.onclick = function () { location.hash = '#/grammar'; };
       e.appendChild(b);

@@ -146,6 +146,7 @@ export function dashboard() {
 export function settingsPage() {
   const s = store.state;
   const v = UI.el('div');
+  v.appendChild(UI.el('p', 'micro', 'EINSTELLUNGEN'));
   v.appendChild(UI.el('h1', 'page-title', '设置'));
 
   const c1 = UI.el('div', 'card');
@@ -173,6 +174,16 @@ export function settingsPage() {
     c1.appendChild(UI.el('p', 'stat-label', '当前浏览器不支持语音朗读，建议使用 Chrome 或 Edge。'));
   }
   v.appendChild(c1);
+
+  const c0 = UI.el('div', 'card');
+  c0.appendChild(UI.el('h3', null, '错题本'));
+  c0.appendChild(UI.el('p', 'stat-label', '做错的词汇与语法题都收在这里，可以集中重练。'));
+  const bmRow = UI.el('div', null); bmRow.style.cssText = 'margin-top:12px';
+  const bMistake = UI.el('button', 'btn btn-ghost btn-sm', '打开错题本');
+  bMistake.onclick = function () { location.hash = '#/mistakes'; };
+  bmRow.appendChild(bMistake);
+  c0.appendChild(bmRow);
+  v.appendChild(c0);
 
   const c2 = UI.el('div', 'card');
   c2.appendChild(UI.el('h3', null, '数据备份'));
@@ -218,5 +229,10 @@ export function settingsPage() {
   };
   c3.appendChild(bReset);
   v.appendChild(c3);
+
+  const foot = UI.el('img', 'ornament');
+  foot.src = 'images/zine/settings-foot.png'; foot.alt = ''; foot.loading = 'lazy';
+  foot.style.cssText = 'width:120px;margin:24px auto 0;opacity:.9';
+  v.appendChild(foot);
   return v;
 }
