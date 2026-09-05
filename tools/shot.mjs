@@ -17,7 +17,7 @@ const { chromium } = require('playwright');
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto('http://localhost:8765/#' + route, { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:8765/#/' + route, { waitUntil: 'networkidle' });
   await page.waitForSelector('h1.page-title, .card', { timeout: 15000 });
   await page.waitForTimeout(600);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
