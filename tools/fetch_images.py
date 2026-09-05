@@ -136,7 +136,7 @@ def update_manifest(word_ids):
     m = re.search(r'window\.IMAGE_COVERS = \[(.*?)\];', text, re.S)
     covers = json.loads('[' + m.group(1) + ']') if m else []
     mp.write_text(
-        '// 由 tools/gen_covers.py 与 tools/fetch_images.py 自动更新，勿手改\n'
+        '// 由 tools/gen_zine_covers.py 与 tools/fetch_images.py 自动更新，勿手改\n'
         'window.IMAGE_WORDS = ' + json.dumps(sorted(word_ids), ensure_ascii=False) + ';\n'
         'window.IMAGE_COVERS = ' + json.dumps(covers, ensure_ascii=False) + ';\n',
         encoding='utf-8')
