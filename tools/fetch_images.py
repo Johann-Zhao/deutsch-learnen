@@ -51,13 +51,14 @@ def load_nouns():
                 continue
             if theme and line.lstrip().startswith("['"):
                 parts = re.findall(r"'((?:[^'\\]|\\.)*)'", line)
-                if len(parts) >= 5 and parts[1] in ('m', 'f', 'n', 'pl'):
-                    de, zh = parts[0], parts[2]
-                    word = re.sub(r'^(der|die|das) ', '', de)
-                    if len(word) < 3 or any(a in zh for a in ABSTRACT):
-                        continue
-                    items.append((f'{theme}-{index}', theme_level, word, zh))
                 if len(parts) >= 5:
+                    # 下标必须先自增再筛选：跳过的抽象/短词也占词条位次，
+                    # 否则后续词整体前移一位，图片与前端 buildWordIndex 错位
+                    if parts[1] in ('m', 'f', 'n', 'pl'):
+                        de, zh = parts[0], parts[2]
+                        word = re.sub(r'^(der|die|das) ', '', de)
+                        if len(word) >= 3 and not any(a in zh for a in ABSTRACT):
+                            items.append((f'{theme}-{index}', theme_level, word, zh))
                     index += 1
     items.sort(key=lambda x: (LEVEL_ORDER.get(x[1], 9), x[0]))
     return items
