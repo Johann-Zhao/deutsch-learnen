@@ -76,6 +76,30 @@ test('isDue 判断当天到期', function () {
   assert.ok(!SRS.isDue({ due: '2026-08-02' }, '2026-08-01'));
   assert.ok(!SRS.isDue({}, '2026-08-01'));
 });
+test('isDue 对已斩（sealed）卡返回 false', function () {
+  const c = SRS.newCard('2026-08-01');
+  SRS.review(c, 0, '2026-08-01');
+  assert.ok(SRS.isDue(c, '2026-08-01'));
+  SRS.seal(c);
+  assert.strictEqual(c.sealed, true);
+  assert.strictEqual(c.mastered, true);
+  assert.ok(!SRS.isDue(c, '2026-08-01'), 'sealed 卡即使到期也不应再安排复习');
+});
+test('seal 置位后 review 不清除 sealed/verify 标记', function () {
+  const c = SRS.newCard('2026-08-01');
+  SRS.review(c, 2, '2026-08-01');
+  c.verify = true;
+  SRS.seal(c);
+  delete c.verify; // 复习转正时删除 verify
+  SRS.review(c, 2, '2026-08-02');
+  assert.strictEqual(c.sealed, true, 'review 不应清除 sealed');
+  assert.strictEqual(c.verify, undefined, 'review 不应恢复 verify');
+});
+test('newCard 不含 sealed/verify 字段', function () {
+  const c = SRS.newCard('2026-08-01');
+  assert.ok(!('sealed' in c));
+  assert.ok(!('verify' in c));
+});
 
 console.log('DeSRS.matches（判分）：');
 test('忽略大小写与首尾空格', function () {
