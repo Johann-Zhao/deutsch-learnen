@@ -114,11 +114,14 @@ function themesPage() {
   return v;
 }
 
-/* ---------- 学新词（百词斩式流程） ----------
-   每词：预览分流 →（不认识）看词选义 → 听音选词 → 拼写检验
-         （认识）直接拼写检验
-   拼写：中文释义+音频，输错一次给首字母提示，两次错显示答案
-   全部完成后组末小结 */
+/* ---------- 学新词（5 词一批：集中介绍三按钮分流 → 加强练习 → 组末小结） ----------
+   一批 5 词（最后一批可不满）：逐词 wordCard 介绍，每张三个按钮——
+     不认识 → 进本批加强名单（选择×2 + 拼写检验）
+     认识   → 直接入 SRS（quality 2），标记 verify，待复习答对转正
+     斩     → 封印卡片（sealed + mastered），永不再复习
+   加强名单每词：看德语选中文 + 看中文选德语（各有 1/3 概率换成听音选词）+ 拼写检验
+   一批结束组末小结，再进下一批，直到队列耗尽 */
+const BATCH = 5;
 function pickNewWords(themeId, limit) {
   const s = store.state;
   const lv = currentLevel();
@@ -166,46 +169,97 @@ function learnSession(themeId) {
     return v;
   }
 
-  let idx = 0;
-  const results = [];
+  let groupStart = 0;          // 当前批起点（queue 下标）
+  let pos = 0;                 // 当前介绍到的词（queue 下标）
+  let lit = 0;                 // 已点亮的词数（介绍即点亮）
+  let strengthen = [];         // 本批加强名单
+  const results = [];          // 本批结果（小结展示）
   const dots = UI.el('div', 'progress-dots');
   queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
   v.appendChild(dots);
   const stage = UI.el('div');
   v.appendChild(stage);
 
+  function groupEnd() { return Math.min(groupStart + BATCH, queue.length); }
+
   function paintDots() {
-    dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
+    dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < lit); });
   }
 
-  /* --- 第一步：预览分流 --- */
-  function showPreview() {
+  /* --- 介绍阶段：逐词 wordCard + 三按钮分流 --- */
+  function showIntro() {
     paintDots();
     stage.innerHTML = '';
-    const w = queue[idx];
+    const w = queue[pos];
+    stage.appendChild(UI.el('p', 'micro', 'WORT ' + (pos + 1) + ' / ' + queue.length +
+      (queue.length > BATCH ? ' · GRUPPE ' + (Math.floor(pos / BATCH) + 1) : '')));
     stage.appendChild(wordCard(w));
     audio.playWord(w.id, w.de);
-    const hint = UI.el('p', 'micro', '认识吗？认识的词直接进入拼写检验，不认识的词走完整练习。');
+    const hint = UI.el('p', 'micro', '「不认识」加入本组加强练习；「认识」今天不再练习，明天安排一次验证复习；「斩」已经很熟，永久移出复习。');
     hint.style.cssText = 'margin:10px 0 0;text-transform:none;letter-spacing:0.06em';
     stage.appendChild(hint);
     const rate = UI.el('div', 'self-rate');
     const bNo = UI.el('button', 'btn rate-no', '不认识');
-    bNo.onclick = function () { startSteps(w, false); };
+    bNo.onclick = function () { strengthen.push(w); advanceIntro(); };
     rate.appendChild(bNo);
     const bYes = UI.el('button', 'btn btn-ghost', '认识');
-    bYes.onclick = function () { startSteps(w, true); };
+    bYes.onclick = function () { knowWord(w); };
     rate.appendChild(bYes);
+    const bSeal = UI.el('button', 'btn btn-ghost', '斩');
+    bSeal.style.cssText = 'color:var(--f);border-color:var(--f)';
+    bSeal.onclick = function () { sealWord(w); };
+    rate.appendChild(bSeal);
     stage.appendChild(rate);
   }
 
-  /* --- 后续步骤 --- */
-  function startSteps(w, knows) {
-    const steps = knows ? ['spell'] : ['trans', 'listen', 'spell'];
+  function advanceIntro() {
+    lit++;
+    pos++;
+    if (pos < groupEnd()) showIntro();
+    else if (strengthen.length) startStrengthen(0);
+    else showGroupSummary();
+  }
+
+  // 认识：直接入 SRS（quality 2），标记 verify，复习答对后转正（斩）
+  function knowWord(w) {
+    const card = SRS.newCard(todayStr);
+    SRS.review(card, 2, todayStr);
+    card.verify = true;
+    store.state.srs[w.id] = card;
+    store.touchToday('new', 1);
+    store.save();
+    results.push({ w: w, status: 'verify' });
+    advanceIntro();
+  }
+
+  // 斩：已经很熟，封印卡片，永远不再复习
+  function sealWord(w) {
+    store.state.srs[w.id] = Object.assign(SRS.newCard(todayStr), { sealed: true, mastered: true });
+    store.touchToday('new', 1);
+    store.save();
+    results.push({ w: w, status: 'sealed' });
+    advanceIntro();
+  }
+
+  /* --- 加强阶段：本批加强名单逐词过题 --- */
+  function startStrengthen(i) {
+    if (i >= strengthen.length) { showGroupSummary(); return; }
+    const w = strengthen[i];
+    // 两题选择：看德语选中文 + 看中文选德语，各约 1/3 概率换成听音选词
+    function pick(base) { return Math.random() < 1 / 3 ? 'listen' : base; }
+    runSteps(w, [pick('trans'), pick('reverse'), 'spell'], function (wrongs, spellFails) {
+      finishWord(w, wrongs, spellFails);
+      startStrengthen(i + 1);
+    });
+  }
+
+  /* --- 单词练习步骤（trans / reverse / listen / spell） --- */
+  function runSteps(w, steps, done) {
     let si = 0, wrongs = 0, spellFails = 0;
 
     function nextStep() {
       si++;
-      if (si >= steps.length) finishWord(w, wrongs, spellFails);
+      if (si >= steps.length) done(wrongs, spellFails);
       else renderStep();
     }
 
@@ -213,7 +267,7 @@ function learnSession(themeId) {
       stage.innerHTML = '';
       const kind = steps[si];
       const card = UI.el('div', 'card');
-      const stepLabel = UI.el('p', 'micro', 'WORT ' + (idx + 1) + ' · SCHRITT ' + (si + 1) + '/' + steps.length);
+      const stepLabel = UI.el('p', 'micro', 'WORT ' + (queue.indexOf(w) + 1) + ' · SCHRITT ' + (si + 1) + '/' + steps.length);
       card.appendChild(stepLabel);
       const fb = UI.el('div');
       const next = UI.el('button', 'btn', '继续');
@@ -249,6 +303,24 @@ function learnSession(themeId) {
           box.appendChild(b);
         });
         card.appendChild(box);
+      } else if (kind === 'reverse') {
+        // 看中文选德语
+        card.appendChild(UI.el('div', 'quiz-prompt', '「' + UI.esc(w.zh) + '」对应的德语是？'));
+        const optsR = shuffle([w].concat(distractors(w, function (x) { return x.de; })));
+        const boxR = UI.el('div', 'opts');
+        optsR.forEach(function (o) {
+          const b = UI.el('button', 'opt', UI.esc(o.de));
+          b.onclick = function () {
+            if (o.id === w.id) { b.classList.add('correct'); reveal('正确 · ' + UI.esc(w.de) + ' = ' + UI.esc(w.zh)); }
+            else {
+              b.classList.add('wrong'); wrongAnswer();
+              boxR.querySelectorAll('.opt').forEach(function (x, i) { if (optsR[i].id === w.id) x.classList.add('correct'); });
+              reveal('再记一次：' + UI.esc(w.de) + ' = ' + UI.esc(w.zh));
+            }
+          };
+          boxR.appendChild(b);
+        });
+        card.appendChild(boxR);
       } else if (kind === 'listen') {
         // 听音选词
         const play = UI.el('button', 'btn btn-ghost btn-sm', '🔊 播放读音');
@@ -321,45 +393,61 @@ function learnSession(themeId) {
     renderStep();
   }
 
-  /* --- 单词完成，记入 FSRS --- */
+  /* --- 单词完成，记入 FSRS（仅加强名单的词走到这里） --- */
   function finishWord(w, wrongs, spellFails) {
     const quality = (wrongs === 0 && spellFails === 0) ? 2 : (spellFails >= 2 ? 0 : 1);
-    const todayStr = today();
     let card = store.state.srs[w.id];
     if (!card) { card = SRS.newCard(todayStr); store.state.srs[w.id] = card; store.touchToday('new', 1); }
     SRS.review(card, quality, todayStr);
     store.save();
     if (spellFails === 0 && store.state.mistakes[w.id]) store.removeMistake(w.id);
-    results.push({ w: w, ok: spellFails === 0 });
-    idx++;
-    if (idx < queue.length) showPreview();
-    else showSummary();
+    results.push({ w: w, status: spellFails === 0 ? 'pass' : 'fail' });
   }
 
   /* --- 组末小结 --- */
-  function showSummary() {
+  function showGroupSummary() {
     paintDots();
     stage.innerHTML = '';
-    const pass = results.filter(function (r) { return r.ok; }).length;
+    const isLast = groupEnd() >= queue.length;
+    const groupN = groupEnd() - groupStart;
+    const pass = results.filter(function (r) { return r.status === 'pass'; }).length;
+    const BADGE = {
+      sealed: ['已斩', ' badge-on'],
+      verify: ['待验证', ''],
+      pass: ['拼写通过', ' badge-on'],
+      fail: ['需巩固', '']
+    };
     const done = UI.el('div', 'card');
-    done.appendChild(UI.el('h3', null, '这组学完了'));
-    done.appendChild(UI.el('div', 'result-num', pass + ' / ' + queue.length));
-    done.appendChild(UI.el('p', 'stat-label', pass === queue.length ? '全部拼写通过，掌握得不错！' : '拼写未一次通过的词已重点标记，复习时优先安排。'));
+    done.appendChild(UI.el('h3', null, '这批学完了'));
+    done.appendChild(UI.el('div', 'result-num', pass + ' / ' + groupN));
+    done.appendChild(UI.el('p', 'stat-label', '已斩的词永不再复习；待验证的词明天复习答对后转正；拼写未一次通过的词已重点标记，复习时优先安排。'));
     const list = UI.el('div', null);
     list.style.margin = '12px 0';
     results.forEach(function (r) {
       const item = UI.el('div', 'mistake-item');
       item.innerHTML = '<div class="m-body">' + genderTag(r.w.g) + ' <b>' + UI.esc(r.w.de) + '</b> — ' + UI.esc(r.w.zh) + '</div>' +
-        '<span class="badge' + (r.ok ? ' badge-on' : '') + '">' + (r.ok ? '拼写通过' : '需巩固') + '</span>';
+        '<span class="badge' + BADGE[r.status][1] + '">' + BADGE[r.status][0] + '</span>';
       item.appendChild(speakBtn(r.w.de, 'word', r.w.id));
       list.appendChild(item);
     });
     done.appendChild(list);
     const row = UI.el('div', null); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;flex-wrap:wrap';
-    const b1 = UI.el('button', 'btn', '再学一组');
-    b1.onclick = function () { render(); };
-    if (!pickNewWords(themeId, 1).length) b1.disabled = true;
-    row.appendChild(b1);
+    if (!isLast) {
+      const bNext = UI.el('button', 'btn', '下一组（还有 ' + (queue.length - groupEnd()) + ' 个）');
+      bNext.onclick = function () {
+        groupStart = groupEnd();
+        pos = groupStart;
+        strengthen = [];
+        results.length = 0;
+        showIntro();
+      };
+      row.appendChild(bNext);
+    } else {
+      const b1 = UI.el('button', 'btn', '再学一组');
+      b1.onclick = function () { render(); };
+      if (!pickNewWords(themeId, 1).length) b1.disabled = true;
+      row.appendChild(b1);
+    }
     const b2 = UI.el('button', 'btn btn-ghost', '回到词汇主题');
     b2.onclick = function () { location.hash = themeId ? '#/vocab' : '#/'; };
     row.appendChild(b2);
@@ -367,7 +455,7 @@ function learnSession(themeId) {
     stage.appendChild(done);
   }
 
-  showPreview();
+  showIntro();
   return v;
 }
 
@@ -376,7 +464,8 @@ export function dueWords(onlyMistakes) {
   const s = store.state, todayStr = today();
   let ids;
   if (onlyMistakes) {
-    ids = Object.keys(s.mistakes).filter(function (id) { return s.mistakes[id].type === 'vocab' && s.srs[id]; });
+    // 错题重练路径不经过 isDue，这里显式排除已斩的词
+    ids = Object.keys(s.mistakes).filter(function (id) { return s.mistakes[id].type === 'vocab' && s.srs[id] && !s.srs[id].sealed; });
   } else {
     ids = Object.keys(s.srs).filter(function (id) { return SRS.isDue(s.srs[id], todayStr); });
   }
@@ -497,16 +586,26 @@ function reviewSession(onlyMistakes) {
       if (q.answered) return;
       q.answered = true; right++;
       store.touchToday('reviewed', 1); store.touchToday('correct', 1);
-      const c = s.srs[w.id]; SRS.review(c, 2, todayStr); store.save();
+      const c = s.srs[w.id];
+      let sealedNow = false;
+      if (c && c.verify && !c.sealed) { SRS.seal(c); delete c.verify; sealedNow = true; }
+      if (c && !c.sealed) SRS.review(c, 2, todayStr);
+      store.save();
       if (s.mistakes[w.id]) store.removeMistake(w.id);
-      fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+      fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
+        (sealedNow ? ' · 已通过验证，斩掉此词，不再安排复习' : '') + '</div>';
       reveal();
     }
     function wrongFn() {
       if (q.answered) return;
       q.answered = true;
       store.touchToday('reviewed', 1);
-      const c = s.srs[w.id]; SRS.review(c, 0, todayStr); store.save();
+      const c = s.srs[w.id];
+      if (c) {
+        if (c.verify) delete c.verify; // 验证未通过：回正常调度
+        if (!c.sealed) SRS.review(c, 0, todayStr);
+      }
+      store.save();
       store.addMistake('vocab', w.id);
       fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
       reveal();

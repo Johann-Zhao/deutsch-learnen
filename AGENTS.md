@@ -35,6 +35,7 @@
 │   ├── README.md
 │   ├── generate_audio.py
 │   ├── fetch_images.py
+│   ├── finalize_images.py
 │   ├── gen_zine_covers.py
 │   ├── extract_ornaments.py
 │   ├── shot.mjs            # Playwright 双端截图验收（node tools/shot.mjs <route> <outfile> <width> [height]）
@@ -179,5 +180,6 @@ docs(tools): 新增 README 与 requirements.txt
 - **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。
 - **主题封面**：`python tools/gen_zine_covers.py [--force]`（需 Seedream API key，zine 纸感风格）。
 - **词条配图**：`python tools/fetch_images.py [--limit N]`（无需 API key，依赖外部图库可用性）。
+- **更换问题配图**：`python tools/fetch_images.py --ids <id,...> --candidates 6` 抓候选到 `images/candidates/`（不碰正式目录），审核选择写入 `images/candidates/choices.json` 后 `python tools/finalize_images.py` 落盘；选 `"none"` 则删除该词配图。
 
 > 注意：`audio/manifest.js` 由 `generate_audio.py` 自动生成，`images/manifest.js` 由 `gen_zine_covers.py` 与 `fetch_images.py` 自动更新，**请勿手改**。

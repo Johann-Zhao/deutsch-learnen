@@ -185,6 +185,15 @@ export function settingsPage() {
   c0.appendChild(bmRow);
   v.appendChild(c0);
 
+  const cStat = UI.el('div', 'card');
+  cStat.appendChild(UI.el('h3', null, '学习统计'));
+  const sealedCount = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') === -1 && s.srs[id].sealed; }).length;
+  const rSeal = UI.el('div', 'setting-row');
+  rSeal.appendChild(UI.el('label', null, '已斩词汇（已经很熟，永不再复习）'));
+  rSeal.appendChild(UI.el('span', null, String(sealedCount)));
+  cStat.appendChild(rSeal);
+  v.appendChild(cStat);
+
   const c2 = UI.el('div', 'card');
   c2.appendChild(UI.el('h3', null, '数据备份'));
   c2.appendChild(UI.el('p', 'stat-label', '学习进度保存在本浏览器中。换电脑或清缓存前，请先导出备份。'));

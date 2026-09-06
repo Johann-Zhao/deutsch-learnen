@@ -41,7 +41,7 @@ const IRR = {
 
 const COMMON = ['sein', 'haben', 'werden', 'möchten', 'können', 'müssen', 'essen', 'fahren', 'sprechen', 'lesen', 'gehen', 'aufstehen', 'anrufen', 'lernen', 'arbeiten', 'wohnen'];
 // 额外为这些规则动词也预生成音频
-const REGULAR_WITH_AUDIO = ['lernen', 'arbeiten', 'wohnen', 'machen', 'kaufen', 'trinken', 'kommen', 'spielen'];
+const REGULAR_WITH_AUDIO = ['lernen', 'arbeiten', 'wohnen', 'machen', 'kaufen', 'spielen'];
 
 function regularForms(inf) {
   const stem = inf.replace(/en$/, '');
@@ -125,8 +125,9 @@ export function page() {
     rows.forEach(function (row, i) {
       if (i === 0) return;
       const cell = row.children[1];
-      const formText = cell.textContent;
       const speakIdx = i - 1; // 0-5 人称，6 = Perfekt
+      // 干净文本：人称行用变位形式，Perfekt 行用 助动词 + Partizip II
+      const formText = speakIdx < 6 ? data.forms[speakIdx] : data.pp[0] + ' ' + data.pp[1];
       const sp = speakBtn(formText, 'conj', data.verb + '-' + speakIdx);
       sp.style.marginLeft = '8px';
       cell.appendChild(sp);

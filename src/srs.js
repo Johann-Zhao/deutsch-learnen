@@ -1,6 +1,7 @@
 /* 间隔重复调度（FSRS-4.5 核心实现，默认参数，纯逻辑，Node 可测试）
    对外接口与旧版 SM-2 保持一致：
    - newCard(today) / review(card, quality 0|1|2, today) / isDue(card, today)
+   - seal(card)：斩，封印卡片（sealed + mastered），永不再到期
    quality: 0=不认识(rating 1 Again) 1=模糊(rating 2 Hard) 2=认识(rating 3 Good)
    参考 github.com/open-spaced-repetition/fsrs4anki */
 
@@ -74,7 +75,15 @@ export function review(card, quality, todayStr) {
 }
 
 export function isDue(card, todayStr) {
+  if (card && card.sealed) return false; // 已斩：永不到期
   return !!card && !!card.due && card.due <= todayStr;
+}
+
+// 斩：已经很熟的词，封印卡片——永不再安排复习
+export function seal(card) {
+  card.sealed = true;
+  card.mastered = true;
+  return card;
 }
 
 // 旧版 SM-2 盒子进度迁移：box → 稳定度
@@ -115,7 +124,7 @@ export function matches(input, answer) {
 }
 
 export const SRS = {
-  review, isDue, newCard, migrate,
+  review, isDue, newCard, migrate, seal,
   addDays, daysBetween,
   retrievability,
   normalize, stripArticle, matches,
