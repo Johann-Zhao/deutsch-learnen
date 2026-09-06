@@ -69,12 +69,24 @@ cp .env.example .env
   ```bash
   python tools/fetch_images.py         # 默认上限 800 张
   python tools/fetch_images.py --limit 400
+  python tools/fetch_images.py --ids clothes-18,food-20   # 定向重抓指定词（忽略已存在，强制覆盖）
+  python tools/fetch_images.py --ids clothes-18 --candidates 6  # 候选模式：每词抓至多 6 个候选
   ```
+- **候选模式**：候选落盘 `images/candidates/<id>/<k>.jpg` + `meta.json`（含授权信息与查询来源），**不触碰**正式目录与 manifest；查询合并「纯德语词」与「德语词 + 中文释义」两路，供人工/视觉审核挑选后由 `finalize_images.py` 落盘。
 - **产物**：
   - `images/words/<id>.jpg`
   - `images/credits.json`（每张图的来源、作者、许可证、来源页）
   - 更新 `images/manifest.js` 中的 `window.IMAGE_WORDS`
 - **注意**：`images/manifest.js` 由本脚本与 `gen_zine_covers.py` 自动更新，**请勿手改**。
+
+### `finalize_images.py`
+
+- **用途**：把候选审核结果落盘——读 `images/candidates/choices.json`（`{"<id>": 候选序号k 或 "none"}`）。
+- **行为**：选 k → 候选覆盖到 `images/words/<id>.jpg` 并写 credits；`"none"` → 删除该词旧图与 credits 条目（前端不再显示图）；全部处理后按磁盘实况重建 `IMAGE_WORDS`，并把 choices.json 改名 choices.done.json 防重跑。
+- **用法**：
+  ```bash
+  python tools/finalize_images.py
+  ```
 
 ### `generate_audio.py`
 
@@ -95,7 +107,7 @@ cp .env.example .env
 ### `dump_conj.js`
 
 - **用途**：导出变位音频生成清单（JSON 到 stdout），覆盖全部内置不规则动词与常用规则动词。
-- **依赖**：Node.js；读取 `js/conjugate.js`
+- **依赖**：Node.js；动态导入 `src/conjugate.js`（ESM），输出 ASCII 安全（非 ASCII 转 \uXXXX，防 Windows 中文 locale 乱码）
 - **用法**：
   ```bash
   node tools/dump_conj.js
