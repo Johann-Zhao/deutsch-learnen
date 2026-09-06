@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
-"""为具体名词从 Wikimedia Commons（主）/ Openverse（备）抓取配图。
+"""为具体名词从 Openverse（主）/ Wikimedia Commons（备）抓取配图。
 
-用法：python tools/fetch_images.py [--limit 800]
+用法：python tools/fetch_images.py [--limit 800] [--ids id1,id2,...] [--candidates N]
 - 只处理名词（m/f/n），跳过动词/形容词/副词与明显抽象的词
-- 下载 640px 缩略图到 images/words/<id>.jpg，授权信息写入 images/credits.json
+- 默认模式：下载 640px 缩略图到 images/words/<id>.jpg，授权信息写入 images/credits.json
 - 更新 images/manifest.js 的 IMAGE_WORDS
 - 已存在文件自动跳过（可断点续跑）
+- --ids：只处理指定词条 id（如 clothes-18），忽略「已存在则跳过」，强制重抓
+- --candidates N：候选模式，每个词抓至多 N 个候选到 images/candidates/<id>/<k>.jpg
+  并写 meta.json（含 credit 与查询词），不触碰 words/、credits.json、manifest.js；
+  候选查询合并「纯德语词」与「德语词 + 中文释义」两路，按 url 去重
 """
 import json
 import pathlib
@@ -56,15 +60,16 @@ def load_nouns():
     return items
 
 
-def openverse_search(client, word):
-    """Openverse 搜索（缩略图经 api.openverse.org 代理，可达性好），返回 (url, credit)"""
+def openverse_results(client, word):
+    """Openverse 搜索（缩略图经 api.openverse.org 代理，可达性好），返回 [(url, credit)]"""
     try:
         r = client.get(
             'https://api.openverse.org/v1/images/',
             params={'q': word, 'page_size': 8},
             headers={'User-Agent': UA}, timeout=20)
         if r.status_code != 200:
-            return None
+            return []
+        out = []
         for item in (r.json().get('results') or []):
             w = item.get('width') or 0
             thumb = item.get('thumbnail') or item.get('url')
@@ -73,20 +78,26 @@ def openverse_search(client, word):
             lic = (item.get('license') or '').upper()
             if lic in ('', 'UNKNOWN'):
                 continue
-            return thumb, {
+            out.append((thumb, {
                 'source': 'Openverse/' + (item.get('source') or ''),
                 'file': (item.get('title') or '')[:80],
                 'author': (item.get('creator') or 'unknown')[:80],
                 'license': 'CC ' + lic if lic.startswith(('BY', 'CC0', 'PDM')) else lic,
                 'page': item.get('foreign_landing_url') or '',
-            }
+            }))
+        return out
     except Exception:
-        return None
-    return None
+        return []
 
 
-def commons_search(client, word):
-    """Wikimedia Commons 搜索（在部分网络下被 403，作为备选），返回 (thumb_url, credit) 或 None"""
+def openverse_search(client, word):
+    """取 Openverse 首个合格结果，返回 (url, credit) 或 None"""
+    res = openverse_results(client, word)
+    return res[0] if res else None
+
+
+def commons_results(client, word):
+    """Wikimedia Commons 搜索（在部分网络下被 403，作为备选），返回 [(thumb_url, credit)]"""
     try:
         r = client.get(
             'https://commons.wikimedia.org/w/api.php',
@@ -99,9 +110,10 @@ def commons_search(client, word):
                 'iiurlwidth': 640,
             }, headers={'User-Agent': UA}, timeout=20)
         if r.status_code != 200:
-            return None
+            return []
         pages = (r.json().get('query') or {}).get('pages') or {}
-        # 按搜索排序号取第一个尺寸合格的位图
+        out = []
+        # 按搜索排序号依次取尺寸合格的位图
         for p in sorted(pages.values(), key=lambda x: x.get('index', 99)):
             info = (p.get('imageinfo') or [{}])[0]
             if info.get('mime') not in ('image/jpeg', 'image/png'):
@@ -124,10 +136,16 @@ def commons_search(client, word):
                 'license': license_,
                 'page': 'https://commons.wikimedia.org/wiki/' + title.replace(' ', '_'),
             }
-            return info.get('thumburl'), credit
+            out.append((info.get('thumburl'), credit))
+        return out
     except Exception:
-        return None
-    return None
+        return []
+
+
+def commons_search(client, word):
+    """取 Wikimedia Commons 首个合格结果，返回 (thumb_url, credit) 或 None"""
+    res = commons_results(client, word)
+    return res[0] if res else None
 
 
 def update_manifest(word_ids):
@@ -142,11 +160,81 @@ def update_manifest(word_ids):
         encoding='utf-8')
 
 
-def main():
+def parse_args():
     limit = 800
+    ids = None
+    candidates = None
     if '--limit' in sys.argv:
         limit = int(sys.argv[sys.argv.index('--limit') + 1])
+    if '--ids' in sys.argv:
+        ids = set(sys.argv[sys.argv.index('--ids') + 1].split(','))
+    if '--candidates' in sys.argv:
+        candidates = int(sys.argv[sys.argv.index('--candidates') + 1])
+    return limit, ids, candidates
+
+
+def collect_candidates(client, word, zh, n):
+    """合并「纯德语词」与「德语词 + 中文释义」两路查询，按 url 去重，返回至多 n 个 (url, credit, query)"""
+    seen = set()
+    out = []
+    for query in (word, f'{word} {zh}'):
+        for results in (openverse_results(client, query), commons_results(client, query)):
+            for url, credit in results:
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                out.append((url, credit, query))
+                if len(out) >= n:
+                    return out
+        time.sleep(0.3)
+    return out
+
+
+def run_candidates(client, items, n):
+    """候选模式：每词下载至多 n 个候选到 images/candidates/<id>/<k>.jpg，写 meta.json"""
+    base = ROOT / 'images' / 'candidates'
+    for wid, lv, word, zh in items:
+        target = base / wid
+        target.mkdir(parents=True, exist_ok=True)
+        cands = collect_candidates(client, word, zh, n)
+        metas = []
+        k = 0
+        for url, credit, query in cands:
+            try:
+                data = client.get(url, headers={'User-Agent': UA}).content
+            except Exception:
+                continue
+            if len(data) <= 8 * 1024:  # 太小的多半是占位图
+                continue
+            (target / f'{k}.jpg').write_bytes(data)
+            metas.append({'k': k, 'file': f'{k}.jpg', 'query': query,
+                          'url': url, **credit})
+            k += 1
+        (target / 'meta.json').write_text(
+            json.dumps({'id': wid, 'word': word, 'zh': zh, 'candidates': metas},
+                       ensure_ascii=False, indent=1),
+            encoding='utf-8')
+        print(f'{wid} ({word}/{zh})：{len(metas)} 个候选', flush=True)
+        time.sleep(0.3)
+
+
+def main():
+    limit, ids, candidates = parse_args()
     nouns = load_nouns()
+    if ids is not None:
+        known = {w for w, *_ in nouns}
+        unknown = ids - known
+        if unknown:
+            print(f'警告：以下 id 未在词汇表中匹配到（已忽略）：{sorted(unknown)}', flush=True)
+        nouns = [it for it in nouns if it[0] in ids]
+        if not nouns:
+            print('没有匹配的词条，退出')
+            return
+    if candidates is not None:
+        with httpx.Client(timeout=30, trust_env=True, follow_redirects=True) as client:
+            run_candidates(client, nouns, candidates)
+        print('候选模式完成：未触碰 images/words、credits.json、manifest.js')
+        return
     out_dir = ROOT / 'images' / 'words'
     out_dir.mkdir(parents=True, exist_ok=True)
     credits_path = ROOT / 'images' / 'credits.json'
@@ -159,7 +247,7 @@ def main():
             if ok >= limit:
                 break
             out = out_dir / f'{wid}.jpg'
-            if out.exists() and out.stat().st_size > 0:
+            if ids is None and out.exists() and out.stat().st_size > 0:
                 ok += 1
                 continue
             hit = openverse_search(client, word) or commons_search(client, word)
