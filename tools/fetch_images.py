@@ -19,6 +19,9 @@ import time
 
 import httpx
 
+# Windows 中文 locale 下控制台默认 GBK，打印变元音/中文会 UnicodeEncodeError
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 UA = "GermanLearningSite/1.0 (personal local study app; educational use)"
 
@@ -195,6 +198,8 @@ def run_candidates(client, items, n):
     base = ROOT / 'images' / 'candidates'
     for wid, lv, word, zh in items:
         target = base / wid
+        if (target / 'meta.json').exists():  # 已抓过：断点续跑/分片并行时跳过
+            continue
         target.mkdir(parents=True, exist_ok=True)
         cands = collect_candidates(client, word, zh, n)
         metas = []
