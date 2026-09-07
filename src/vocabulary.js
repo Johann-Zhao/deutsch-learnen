@@ -183,6 +183,8 @@ function learnSession(themeId) {
   let pos = 0;                 // 当前介绍到的词（queue 下标）
   let lit = 0;                 // 已点亮的词数（介绍即点亮）
   let strengthen = [];         // 本批加强名单
+  let rq = makeRequeue(2);     // 本批错词再练队列
+  let doneCount = 0;           // 加强阶段已完成词数（含再练词），驱动 take 节奏
   const results = [];          // 本批结果（小结展示）
   const dots = UI.el('div', 'progress-dots');
   queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
@@ -255,25 +257,43 @@ function learnSession(themeId) {
   function startStrengthen(i) {
     if (i >= strengthen.length) { showGroupSummary(); return; }
     const w = strengthen[i];
-    // 有配图的词：图片四选一 + 一道选择 + 拼写；否则两道选择各约 1/3 概率换成听音选词
-    function pick(base) { return Math.random() < 1 / 3 ? 'listen' : base; }
-    const choiceStep = pick(Math.random() < 0.5 ? 'trans' : 'reverse');
-    const steps = hasImage(w, getImageWords())
-      ? ['image', choiceStep, 'spell']
-      : [pick('trans'), pick('reverse'), 'spell'];
-    runSteps(w, steps, function (wrongs, spellFails) {
+    runSteps(w, stepsFor(w), function (wrongs, spellFails) {
       finishWord(w, wrongs, spellFails);
-      startStrengthen(i + 1);
+      if (wrongs > 0 || spellFails > 0) rq.push(w);
+      doneCount++;
+      strengthenNext(i);
     });
   }
 
+  // 每完成一个词（含再练词）先检查再练队列：取到错词立即插练，否则推进名单
+  function strengthenNext(i) {
+    const rw = rq.take(doneCount);
+    if (!rw) { startStrengthen(i + 1); return; }
+    runSteps(rw, stepsFor(rw), function (wrongs, spellFails) {
+      // 再练轮：FSRS 正常推进，但不重复 addMistake（第一次错已记）
+      finishWord(rw, wrongs, spellFails);
+      if (wrongs > 0 || spellFails > 0) rq.push(rw);
+      doneCount++;
+      strengthenNext(i);
+    }, true);
+  }
+
+  // 步型配置：有配图的词图片四选一 + 选择 + 拼写；否则两道选择各约 1/3 概率换成听音选词
+  function stepsFor(w) {
+    function pick(base) { return Math.random() < 1 / 3 ? 'listen' : base; }
+    const choiceStep = pick(Math.random() < 0.5 ? 'trans' : 'reverse');
+    return hasImage(w, getImageWords())
+      ? ['image', choiceStep, 'spell']
+      : [pick('trans'), pick('reverse'), 'spell'];
+  }
+
   /* --- 单词练习步骤（image / trans / reverse / listen / spell） --- */
-  function runSteps(w, steps, done) {
+  function runSteps(w, steps, done, isRetry) {
     let si = 0, wrongs = 0, spellFails = 0;
 
     function wrongAnswer() {
       wrongs++;
-      store.addMistake('vocab', w.id);
+      if (!isRetry) store.addMistake('vocab', w.id);
     }
 
     function nextStep() {
@@ -501,6 +521,8 @@ function learnSession(themeId) {
         groupStart = groupEnd();
         pos = groupStart;
         strengthen = [];
+        rq = makeRequeue(2);
+        doneCount = 0;
         results.length = 0;
         showIntro();
       };
@@ -523,6 +545,28 @@ function learnSession(themeId) {
 }
 
 /* ---------- 复习（SRS） ---------- */
+
+// 百词斩式错词再练队列：push 记录再练次数（超 maxRounds 忽略），
+// take(idx) 在每完成 3 题（idx % 3 === 0 且 idx > 0）时取出队首错词复现
+export function makeRequeue(maxRounds) {
+  const queue = [];
+  const counts = {};
+  return {
+    push: function (w) {
+      const n = counts[w.id] || 0;
+      if (n >= maxRounds) return;
+      counts[w.id] = n + 1;
+      queue.push(w);
+    },
+    take: function (idx) {
+      if (idx % 3 !== 0 || idx <= 0 || !queue.length) return null;
+      return queue.shift();
+    },
+    countOf: function (id) {
+      return counts[id] || 0;
+    }
+  };
+}
 
 // 复习队列排序：verify 卡与错词排最前，其余按可提取度（遗忘曲线）升序；
 // 优先级组内仍按可提取度升序；可提取度相同保持原顺序（稳定排序）
@@ -604,6 +648,8 @@ function reviewSession(onlyMistakes) {
   v.appendChild(UI.el('p', 'page-sub', queue.length + ' 个词 · 答对了会安排更久的间隔，答错明天再见'));
 
   let idx = 0, right = 0;
+  const rq = makeRequeue(2);   // 错词再练队列：每答完 3 题复现一次
+  let answeredCount = 0;       // 已答题数（含再练题），驱动 take 节奏
   const dots = UI.el('div', 'progress-dots');
   queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
   v.appendChild(dots);
@@ -655,11 +701,12 @@ function reviewSession(onlyMistakes) {
     return q;
   }
 
-  function show() {
+  function show(w, isRetry) {
     stage.innerHTML = '';
     dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
-    const w = queue[idx];
+    if (w === undefined) { w = queue[idx]; isRetry = false; }
     const q = buildQuestion(w);
+    q.retry = !!isRetry;
     const card = UI.el('div', 'card');
     if (q.type === 'listen' || q.type === 'dict') {
       const play = UI.el('button', 'btn btn-ghost btn-sm', '🔊 播放读音');
@@ -677,7 +724,7 @@ function reviewSession(onlyMistakes) {
     const fb = UI.el('div');
     const next = UI.el('button', 'btn', '下一个');
     next.style.display = 'none';
-    next.onclick = function () { idx++; if (idx < queue.length) show(); else finish(); };
+    next.onclick = advance;
 
     function correct() {
       if (q.answered) return;
@@ -703,7 +750,8 @@ function reviewSession(onlyMistakes) {
         if (!c.sealed) SRS.review(c, 0, todayStr);
       }
       store.save();
-      store.addMistake('vocab', w.id);
+      if (!q.retry) store.addMistake('vocab', w.id); // 再练轮不重复记错题
+      rq.push(w); // 答错的词隔 3 题复现（受 maxRounds 上限约束）
       if (q.type !== 'image') fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
       reveal();
     }
@@ -823,6 +871,16 @@ function reviewSession(onlyMistakes) {
     if (inp) inp.focus();
   }
 
+  // 每答完一题先检查再练队列：取到错词立即复现（不推进队列），否则推进 idx
+  function advance() {
+    answeredCount++;
+    const rw = rq.take(answeredCount);
+    if (rw) { show(rw, true); return; }
+    idx++;
+    if (idx < queue.length) show();
+    else finish();
+  }
+
   function finish() {
     dots.querySelectorAll('.dot').forEach(function (d) { d.classList.add('done'); });
     stage.innerHTML = '';
@@ -856,5 +914,6 @@ export const Vocab = {
   genderTag: genderTag,
   highlightEx: highlightEx,
   maskWord: maskWord,
-  maskWordHalf: maskWordHalf
+  maskWordHalf: maskWordHalf,
+  makeRequeue: makeRequeue
 };

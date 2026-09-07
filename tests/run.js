@@ -7,7 +7,7 @@ import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
-import { maskWord, maskWordHalf, orderReviewQueue } from '../src/vocabulary.js';
+import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue } from '../src/vocabulary.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -510,6 +510,18 @@ console.log('\n拼写提示遮罩：');
 test('maskWordHalf 揭示前半', function () {
   assert.strictEqual(maskWordHalf('lernen'), 'ler···');
   assert.strictEqual(maskWordHalf('der Tag'), 'der Ta·');
+});
+
+console.log('\n再练队列（百词斩式错词复现）：');
+test('再练队列：答错词隔 3 张复现，超上限不再出现', function () {
+  const rq = makeRequeue(2);
+  rq.push({ id: 'a-0' });
+  assert.strictEqual(rq.take(1), null);
+  assert.strictEqual(rq.take(3).id, 'a-0');
+  rq.push({ id: 'a-0' }); rq.push({ id: 'a-0' }); // 第 3、4 次 push 超上限被忽略
+  assert.strictEqual(rq.countOf('a-0'), 2);
+  rq.take(3);
+  assert.strictEqual(rq.take(3), null, '达到上限后队列为空');
 });
 
 Promise.all(asyncQueue).then(function () {
