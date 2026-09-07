@@ -1,62 +1,95 @@
-# 德语学习志 · Deutsch Zine A1–B1
+# 德语学习志 · Deutsch Zine
 
-面向中文母语学习者的德语本地学习应用，覆盖 **A1 / A2 / B1** 三个级别。纯静态网页，无需安装、语音离线可用。
+<p>
+  <img src="shots/hero.jpg" alt="Deutsch Zine — 德语学习志" width="100%">
+</p>
 
-## 使用方法
+面向中文母语者的德语自学应用，覆盖 **A1 → B1**。纯静态网页，双击 `index.html` 即用；学习数据只存在你自己的浏览器里，零服务器、零账号。
 
-用 Chrome 或 Edge 双击打开 `index.html` 即可。顶部右侧 **A1 / A2 / B1** 切换级别。
+## 为什么是「杂志」
 
-- **词汇**：38 个主题、1945 个核心词（A1 618 / A2 612 / B1 715），词条配图、例句与标准发音
-- **学新词**：百词斩式流程 —— 预览分流（认识/不认识）→ 看词选义 → 听音选词 → 拼写检验 → 组末小结
-- **复习**：FSRS 间隔重复（Anki 同款算法），五种题型（词性/听音/翻译/例句填空/听写）；复习队列跨级别（低级别到期词照常出现）
-- **语法**：36 个专题（A1 10 / A2 12 / B1 14），中文讲解 + 交互练习
-- **语法复习**：语法错题纳入 FSRS 间隔重复调度，独立的 `#/review-grammar` 入口
-- **变位**：动词变位查询工具（30 个不规则动词内置，每行可听标准发音）
-- **错题本 / 打卡 / 成就**：连胜日历 + 冻结券 + 分级成就徽章
-- **存储**：浏览器端以 IndexedDB 主存，保留 localStorage 镜像并支持旧数据迁移
-- **懒加载**：A2/B1 数据按级别动态加载，降低首屏开销并支持跨级别复习
-- 进度保存在浏览器；换电脑前在「设置 → 导出进度」备份
+语言学习需要的是一个愿意每天打开的环境。全站采用 muted zine 纸感设计：米色旧纸底、衬线刊头、打字机微文本、装饰金线——像翻一本德语小杂志，而不是刷一张表格。
 
-## 图片说明
+## 学习系统（参考百词斩，并由遗忘曲线驱动）
 
-- **主题封面**（38 张）：由 Seedream（doubao-seedream-5-0-pro）生成的 zine 纸感风格封面（米色旧纸衬底、衬线刊头）。重新生成：`python tools/gen_zine_covers.py`（API 配置读取项目根 `.env`，详见 `tools/README.md`）
-- **词条配图**：来自 [Wikimedia Commons](https://commons.wikimedia.org/) 与 [Openverse](https://api.openverse.org/) 的免费授权图片（CC 系列或公有领域），仅用于本地学习。每张图的文件、作者、许可证与来源页记录在 `images/credits.json`。补充抓取：`python tools/fetch_images.py`
-- 抓图脚本只处理具体名词并过滤抽象词，未命中即跳过 —— 部分词无图是正常降级
+- **图片四选一**：看图识词是核心题型，图文直接建立记忆钩子（833 张逐张视觉审核过的配图；无图词自动回退文字题）
+- **三按钮分流**：介绍每个词时选「不认识 / 认识 / 斩」——认识的词进一次验证复习，答对即「斩」；斩掉的词永久移出复习
+- **渐进式提示**：答得错得多，提示给得多——图片题：释义 → 排除至二选一 → 高亮答案；选择题：词性+首字母 → 揭示；拼写：首字母 → 半词 → 完整答案
+- **错词反复出现**：答错的词当次隔 3 题再来，直到答对（每词上限 2 轮）
+- **FSRS 遗忘曲线复习**：Anki 同款 FSRS-4.5 算法；复习队列按可提取度升序，最容易忘的优先；待验证卡与错词插队
+- **单词详情抽屉**：任意词卡可展开释义、例句（含朗读），动词附现在时六人称变位小表
+- **每日节奏**：「今日新词 x/N」进度可见，设置页 5–30 词可调，今日页显示预计学完天数
 
-## 发音说明
+## 内容规模
 
-全部单词与例句已用微软神经语音（Katja，[edge-tts](https://github.com/rany2/edge-tts)）预生成为本地 mp3；变位表 265 个形式同源。清单外文本回退系统 TTS（Windows 可装德语语音包改善）。重新生成：`pip install edge-tts` 后运行 `python tools/generate_audio.py`（支持断点续跑）。
+| 维度 | 数量 |
+|---|---|
+| 词汇 | 1945 词（A1 618 / A2 612 / B1 715），38 个主题 |
+| 语法 | 36 个专题（讲解 + 交互练习），错题纳入 FSRS |
+| 音频 | 1945 词 + 1945 例句 + 251 变位形式，全部预生成 mp3（神经语音） |
+| 图片 | 833 张词条配图（全部经视觉审核）+ 38 张 Seedream 生成的 zine 风主题封面 |
+| 其他 | 动词变位查询、错题本、连胜日历、成就徽章、移动端底部导航 |
+
+## 界面
+
+<p>
+  <img src="shots/final_v42__1280.png" alt="今日页（桌面端）" width="49%">
+  <img src="shots/final_v42_vocab_1280.png" alt="词汇封面墙（桌面端）" width="49%">
+</p>
+<p>
+  <img src="shots/showcase_image_choice.png" alt="图片四选一" width="49%">
+  <img src="shots/showcase_image_hint.png" alt="渐进提示" width="49%">
+</p>
+<p>
+  <img src="shots/showcase_intro_drawer.png" alt="详情抽屉" width="49%">
+  <img src="shots/final_v42_learn_375.png" alt="移动端" width="24%">
+</p>
+
+## 快速开始
+
+```bash
+# 方式一：直接双击 index.html（纯静态，无需构建）
+# 方式二：起本地服务（推荐，移动端同局域网可访问）
+python -m http.server 8765
+# 打开 http://localhost:8765
+```
 
 ## 开发
 
 ```bash
-npm install         # 安装构建依赖（仅 esbuild）
-npm run dev         # watch 模式构建 src/main.js → js/bundle.js
-npm test            # 运行单元测试（算法、判分、数据完整性）
+npm install         # 仅 esbuild 一个构建依赖
+npm run dev         # watch 模式：src/ → js/bundle.js
+npm test            # 57 项单元测试（FSRS、判分、斩机制、图片选题、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
-> 说明：`index.html` 已引用 `js/bundle.js`（单文件 IIFE 构建产物，随仓库提交）。修改 `src/` 源码后需运行 `npm run build` 重新生成 `js/bundle.js`，双击 `index.html` 即可使用最新产物。
+技术栈：原生 HTML/CSS/JS（ESM → esbuild 单文件 IIFE），Hash 路由，IndexedDB 主存 + localStorage 镜像。零框架、零运行时依赖。
 
-结构：`data/` 内容数据（按级别分文件）、`src/` ESM 源码（构建入口 `src/main.js`）、`js/` 构建产物（`bundle.js` + sourcemap）、`audio/` 语音、`images/` 配图、`tools/` 生成脚本、`DESIGN.md` 设计规范。
+```
+data/     内容数据（按级别分文件，懒加载）
+src/      ESM 源码（构建入口 src/main.js）
+audio/    预生成 mp3（edge-tts Katja 神经语音）
+images/   配图与封面（credits.json 记录每张图的授权信息）
+tools/    内容生产管道（音频/配图/封面生成，详见 tools/README.md）
+```
 
-## 文档索引
+## 内容来源与授权
+
+- **词条配图**：[Wikimedia Commons](https://commons.wikimedia.org/) 与 [Openverse](https://api.openverse.org/) 的免费授权图片（CC 系列/公有领域），逐张授权信息见 `images/credits.json`；全部经过逐张视觉相关性审核，错配图已移除
+- **主题封面与装饰插画**：由 Seedream 5.0 pro 生成的 zine 纸感风格图
+- **语音**：edge-tts 神经语音预生成（个人学习用途；如二次分发请重新评估语音授权）
+- **词汇/语法内容**：项目自编，参照 CEFR A1–B1 大纲
+
+## 文档
 
 | 文档 | 内容 |
 |---|---|
-| `DESIGN.md` | UI/UX 设计规范 v4（muted zine 纸感、设计令牌、词性低饱和三色、动效、文案底线） |
-| `AGENTS.md` | 项目约定速查：目录结构、数据格式、命名约定、标准操作流程 |
-| `CHANGELOG.md` | 版本历史与里程碑（Keep a Changelog 格式） |
-| `tools/README.md` | 内容生产管道说明：脚本用途、运行顺序、产物位置 |
-| `docs/技术调研与开发规划.md` | 技术选型、架构演进、学习逻辑调研 |
-| `docs/plans/2026-08-30-s1-s2-实施计划.md` | S1 修补 + S2 工程化可执行计划 |
+| `DESIGN.md` | UI/UX 设计规范（muted zine 令牌、词性三色、动效底线） |
+| `AGENTS.md` | 项目约定：目录结构、数据格式、命名约定、内容生产 SOP |
+| `CHANGELOG.md` | 版本历史（Keep a Changelog） |
+| `docs/技术调研与开发规划.md` | 竞品调研、架构演进、路线图 |
+| `docs/superpowers/` | S5 学习系统设计规格与实施计划 |
 
-## 针对的痛点
+## License
 
-| 痛点 | 方案 |
-|---|---|
-| der/die/das 记不住 | 全站词性配色（蓝/红/绿），练习强制选词性 |
-| 变位与四格难 | 分级语法专题 + 变位查询工具 + 拼写检验 |
-| 学了就忘 | FSRS 间隔重复 + 五种复习题型 |
-| 不敢开口 | 全量真人级神经语音 + 听写题型 |
-| 图文关联弱 | 词条配图 + zine 纸感主题封面 |
+代码 MIT。内容资源（图片/音频）各随其源授权，见 `images/credits.json`；edge-tts 语音请在二次分发前自行评估。
