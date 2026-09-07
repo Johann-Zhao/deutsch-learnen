@@ -7,7 +7,7 @@ import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
-import { maskWord, maskWordHalf } from '../src/vocabulary.js';
+import { maskWord, maskWordHalf, orderReviewQueue } from '../src/vocabulary.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -489,6 +489,21 @@ test('正确图位置参与洗牌（不固定在第 4 格）', function () {
   }
   assert.ok(Object.keys(seen).length > 1, '正确图位置应随洗牌变化，实际只出现: ' + Object.keys(seen).join(','));
   assert.ok(pos3 < 100, '正确图不应永远在第 4 格');
+});
+
+console.log('\n复习队列排序（遗忘曲线）：');
+test('orderReviewQueue：verify/错词优先，其余按可提取度升序', function () {
+  const todayStr = '2026-09-06';
+  const mk = function (id, s, last) { return { id: id, de: id, zh: id, ex: '', exZh: '', g: 'm' }; };
+  const words = [mk('a', 0, ''), mk('b'), mk('c')];
+  const srsMap = {
+    a: { stability: 10, last: '2026-09-01' },
+    b: { stability: 2, last: '2026-09-01' },
+    c: { stability: 50, last: '2026-09-01', verify: true }
+  };
+  const ordered = orderReviewQueue(words, srsMap, todayStr);
+  assert.strictEqual(ordered[0].id, 'c', 'verify 卡最优先');
+  assert.strictEqual(ordered[1].id, 'b', '低稳定度优先于高稳定度');
 });
 
 console.log('\n拼写提示遮罩：');

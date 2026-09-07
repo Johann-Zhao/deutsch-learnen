@@ -523,6 +523,31 @@ function learnSession(themeId) {
 }
 
 /* ---------- 复习（SRS） ---------- */
+
+// 复习队列排序：verify 卡与错词排最前，其余按可提取度（遗忘曲线）升序；
+// 优先级组内仍按可提取度升序；可提取度相同保持原顺序（稳定排序）
+export function orderReviewQueue(words, srsMap, todayStr) {
+  const mistakes = store.state.mistakes;
+  function retrievabilityOf(id) {
+    const card = srsMap[id];
+    if (!card) return 1; // 无卡视为最易提取，排最后
+    const base = card.last || card.due || todayStr;
+    return SRS.retrievability(card.stability || 0.1, SRS.daysBetween(base, todayStr));
+  }
+  function priority(id) {
+    const card = srsMap[id];
+    if ((card && card.verify) || mistakes[id]) return 0;
+    return 1;
+  }
+  return words.map(function (w, i) {
+    return { w: w, i: i, p: priority(w.id), r: retrievabilityOf(w.id) };
+  }).sort(function (a, b) {
+    if (a.p !== b.p) return a.p - b.p;
+    if (a.r !== b.r) return a.r - b.r;
+    return a.i - b.i;
+  }).map(function (x) { return x.w; });
+}
+
 export function dueWords(onlyMistakes) {
   const s = store.state, todayStr = today();
   let ids;
@@ -561,7 +586,7 @@ function reviewSession(onlyMistakes) {
     });
     return loading;
   }
-  const queue = dueWords(onlyMistakes).slice(0, 30);
+  const queue = orderReviewQueue(dueWords(onlyMistakes), s.srs, todayStr).slice(0, 30);
   const v = UI.el('div', 'sheet');
   v.appendChild(UI.el('h1', 'page-title', onlyMistakes ? '错词重练' : '今日复习'));
   if (!queue.length) {
@@ -587,12 +612,19 @@ function reviewSession(onlyMistakes) {
 
   // 为每个词生成一种题型
   function buildQuestion(w) {
-    const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
-    let type = types[Math.floor(Math.random() * types.length)];
-    if (type === 'cloze' && !w.ex) type = 'trans';
+    let type;
+    if (hasImage(w, getImageWords()) && Math.random() < 0.4) type = 'image';
+    else {
+      const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
+      type = types[Math.floor(Math.random() * types.length)];
+      if (type === 'cloze' && !w.ex) type = 'trans';
+    }
     const q = { w: w, type: type, answered: false };
 
-    if (type === 'gender') {
+    if (type === 'image') {
+      // 图片四选一：renderImageChoice 自带题干、渐进提示与反馈，这里只补 explain 供评分文案
+      q.explain = w.de + ' = ' + w.zh;
+    } else if (type === 'gender') {
       q.prompt = UI.esc(w.de.replace(/^(der|die|das) /, '')) + ' —— ' + UI.esc(w.zh) + '<br>这个词的词性是？';
       q.opts = ['der（阳性）', 'die（阴性）', 'das（中性）'];
       q.answerIdx = { m: 0, f: 1, n: 2, pl: 1 }[w.g];
@@ -636,9 +668,11 @@ function reviewSession(onlyMistakes) {
       card.appendChild(play);
       audio.playWord(w.id, w.de);
     }
-    const p = UI.el('div', 'quiz-prompt');
-    p.innerHTML = q.prompt;
-    card.appendChild(p);
+    if (q.type !== 'image') {
+      const p = UI.el('div', 'quiz-prompt');
+      p.innerHTML = q.prompt;
+      card.appendChild(p);
+    }
 
     const fb = UI.el('div');
     const next = UI.el('button', 'btn', '下一个');
@@ -655,7 +689,7 @@ function reviewSession(onlyMistakes) {
       if (c && !c.sealed) SRS.review(c, 2, todayStr);
       store.save();
       if (s.mistakes[w.id]) store.removeMistake(w.id);
-      fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
+      if (q.type !== 'image') fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
         (sealedNow ? ' · 已通过验证，斩掉此词，不再安排复习' : '') + '</div>';
       reveal();
     }
@@ -670,7 +704,7 @@ function reviewSession(onlyMistakes) {
       }
       store.save();
       store.addMistake('vocab', w.id);
-      fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+      if (q.type !== 'image') fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
       reveal();
     }
     function reveal() {
@@ -679,31 +713,78 @@ function reviewSession(onlyMistakes) {
       next.focus();
     }
 
-    if (q.opts) { // 词性三选一
+    // 选择题首次错提示：听音题给词性+释义，其余给词性+拼写遮罩
+    function choiceHint(q2) {
+      if (q2.type === 'listen') return genderTag(q2.w.g) + ' ' + UI.esc(q2.w.zh);
+      return genderTag(q2.w.g) + ' ' + UI.esc(maskWord(q2.w.de));
+    }
+
+    if (q.type === 'image') {
+      // 图片四选一：自带渐进提示与 600ms 延迟反馈，onDone 后进入评分
+      const holder = UI.el('div');
+      card.appendChild(holder);
+      renderImageChoice(holder, w, {
+        imageIds: getImageWords(),
+        pool: allWords,
+        speak: audio.playWord,
+        onDone: function (firstTry) {
+          if (firstTry === true) correct(); else wrongFn();
+        }
+      });
+    } else if (q.opts) { // 词性三选一
       const box = UI.el('div', 'opts');
+      let missedG = false;
       q.opts.forEach(function (text, i) {
         const b = UI.el('button', 'opt', text);
         b.onclick = function () {
-          if (q.answered) return;
-          if (i === q.answerIdx) { b.classList.add('correct'); correct(); }
-          else { b.classList.add('wrong'); box.children[q.answerIdx].classList.add('correct'); wrongFn(); }
+          if (q.answered || b.disabled) return;
+          if (i === q.answerIdx) {
+            b.classList.add('correct');
+            box.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
+            if (!missedG) correct();
+            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+          } else if (!missedG) {
+            // 第 1 次错：计分并给提示，允许重选
+            missedG = true;
+            b.classList.add('wrong'); b.disabled = true;
+            wrongFn();
+            fb.innerHTML = '<div class="feedback">提示：' + UI.esc(w.zh) + '（再选一次）</div>';
+          } else {
+            // 第 2 次错：揭示答案
+            b.classList.add('wrong'); b.disabled = true;
+            box.querySelectorAll('.opt').forEach(function (x, j) { x.disabled = true; if (j === q.answerIdx) x.classList.add('correct'); });
+            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+          }
         };
         box.appendChild(b);
       });
       card.appendChild(box);
     } else if (q.options) { // 选择题
       const box2 = UI.el('div', 'opts');
+      let missed = false;
       q.options.forEach(function (o) {
         const b = UI.el('button', 'opt', UI.esc(o.text));
         b.onclick = function () {
-          if (q.answered) return;
-          if (o.word.id === w.id) { b.classList.add('correct'); correct(); }
-          else {
-            b.classList.add('wrong');
+          if (q.answered || b.disabled) return;
+          if (o.word.id === w.id) {
+            b.classList.add('correct');
+            box2.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
+            if (!missed) correct();
+            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+          } else if (!missed) {
+            // 第 1 次错：计分并给提示，允许重选
+            missed = true;
+            b.classList.add('wrong'); b.disabled = true;
+            wrongFn();
+            fb.innerHTML = '<div class="feedback">提示：' + choiceHint(q) + '（再选一次）</div>';
+          } else {
+            // 第 2 次错：揭示答案
+            b.classList.add('wrong'); b.disabled = true;
             box2.querySelectorAll('.opt').forEach(function (x, i) {
+              x.disabled = true;
               if (q.options[i].word.id === w.id) x.classList.add('correct');
             });
-            wrongFn();
+            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
           }
         };
         box2.appendChild(b);
@@ -712,14 +793,24 @@ function reviewSession(onlyMistakes) {
     } else { // 填空/听写
       const check = UI.el('button', 'btn', '检查答案');
       check.style.marginTop = '12px';
-      let input;
+      let input, attempts = 0;
       check.onclick = function () {
         if (q.answered) return;
         input = document.getElementById('cloze-input');
         if (!input.value.trim()) { input.focus(); return; }
-        if (SRS.matches(input.value, q.answerText)) correct();
-        else wrongFn();
-        if (input) input.disabled = true;
+        if (SRS.matches(input.value, q.answerText)) {
+          correct();
+          input.disabled = true;
+        } else if (attempts === 0) {
+          // 第 1 次错：露首字母提示，再试（不计分）
+          attempts++;
+          fb.innerHTML = '<div class="feedback">提示：' + UI.esc(maskWord(q.answerText)) + '（再试一次）</div>';
+          input.value = ''; input.focus();
+        } else {
+          // 第 2 次错：判错
+          wrongFn();
+          input.disabled = true;
+        }
       };
       card.appendChild(check);
       card.appendChild(UI.el('p', 'stat-label', '输入时可不带冠词；ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
@@ -761,6 +852,7 @@ export const Vocab = {
   learnSession: learnSession,
   reviewSession: reviewSession,
   dueWords: dueWords,
+  orderReviewQueue: orderReviewQueue,
   genderTag: genderTag,
   highlightEx: highlightEx,
   maskWord: maskWord,
