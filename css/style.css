@@ -214,6 +214,18 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .feedback { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-s); font-size: 14px; }
 .feedback.ok { background: rgba(78, 125, 94, 0.10); color: var(--ok); }
 .feedback.bad { background: rgba(168, 91, 110, 0.09); color: var(--bad); }
+
+/* 图片四选一（imgquiz.js） */
+.img-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.img-opt {
+  padding: 0; border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--card); cursor: pointer; font-family: inherit; overflow: hidden;
+  min-height: 44px;
+}
+.img-opt img { display: block; width: 100%; height: auto; }
+.img-opt:hover { border-color: var(--ink); }
+.img-opt.correct { border-color: var(--n); background: rgba(78, 125, 94, 0.10); }
+.img-opt.wrong { border-color: var(--f); opacity: 0.45; }
 .progress-dots { display: flex; gap: 5px; margin-bottom: 16px; flex-wrap: wrap; }
 .dot { width: 22px; height: 4px; border-radius: 2px; background: var(--line); }
 .dot.done { background: var(--ink); }
@@ -321,7 +333,7 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 
 /* ===== 动效（克制；reduced-motion 下全部关闭） ===== */
 @media (prefers-reduced-motion: no-preference) {
-  .card, .opt, .btn, .cover-cell .cover-img { transition: background-color .15s, border-color .15s, color .15s, transform .2s, box-shadow .2s; }
+  .card, .opt, .img-opt, .btn, .cover-cell .cover-img { transition: background-color .15s, border-color .15s, color .15s, transform .2s, box-shadow .2s, opacity .15s; }
   .cover-cell:hover .cover-img { transform: translateY(-3px); box-shadow: 0 2px 3px rgba(38,34,27,0.07), 0 10px 22px rgba(38,34,27,0.09); }
   @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.02); } 100% { transform: scale(1); } }
   .feedback.ok, .feedback.bad { animation: pop .25s ease; }

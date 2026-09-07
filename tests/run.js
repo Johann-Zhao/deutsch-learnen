@@ -6,6 +6,7 @@ import * as SRS from '../src/srs.js';
 import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
+import { pickImageDistractors, hasImage } from '../src/imgquiz.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -447,6 +448,33 @@ test('可分动词 aufstehen', function () {
 });
 test('非动词输入返回 null', function () {
   assert.strictEqual(lookup(''), null);
+});
+
+console.log('\n图片题选题逻辑：');
+test('pickImageDistractors 同主题优先、去重、排除答案', function () {
+  const img = ['a-0','a-1','a-2','a-3','b-0','b-1'];
+  const pool = [
+    {id:'a-0',zh:'苹果',theme:'a',level:'A1'},{id:'a-1',zh:'香蕉',theme:'a',level:'A1'},
+    {id:'a-2',zh:'橙子',theme:'a',level:'A1'},{id:'a-3',zh:'葡萄',theme:'a',level:'A1'},
+    {id:'b-0',zh:'桌子',theme:'b',level:'A1'},{id:'b-1',zh:'苹果',theme:'b',level:'A1'} // 同释义应排除
+  ];
+  const w = pool[0];
+  const ds = pickImageDistractors(w, img, pool);
+  assert.strictEqual(ds.length, 3);
+  assert.ok(ds.every(function (d) { return d.id !== 'a-0' && d.zh !== '苹果'; }));
+  assert.ok(ds.filter(function (d) { return d.theme === 'a'; }).length >= 2, '应优先同主题');
+});
+test('pickImageDistractors 同主题不足时跨主题补足', function () {
+  const img = ['a-0','b-0','b-1','b-2'];
+  const pool = [
+    {id:'a-0',zh:'苹果',theme:'a',level:'A1'},
+    {id:'b-0',zh:'香蕉',theme:'b',level:'A1'},{id:'b-1',zh:'橙子',theme:'b',level:'A1'},{id:'b-2',zh:'葡萄',theme:'b',level:'A1'}
+  ];
+  assert.strictEqual(pickImageDistractors(pool[0], img, pool).length, 3);
+});
+test('无图词 hasImage 为 false', function () {
+  assert.strictEqual(hasImage({id:'x-0'}, ['a-0']), false);
+  assert.strictEqual(hasImage({id:'a-0'}, ['a-0']), true);
 });
 
 Promise.all(asyncQueue).then(function () {
