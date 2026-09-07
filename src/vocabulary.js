@@ -10,11 +10,24 @@ import {
   loadLevelData, isLevelLoaded, inferLevelFromId, themeLevels, getImageWords, getImageCovers
 } from './data.js';
 import { render } from './app.js';
+import { hasImage, renderImageChoice } from './imgquiz.js';
+import { lookup, Conjugate } from './conjugate.js';
 
 const GENDER_LABEL = { m: ['der', 'm'], f: ['die', 'f'], n: ['das', 'n'], pl: ['die', 'pl'] };
+// 非名词词性的中文标签（genderTag 降级为纯文本角标时使用）
+const POS_LABEL = { v: '动词', adj: '形容词', adv: '副词', num: '数词', pron: '代词', phrase: '短语', conj: '连词', part: '小品词' };
+
+// 词性标签文本：名词四格用 der/die/das/die，其余词性用中文名；未知标记原样返回
+export function posLabel(g) {
+  if (GENDER_LABEL[g]) return GENDER_LABEL[g][0];
+  return POS_LABEL[g] || g || '';
+}
 
 export function genderTag(g) {
-  return '<span class="gender-tag ' + g + '">' + GENDER_LABEL[g][0] + '</span>';
+  if (GENDER_LABEL[g]) {
+    return '<span class="gender-tag ' + g + '">' + GENDER_LABEL[g][0] + '</span>';
+  }
+  return '<span class="pos-tag">' + UI.esc(posLabel(g)) + '</span>';
 }
 
 // 例句中高亮目标词（按词性染色）
@@ -47,7 +60,45 @@ function wordCard(w) {
   const sp = speakBtn(w.ex, 'sent', w.id); sp.title = '朗读例句';
   ex.insertBefore(sp, ex.firstChild);
   c.appendChild(ex);
+  c.appendChild(detailDrawer(w));
   return c;
+}
+
+/* ---------- 单词详情抽屉（百词斩式下拉：释义 / 例句 / 变位） ----------
+   仅当 w.de 是单个词（无空格、非 der/die/das 名词）且 lookup 命中时才附变位小表 */
+function verbForms(w) {
+  const de = w.de.trim();
+  if (/^(der|die|das) /.test(de)) return null;
+  if (/\s/.test(de)) return null;
+  return lookup(de.toLowerCase());
+}
+
+function detailDrawer(w) {
+  const conj = verbForms(w);
+  const d = UI.el('details', 'word-detail');
+  d.appendChild(UI.el('summary', null, conj ? '详情 · 释义 / 例句 / 变位' : '详情 · 释义 / 例句'));
+  const body = UI.el('div', 'word-detail-body');
+  body.appendChild(UI.el('div', 'word-detail-row',
+    genderTag(w.g) + '<span class="stat-label">' + UI.esc(w.level || 'A1') + '</span>　<span>' + UI.esc(w.zh) + '</span>'));
+  if (w.ex) {
+    const ex = UI.el('div', 'word-detail-row');
+    ex.innerHTML = highlightEx(w) + '<br><span>' + UI.esc(w.exZh || '') + '</span>';
+    const sp = speakBtn(w.ex, 'sent', w.id); sp.title = '朗读例句';
+    ex.insertBefore(sp, ex.firstChild);
+    body.appendChild(ex);
+  }
+  if (conj) {
+    // 复用变位页同款档案表格（.archive-table）
+    const t = UI.el('table', 'archive-table');
+    let html = '<tr><th>人称</th><th>' + UI.esc(conj.verb) + '（' + conj.note + '）</th></tr>';
+    Conjugate.persons.forEach(function (p, i) {
+      html += '<tr><td>' + p + '</td><td>' + UI.esc(conj.forms[i]) + '</td></tr>';
+    });
+    t.innerHTML = html;
+    body.appendChild(t);
+  }
+  d.appendChild(body);
+  return d;
 }
 
 // 干扰项：取 3 个不同词条（keyFn 用于去重，如同义中文）
@@ -78,6 +129,15 @@ export function maskWord(de) {
   return de.split(' ').map(function (tok) {
     if (/^(der|die|das)$/i.test(tok)) return tok[0] + '··';
     return tok[0] + '·'.repeat(Math.max(1, tok.length - 1));
+  }).join(' ');
+}
+
+// 拼写提示第二档：每词元露前半（ceil(len/2)），后半遮（lernen → ler···；der Tag → der Ta·）
+export function maskWordHalf(de) {
+  return de.split(' ').map(function (tok) {
+    if (/^(der|die|das)$/i.test(tok)) return tok;
+    const n = Math.ceil(tok.length / 2);
+    return tok.slice(0, n) + '·'.repeat(Math.max(1, tok.length - n));
   }).join(' ');
 }
 
@@ -169,10 +229,21 @@ function learnSession(themeId) {
     return v;
   }
 
+  // 标题下进度行：今日新词 x/N · 本组第 k/5 个（介绍推进时更新）
+  const sub = UI.el('p', 'page-sub');
+  v.appendChild(sub);
+  function paintSub() {
+    const t = s.daily[todayStr] || {};
+    sub.textContent = '今日新词 ' + (t.new || 0) + ' / ' + s.settings.dailyNew +
+      ' · 本组第 ' + (pos - groupStart + 1) + ' / ' + BATCH + ' 个';
+  }
+
   let groupStart = 0;          // 当前批起点（queue 下标）
   let pos = 0;                 // 当前介绍到的词（queue 下标）
   let lit = 0;                 // 已点亮的词数（介绍即点亮）
   let strengthen = [];         // 本批加强名单
+  let rq = makeRequeue(2);     // 本批错词再练队列
+  let doneCount = 0;           // 加强阶段已完成词数（含再练词），驱动 take 节奏
   const results = [];          // 本批结果（小结展示）
   const dots = UI.el('div', 'progress-dots');
   queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
@@ -189,6 +260,7 @@ function learnSession(themeId) {
   /* --- 介绍阶段：逐词 wordCard + 三按钮分流 --- */
   function showIntro() {
     paintDots();
+    paintSub();
     stage.innerHTML = '';
     const w = queue[pos];
     stage.appendChild(UI.el('p', 'micro', 'WORT ' + (pos + 1) + ' / ' + queue.length +
@@ -243,19 +315,58 @@ function learnSession(themeId) {
 
   /* --- 加强阶段：本批加强名单逐词过题 --- */
   function startStrengthen(i) {
-    if (i >= strengthen.length) { showGroupSummary(); return; }
+    if (i >= strengthen.length) { drainStrengthen(); return; }
     const w = strengthen[i];
-    // 两题选择：看德语选中文 + 看中文选德语，各约 1/3 概率换成听音选词
-    function pick(base) { return Math.random() < 1 / 3 ? 'listen' : base; }
-    runSteps(w, [pick('trans'), pick('reverse'), 'spell'], function (wrongs, spellFails) {
+    runSteps(w, stepsFor(w), function (wrongs, spellFails) {
       finishWord(w, wrongs, spellFails);
-      startStrengthen(i + 1);
+      if (wrongs > 0 || spellFails > 0) rq.push(w);
+      doneCount++;
+      strengthenNext(i);
     });
   }
 
-  /* --- 单词练习步骤（trans / reverse / listen / spell） --- */
-  function runSteps(w, steps, done) {
+  // 名单耗尽后 drain 再练队列：批末答错的词不再等下一个 3 的倍数
+  function drainStrengthen() {
+    const rw = rq.drain();
+    if (!rw) { showGroupSummary(); return; }
+    runSteps(rw, stepsFor(rw), function (wrongs, spellFails) {
+      finishWord(rw, wrongs, spellFails);
+      if (wrongs > 0 || spellFails > 0) rq.push(rw);
+      doneCount++;
+      drainStrengthen();
+    }, true);
+  }
+
+  // 每完成一个词（含再练词）先检查再练队列：取到错词立即插练，否则推进名单
+  function strengthenNext(i) {
+    const rw = rq.take(doneCount);
+    if (!rw) { startStrengthen(i + 1); return; }
+    runSteps(rw, stepsFor(rw), function (wrongs, spellFails) {
+      // 再练轮：FSRS 正常推进，但不重复 addMistake（第一次错已记）
+      finishWord(rw, wrongs, spellFails);
+      if (wrongs > 0 || spellFails > 0) rq.push(rw);
+      doneCount++;
+      strengthenNext(i);
+    }, true);
+  }
+
+  // 步型配置：有配图的词图片四选一 + 选择 + 拼写；否则两道选择各约 1/3 概率换成听音选词
+  function stepsFor(w) {
+    function pick(base) { return Math.random() < 1 / 3 ? 'listen' : base; }
+    const choiceStep = pick(Math.random() < 0.5 ? 'trans' : 'reverse');
+    return hasImage(w, getImageWords())
+      ? ['image', choiceStep, 'spell']
+      : [pick('trans'), pick('reverse'), 'spell'];
+  }
+
+  /* --- 单词练习步骤（image / trans / reverse / listen / spell） --- */
+  function runSteps(w, steps, done, isRetry) {
     let si = 0, wrongs = 0, spellFails = 0;
+
+    function wrongAnswer() {
+      wrongs++;
+      if (!isRetry) store.addMistake('vocab', w.id);
+    }
 
     function nextStep() {
       si++;
@@ -274,10 +385,6 @@ function learnSession(themeId) {
       next.style.display = 'none';
       next.onclick = nextStep;
 
-      function wrongAnswer() {
-        wrongs++;
-        store.addMistake('vocab', w.id);
-      }
       function reveal(msg) {
         audio.playWord(w.id, w.de);
         fb.innerHTML = '<div class="feedback ' + (msg.indexOf('正确') === 0 ? 'ok' : 'bad') + '">' + msg + '</div>';
@@ -285,18 +392,46 @@ function learnSession(themeId) {
         next.focus();
       }
 
+      // 提示条（不阻断重选）
+      function hint(msg) {
+        fb.innerHTML = '<div class="feedback">' + msg + '</div>';
+      }
+
+      if (kind === 'image') {
+        // 看图选词（百词斩式）：答错一次记 wrongs，随后进入下一题
+        renderImageChoice(card, w, {
+          imageIds: getImageWords(),
+          pool: allWords,
+          speak: audio.playWord,
+          onDone: function (firstTry) {
+            if (firstTry === false) wrongAnswer();
+            nextStep();
+          }
+        });
+        card.appendChild(detailDrawer(w));
+        stage.appendChild(card);
+        return;
+      }
+
       if (kind === 'trans') {
-        // 看德语选中文
+        // 看德语选中文：第 1 次错给提示允许重选，第 2 次错揭示答案
         card.appendChild(UI.el('div', 'quiz-prompt', UI.esc(w.de) + ' 的意思是？'));
         const opts = shuffle([w].concat(distractors(w, function (x) { return x.zh; })));
         const box = UI.el('div', 'opts');
+        let missed = false;
         opts.forEach(function (o) {
           const b = UI.el('button', 'opt', UI.esc(o.zh));
           b.onclick = function () {
+            if (b.disabled) return;
             if (o.id === w.id) { b.classList.add('correct'); reveal('正确 · ' + UI.esc(w.de) + ' = ' + UI.esc(w.zh)); }
-            else {
-              b.classList.add('wrong'); wrongAnswer();
-              box.querySelectorAll('.opt').forEach(function (x, i) { if (opts[i].id === w.id) x.classList.add('correct'); });
+            else if (!missed) {
+              missed = true;
+              b.classList.add('wrong'); b.disabled = true;
+              wrongAnswer();
+              hint('提示：' + genderTag(w.g) + ' ' + UI.esc(maskWord(w.de)) + '（再选一次）');
+            } else {
+              b.classList.add('wrong');
+              box.querySelectorAll('.opt').forEach(function (x, i) { x.disabled = true; if (opts[i].id === w.id) x.classList.add('correct'); });
               reveal('再记一次：' + UI.esc(w.de) + ' = ' + UI.esc(w.zh));
             }
           };
@@ -304,17 +439,24 @@ function learnSession(themeId) {
         });
         card.appendChild(box);
       } else if (kind === 'reverse') {
-        // 看中文选德语
+        // 看中文选德语：第 1 次错给提示允许重选，第 2 次错揭示答案
         card.appendChild(UI.el('div', 'quiz-prompt', '「' + UI.esc(w.zh) + '」对应的德语是？'));
         const optsR = shuffle([w].concat(distractors(w, function (x) { return x.de; })));
         const boxR = UI.el('div', 'opts');
+        let missedR = false;
         optsR.forEach(function (o) {
           const b = UI.el('button', 'opt', UI.esc(o.de));
           b.onclick = function () {
+            if (b.disabled) return;
             if (o.id === w.id) { b.classList.add('correct'); reveal('正确 · ' + UI.esc(w.de) + ' = ' + UI.esc(w.zh)); }
-            else {
-              b.classList.add('wrong'); wrongAnswer();
-              boxR.querySelectorAll('.opt').forEach(function (x, i) { if (optsR[i].id === w.id) x.classList.add('correct'); });
+            else if (!missedR) {
+              missedR = true;
+              b.classList.add('wrong'); b.disabled = true;
+              wrongAnswer();
+              hint('提示：' + genderTag(w.g) + ' ' + UI.esc(maskWord(w.de)) + '（再选一次）');
+            } else {
+              b.classList.add('wrong');
+              boxR.querySelectorAll('.opt').forEach(function (x, i) { x.disabled = true; if (optsR[i].id === w.id) x.classList.add('correct'); });
               reveal('再记一次：' + UI.esc(w.de) + ' = ' + UI.esc(w.zh));
             }
           };
@@ -331,13 +473,20 @@ function learnSession(themeId) {
         card.appendChild(UI.el('div', 'quiz-prompt', '听音频，选出你听到的词'));
         const optsL = shuffle([w].concat(distractors(w, function (x) { return x.de; })));
         const boxL = UI.el('div', 'opts');
+        let missedL = false;
         optsL.forEach(function (o) {
           const b = UI.el('button', 'opt', UI.esc(o.de));
           b.onclick = function () {
+            if (b.disabled) return;
             if (o.id === w.id) { b.classList.add('correct'); reveal('正确 · ' + UI.esc(w.de) + ' = ' + UI.esc(w.zh)); }
-            else {
-              b.classList.add('wrong'); wrongAnswer();
-              boxL.querySelectorAll('.opt').forEach(function (x, i) { if (optsL[i].id === w.id) x.classList.add('correct'); });
+            else if (!missedL) {
+              missedL = true;
+              b.classList.add('wrong'); b.disabled = true;
+              wrongAnswer();
+              hint('提示：' + genderTag(w.g) + ' ' + UI.esc(w.zh) + '（再选一次）');
+            } else {
+              b.classList.add('wrong');
+              boxL.querySelectorAll('.opt').forEach(function (x, i) { x.disabled = true; if (optsL[i].id === w.id) x.classList.add('correct'); });
               reveal('正确答案：' + UI.esc(w.de) + '（' + UI.esc(w.zh) + '）');
             }
           };
@@ -362,21 +511,28 @@ function learnSession(themeId) {
         card.appendChild(input);
         const check = UI.el('button', 'btn btn-sm', '检查拼写');
         check.style.marginTop = '12px';
-        let attempts = 0;
+        let attempts = 0, spellDone = false;
         check.onclick = function () {
+          if (spellDone) return;
           if (!input.value.trim()) { input.focus(); return; }
           attempts++;
           if (SRS.matches(input.value, w.de)) {
-            if (attempts === 1 && wrongs === 0) { /* 一次通过 */ }
+            spellDone = true;
             reveal('正确！拼写通过');
           } else if (attempts === 1) {
-            // 第一次错：给提示再试一次
-            const tip = UI.el('div', 'feedback bad', '不对。提示：' + UI.esc(maskWord(w.de)) + '（再试一次）');
-            fb.innerHTML = ''; fb.appendChild(tip);
+            // 第 1 次错：露首字母提示，再试
+            hint('不对。提示：' + UI.esc(maskWord(w.de)) + '（再试一次）');
             input.value = ''; input.focus();
             wrongAnswer();
             return;
+          } else if (attempts === 2) {
+            // 第 2 次错：露前半提示，再试
+            hint('不对。提示：' + UI.esc(maskWordHalf(w.de)) + '（再试一次）');
+            input.value = ''; input.focus();
+            return;
           } else {
+            // 第 3 次错：揭示完整答案，spellFails 只记 1 次
+            spellDone = true;
             spellFails++;
             reveal('正确拼写是：<b>' + UI.esc(w.de) + '</b>（' + UI.esc(w.zh) + '），明天复习还会见到它');
           }
@@ -386,6 +542,7 @@ function learnSession(themeId) {
         card.appendChild(UI.el('p', 'stat-label', 'ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
         input.focus();
       }
+      card.appendChild(detailDrawer(w));
       card.appendChild(fb);
       card.appendChild(next);
       stage.appendChild(card);
@@ -401,6 +558,10 @@ function learnSession(themeId) {
     SRS.review(card, quality, todayStr);
     store.save();
     if (spellFails === 0 && store.state.mistakes[w.id]) store.removeMistake(w.id);
+    // 再练词会第二次走到这里：同一词只保留最后一次状态，避免小结 pass 计数超分母、重复列两行
+    for (let ri = results.length - 1; ri >= 0; ri--) {
+      if (results[ri].w.id === w.id) results.splice(ri, 1);
+    }
     results.push({ w: w, status: spellFails === 0 ? 'pass' : 'fail' });
   }
 
@@ -438,6 +599,8 @@ function learnSession(themeId) {
         groupStart = groupEnd();
         pos = groupStart;
         strengthen = [];
+        rq = makeRequeue(2);
+        doneCount = 0;
         results.length = 0;
         showIntro();
       };
@@ -460,6 +623,59 @@ function learnSession(themeId) {
 }
 
 /* ---------- 复习（SRS） ---------- */
+
+// 百词斩式错词再练队列：push 记录再练次数（超 maxRounds 忽略），
+// take(idx) 在每完成 3 题（idx % 3 === 0 且 idx > 0）时取出队首错词复现；
+// drain() 在名单/队列耗尽时无视 %3 闸直接出队（批末/会话末追加复现）
+export function makeRequeue(maxRounds) {
+  const queue = [];
+  const counts = {};
+  return {
+    push: function (w) {
+      const n = counts[w.id] || 0;
+      if (n >= maxRounds) return;
+      counts[w.id] = n + 1;
+      queue.push(w);
+    },
+    take: function (idx) {
+      if (idx % 3 !== 0 || idx <= 0 || !queue.length) return null;
+      return queue.shift();
+    },
+    // 队尾追加：名单/队列耗尽时无视 %3 闸直接出队（push 仍受 maxRounds 封顶，不会死循环）
+    drain: function () {
+      if (!queue.length) return null;
+      return queue.shift();
+    },
+    countOf: function (id) {
+      return counts[id] || 0;
+    }
+  };
+}
+
+// 复习队列排序：verify 卡与错词排最前，其余按可提取度（遗忘曲线）升序；
+// 优先级组内仍按可提取度升序；可提取度相同保持原顺序（稳定排序）
+export function orderReviewQueue(words, srsMap, todayStr) {
+  const mistakes = store.state.mistakes;
+  function retrievabilityOf(id) {
+    const card = srsMap[id];
+    if (!card) return 1; // 无卡视为最易提取，排最后
+    const base = card.last || card.due || todayStr;
+    return SRS.retrievability(card.stability || 0.1, SRS.daysBetween(base, todayStr));
+  }
+  function priority(id) {
+    const card = srsMap[id];
+    if ((card && card.verify) || mistakes[id]) return 0;
+    return 1;
+  }
+  return words.map(function (w, i) {
+    return { w: w, i: i, p: priority(w.id), r: retrievabilityOf(w.id) };
+  }).sort(function (a, b) {
+    if (a.p !== b.p) return a.p - b.p;
+    if (a.r !== b.r) return a.r - b.r;
+    return a.i - b.i;
+  }).map(function (x) { return x.w; });
+}
+
 export function dueWords(onlyMistakes) {
   const s = store.state, todayStr = today();
   let ids;
@@ -498,7 +714,7 @@ function reviewSession(onlyMistakes) {
     });
     return loading;
   }
-  const queue = dueWords(onlyMistakes).slice(0, 30);
+  const queue = orderReviewQueue(dueWords(onlyMistakes), s.srs, todayStr).slice(0, 30);
   const v = UI.el('div', 'sheet');
   v.appendChild(UI.el('h1', 'page-title', onlyMistakes ? '错词重练' : '今日复习'));
   if (!queue.length) {
@@ -516,6 +732,8 @@ function reviewSession(onlyMistakes) {
   v.appendChild(UI.el('p', 'page-sub', queue.length + ' 个词 · 答对了会安排更久的间隔，答错明天再见'));
 
   let idx = 0, right = 0;
+  const rq = makeRequeue(2);   // 错词再练队列：每答完 3 题复现一次
+  let answeredCount = 0;       // 已答题数（含再练题），驱动 take 节奏
   const dots = UI.el('div', 'progress-dots');
   queue.forEach(function () { dots.appendChild(UI.el('div', 'dot')); });
   v.appendChild(dots);
@@ -524,12 +742,19 @@ function reviewSession(onlyMistakes) {
 
   // 为每个词生成一种题型
   function buildQuestion(w) {
-    const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
-    let type = types[Math.floor(Math.random() * types.length)];
-    if (type === 'cloze' && !w.ex) type = 'trans';
+    let type;
+    if (hasImage(w, getImageWords()) && Math.random() < 0.4) type = 'image';
+    else {
+      const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
+      type = types[Math.floor(Math.random() * types.length)];
+      if (type === 'cloze' && !w.ex) type = 'trans';
+    }
     const q = { w: w, type: type, answered: false };
 
-    if (type === 'gender') {
+    if (type === 'image') {
+      // 图片四选一：renderImageChoice 自带题干、渐进提示与反馈，这里只补 explain 供评分文案
+      q.explain = w.de + ' = ' + w.zh;
+    } else if (type === 'gender') {
       q.prompt = UI.esc(w.de.replace(/^(der|die|das) /, '')) + ' —— ' + UI.esc(w.zh) + '<br>这个词的词性是？';
       q.opts = ['der（阳性）', 'die（阴性）', 'das（中性）'];
       q.answerIdx = { m: 0, f: 1, n: 2, pl: 1 }[w.g];
@@ -560,11 +785,12 @@ function reviewSession(onlyMistakes) {
     return q;
   }
 
-  function show() {
+  function show(w, isRetry) {
     stage.innerHTML = '';
     dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
-    const w = queue[idx];
+    if (w === undefined) { w = queue[idx]; isRetry = false; }
     const q = buildQuestion(w);
+    q.retry = !!isRetry;
     const card = UI.el('div', 'card');
     if (q.type === 'listen' || q.type === 'dict') {
       const play = UI.el('button', 'btn btn-ghost btn-sm', '🔊 播放读音');
@@ -573,14 +799,16 @@ function reviewSession(onlyMistakes) {
       card.appendChild(play);
       audio.playWord(w.id, w.de);
     }
-    const p = UI.el('div', 'quiz-prompt');
-    p.innerHTML = q.prompt;
-    card.appendChild(p);
+    if (q.type !== 'image') {
+      const p = UI.el('div', 'quiz-prompt');
+      p.innerHTML = q.prompt;
+      card.appendChild(p);
+    }
 
     const fb = UI.el('div');
     const next = UI.el('button', 'btn', '下一个');
     next.style.display = 'none';
-    next.onclick = function () { idx++; if (idx < queue.length) show(); else finish(); };
+    next.onclick = advance;
 
     function correct() {
       if (q.answered) return;
@@ -592,7 +820,7 @@ function reviewSession(onlyMistakes) {
       if (c && !c.sealed) SRS.review(c, 2, todayStr);
       store.save();
       if (s.mistakes[w.id]) store.removeMistake(w.id);
-      fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
+      if (q.type !== 'image') fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
         (sealedNow ? ' · 已通过验证，斩掉此词，不再安排复习' : '') + '</div>';
       reveal();
     }
@@ -606,8 +834,9 @@ function reviewSession(onlyMistakes) {
         if (!c.sealed) SRS.review(c, 0, todayStr);
       }
       store.save();
-      store.addMistake('vocab', w.id);
-      fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+      if (!q.retry) store.addMistake('vocab', w.id); // 再练轮不重复记错题
+      rq.push(w); // 答错的词隔 3 题复现（受 maxRounds 上限约束）
+      if (q.type !== 'image') fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
       reveal();
     }
     function reveal() {
@@ -616,31 +845,82 @@ function reviewSession(onlyMistakes) {
       next.focus();
     }
 
-    if (q.opts) { // 词性三选一
+    // 选择题首次错提示：听音题给词性+释义，其余给词性+拼写遮罩
+    function choiceHint(q2) {
+      if (q2.type === 'listen') return genderTag(q2.w.g) + ' ' + UI.esc(q2.w.zh);
+      return genderTag(q2.w.g) + ' ' + UI.esc(maskWord(q2.w.de));
+    }
+
+    if (q.type === 'image') {
+      // 图片四选一：自带渐进提示与 600ms 延迟反馈，onDone 后进入评分
+      const holder = UI.el('div');
+      card.appendChild(holder);
+      renderImageChoice(holder, w, {
+        imageIds: getImageWords(),
+        pool: allWords,
+        speak: audio.playWord,
+        onDone: function (firstTry) {
+          if (firstTry === true) correct(); else wrongFn();
+          // 图片题正确时 renderImageChoice 的反馈条会被后续 DOM 覆盖，
+          // 答对/转正的关键反馈（尤其斩转正）必须仍写进 fb
+          if (firstTry === true) fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
+            (s.srs[w.id] && s.srs[w.id].sealed ? ' · 已通过验证，斩掉此词，不再安排复习' : '') + '</div>';
+        }
+      });
+    } else if (q.opts) { // 词性三选一
       const box = UI.el('div', 'opts');
+      let missedG = false;
       q.opts.forEach(function (text, i) {
         const b = UI.el('button', 'opt', text);
         b.onclick = function () {
-          if (q.answered) return;
-          if (i === q.answerIdx) { b.classList.add('correct'); correct(); }
-          else { b.classList.add('wrong'); box.children[q.answerIdx].classList.add('correct'); wrongFn(); }
+          if (q.answered || b.disabled) return;
+          if (i === q.answerIdx) {
+            b.classList.add('correct');
+            box.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
+            if (!missedG) correct();
+            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+          } else if (!missedG) {
+            // 第 1 次错：计分并给提示，允许重选
+            missedG = true;
+            b.classList.add('wrong'); b.disabled = true;
+            wrongFn();
+            fb.innerHTML = '<div class="feedback">提示：' + UI.esc(w.zh) + '（再选一次）</div>';
+          } else {
+            // 第 2 次错：揭示答案
+            b.classList.add('wrong'); b.disabled = true;
+            box.querySelectorAll('.opt').forEach(function (x, j) { x.disabled = true; if (j === q.answerIdx) x.classList.add('correct'); });
+            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+          }
         };
         box.appendChild(b);
       });
       card.appendChild(box);
     } else if (q.options) { // 选择题
       const box2 = UI.el('div', 'opts');
+      let missed = false;
       q.options.forEach(function (o) {
         const b = UI.el('button', 'opt', UI.esc(o.text));
         b.onclick = function () {
-          if (q.answered) return;
-          if (o.word.id === w.id) { b.classList.add('correct'); correct(); }
-          else {
-            b.classList.add('wrong');
+          if (q.answered || b.disabled) return;
+          if (o.word.id === w.id) {
+            b.classList.add('correct');
+            box2.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
+            if (!missed) correct();
+            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+          } else if (!missed) {
+            // 第 1 次错：计分并给提示，允许重选
+            missed = true;
+            b.classList.add('wrong'); b.disabled = true;
+            wrongFn();
+            fb.innerHTML = '<div class="feedback">提示：' + choiceHint(q) + '（再选一次）</div>';
+          } else {
+            // 第 2 次错：揭示答案
+            b.classList.add('wrong'); b.disabled = true;
             box2.querySelectorAll('.opt').forEach(function (x, i) {
+              x.disabled = true;
               if (q.options[i].word.id === w.id) x.classList.add('correct');
             });
-            wrongFn();
+            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
           }
         };
         box2.appendChild(b);
@@ -649,24 +929,52 @@ function reviewSession(onlyMistakes) {
     } else { // 填空/听写
       const check = UI.el('button', 'btn', '检查答案');
       check.style.marginTop = '12px';
-      let input;
+      let input, attempts = 0;
       check.onclick = function () {
         if (q.answered) return;
         input = document.getElementById('cloze-input');
         if (!input.value.trim()) { input.focus(); return; }
-        if (SRS.matches(input.value, q.answerText)) correct();
-        else wrongFn();
-        if (input) input.disabled = true;
+        if (SRS.matches(input.value, q.answerText)) {
+          correct();
+          input.disabled = true;
+        } else if (attempts === 0) {
+          // 第 1 次错：露首字母提示，再试（不计分）
+          attempts++;
+          fb.innerHTML = '<div class="feedback">提示：' + UI.esc(maskWord(q.answerText)) + '（再试一次）</div>';
+          input.value = ''; input.focus();
+        } else {
+          // 第 2 次错：判错
+          wrongFn();
+          input.disabled = true;
+        }
       };
       card.appendChild(check);
       card.appendChild(UI.el('p', 'stat-label', '输入时可不带冠词；ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
       card.onkeydown = function (ev) { if (ev.key === 'Enter' && !q.answered) check.click(); else if (ev.key === 'Enter') next.click(); };
     }
+    card.appendChild(detailDrawer(w));
     card.appendChild(fb);
     card.appendChild(next);
     stage.appendChild(card);
     const inp = document.getElementById('cloze-input');
     if (inp) inp.focus();
+  }
+
+  // 每答完一题先检查再练队列：取到错词立即复现（不推进队列），否则推进 idx
+  function advance() {
+    answeredCount++;
+    const rw = rq.take(answeredCount);
+    if (rw) { show(rw, true); return; }
+    idx++;
+    if (idx < queue.length) show();
+    else drainReview();
+  }
+
+  // 会话末 drain 再练队列：队尾答错的词不再等下一个 3 的倍数
+  function drainReview() {
+    const rw = rq.drain();
+    if (!rw) { finish(); return; }
+    show(rw, true);
   }
 
   function finish() {
@@ -698,7 +1006,10 @@ export const Vocab = {
   learnSession: learnSession,
   reviewSession: reviewSession,
   dueWords: dueWords,
+  orderReviewQueue: orderReviewQueue,
   genderTag: genderTag,
   highlightEx: highlightEx,
-  maskWord: maskWord
+  maskWord: maskWord,
+  maskWordHalf: maskWordHalf,
+  makeRequeue: makeRequeue
 };

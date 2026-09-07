@@ -6,6 +6,8 @@ import * as SRS from '../src/srs.js';
 import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
+import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
+import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -447,6 +449,120 @@ test('可分动词 aufstehen', function () {
 });
 test('非动词输入返回 null', function () {
   assert.strictEqual(lookup(''), null);
+});
+
+console.log('\n图片题选题逻辑：');
+test('pickImageDistractors 同主题优先、去重、排除答案', function () {
+  const img = ['a-0','a-1','a-2','a-3','b-0','b-1'];
+  const pool = [
+    {id:'a-0',zh:'苹果',theme:'a',level:'A1'},{id:'a-1',zh:'香蕉',theme:'a',level:'A1'},
+    {id:'a-2',zh:'橙子',theme:'a',level:'A1'},{id:'a-3',zh:'葡萄',theme:'a',level:'A1'},
+    {id:'b-0',zh:'桌子',theme:'b',level:'A1'},{id:'b-1',zh:'苹果',theme:'b',level:'A1'} // 同释义应排除
+  ];
+  const w = pool[0];
+  const ds = pickImageDistractors(w, img, pool);
+  assert.strictEqual(ds.length, 3);
+  assert.ok(ds.every(function (d) { return d.id !== 'a-0' && d.zh !== '苹果'; }));
+  assert.ok(ds.filter(function (d) { return d.theme === 'a'; }).length >= 2, '应优先同主题');
+});
+test('pickImageDistractors 同主题不足时跨主题补足', function () {
+  const img = ['a-0','b-0','b-1','b-2'];
+  const pool = [
+    {id:'a-0',zh:'苹果',theme:'a',level:'A1'},
+    {id:'b-0',zh:'香蕉',theme:'b',level:'A1'},{id:'b-1',zh:'橙子',theme:'b',level:'A1'},{id:'b-2',zh:'葡萄',theme:'b',level:'A1'}
+  ];
+  assert.strictEqual(pickImageDistractors(pool[0], img, pool).length, 3);
+});
+test('无图词 hasImage 为 false', function () {
+  assert.strictEqual(hasImage({id:'x-0'}, ['a-0']), false);
+  assert.strictEqual(hasImage({id:'a-0'}, ['a-0']), true);
+});
+test('正确图位置参与洗牌（不固定在第 4 格）', function () {
+  let pos3 = 0;
+  const seen = {};
+  for (let i = 0; i < 100; i++) {
+    const order = orderImageChoices('c', ['a', 'b', 'd']);
+    assert.strictEqual(order.length, 4);
+    assert.strictEqual(order.slice().sort().join(''), 'abcd');
+    seen[order.indexOf('c')] = 1;
+    if (order.indexOf('c') === 3) pos3++;
+  }
+  assert.ok(Object.keys(seen).length > 1, '正确图位置应随洗牌变化，实际只出现: ' + Object.keys(seen).join(','));
+  assert.ok(pos3 < 100, '正确图不应永远在第 4 格');
+});
+
+console.log('\n复习队列排序（遗忘曲线）：');
+test('orderReviewQueue：verify/错词优先，其余按可提取度升序', function () {
+  const todayStr = '2026-09-06';
+  const mk = function (id, s, last) { return { id: id, de: id, zh: id, ex: '', exZh: '', g: 'm' }; };
+  const words = [mk('a', 0, ''), mk('b'), mk('c')];
+  const srsMap = {
+    a: { stability: 10, last: '2026-09-01' },
+    b: { stability: 2, last: '2026-09-01' },
+    c: { stability: 50, last: '2026-09-01', verify: true }
+  };
+  const ordered = orderReviewQueue(words, srsMap, todayStr);
+  assert.strictEqual(ordered[0].id, 'c', 'verify 卡最优先');
+  assert.strictEqual(ordered[1].id, 'b', '低稳定度优先于高稳定度');
+});
+
+console.log('\n拼写提示遮罩：');
+test('maskWordHalf 揭示前半', function () {
+  assert.strictEqual(maskWordHalf('lernen'), 'ler···');
+  assert.strictEqual(maskWordHalf('der Tag'), 'der Ta·');
+});
+
+console.log('\n词性标签（detailDrawer 词性行依赖）：');
+test('posLabel：名词四格用冠词，动词/副词等用中文名，不抛错', function () {
+  assert.strictEqual(posLabel('m'), 'der');
+  assert.strictEqual(posLabel('f'), 'die');
+  assert.strictEqual(posLabel('n'), 'das');
+  assert.strictEqual(posLabel('pl'), 'die');
+  assert.strictEqual(posLabel('v'), '动词');
+  assert.strictEqual(posLabel('adj'), '形容词');
+  assert.strictEqual(posLabel('adv'), '副词');
+  assert.strictEqual(posLabel('num'), '数词');
+  assert.strictEqual(posLabel('pron'), '代词');
+  assert.strictEqual(posLabel('phrase'), '短语');
+  assert.strictEqual(posLabel('conj'), '连词');
+  assert.strictEqual(posLabel('part'), '小品词');
+});
+test('genderTag：名词保留三色角标，非名词降级纯文本 pos-tag，不抛错', function () {
+  assert.ok(genderTag('m').indexOf('gender-tag m') > 0);
+  assert.ok(genderTag('m').indexOf('der') > 0);
+  assert.ok(genderTag('pl').indexOf('gender-tag pl') > 0);
+  const v = genderTag('v');
+  assert.ok(v.indexOf('pos-tag') > 0);
+  assert.ok(v.indexOf('动词') > 0);
+  assert.ok(v.indexOf('gender-tag') === -1, '动词不应使用 gender-tag 类');
+  assert.ok(genderTag('adv').indexOf('副词') > 0);
+  assert.strictEqual(genderTag('xyz'), '<span class="pos-tag">xyz</span>', '未知标记原样返回');
+});
+
+console.log('\n再练队列（百词斩式错词复现）：');
+test('再练队列：答错词隔 3 张复现，超上限不再出现', function () {
+  const rq = makeRequeue(2);
+  rq.push({ id: 'a-0' });
+  assert.strictEqual(rq.take(1), null);
+  assert.strictEqual(rq.take(3).id, 'a-0');
+  rq.push({ id: 'a-0' }); rq.push({ id: 'a-0' }); // 第 3、4 次 push 超上限被忽略
+  assert.strictEqual(rq.countOf('a-0'), 2);
+  rq.take(3);
+  assert.strictEqual(rq.take(3), null, '达到上限后队列为空');
+});
+
+test('再练队列 drain：非 3 倍数位置可取、取空返回 null、超 maxRounds 不再出现', function () {
+  const rq = makeRequeue(2);
+  rq.push({ id: 'b-0' });
+  assert.strictEqual(rq.take(1), null, '非 3 倍数 take 仍被闸住');
+  const w = rq.drain();
+  assert.strictEqual(w.id, 'b-0', 'drain 无视 %3 闸取出队首');
+  assert.strictEqual(rq.drain(), null, '取空后返回 null');
+  rq.push({ id: 'b-1' }); rq.push({ id: 'b-1' }); rq.push({ id: 'b-1' }); // 第 3 次 push 超上限被忽略
+  assert.strictEqual(rq.countOf('b-1'), 2);
+  assert.strictEqual(rq.drain().id, 'b-1');
+  assert.strictEqual(rq.drain().id, 'b-1');
+  assert.strictEqual(rq.drain(), null, '超 maxRounds 的词不再出现');
 });
 
 Promise.all(asyncQueue).then(function () {

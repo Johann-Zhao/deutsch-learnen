@@ -165,6 +165,36 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .word-ex b.hl-f { color: var(--f); }
 .word-ex b.hl-n { color: var(--n); }
 
+/* ===== 单词详情抽屉（<details> 下拉） ===== */
+.word-detail { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px; }
+.word-detail > summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center;
+  min-height: 44px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.word-detail > summary::-webkit-details-marker { display: none; }
+.word-detail > summary::before {
+  content: "▸"; margin-right: 8px; font-size: 12px; color: var(--ink-3);
+}
+.word-detail-body { font-size: 13px; line-height: 1.75; color: var(--ink-2); }
+.word-detail-body .word-detail-row { padding: 4px 0; }
+.word-detail-body b { color: var(--ink); font-weight: 600; }
+.word-detail-body b.hl-m { color: var(--m); }
+.word-detail-body b.hl-f { color: var(--f); }
+.word-detail-body b.hl-n { color: var(--n); }
+/* 抽屉内的变位表复用 .archive-table，仅收敛字号贴合小字内容区 */
+.word-detail-body .archive-table { font-size: 13px; }
+
+/* 非名词词性的纯文本角标（动词/形容词等，无三色） */
+.pos-tag {
+  display: inline-block; font-size: 12px; font-weight: 600;
+  padding: 1px 10px; border-radius: 999px; margin-right: 8px;
+  font-family: var(--mono); letter-spacing: 0.04em;
+  color: var(--ink-2); background: rgba(110, 103, 90, 0.12);
+}
+
 /* ===== 进度 / 统计 ===== */
 .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
 .bar-fill { height: 100%; background: var(--ink); border-radius: 3px; transition: width .3s; }
@@ -214,6 +244,18 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .feedback { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-s); font-size: 14px; }
 .feedback.ok { background: rgba(78, 125, 94, 0.10); color: var(--ok); }
 .feedback.bad { background: rgba(168, 91, 110, 0.09); color: var(--bad); }
+
+/* 图片四选一（imgquiz.js） */
+.img-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.img-opt {
+  padding: 0; border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--card); cursor: pointer; font-family: inherit; overflow: hidden;
+  min-height: 44px;
+}
+.img-opt img { display: block; width: 100%; height: auto; }
+.img-opt:hover { border-color: var(--ink); }
+.img-opt.correct { border-color: var(--n); background: rgba(78, 125, 94, 0.10); }
+.img-opt.wrong { border-color: var(--f); opacity: 0.45; }
 .progress-dots { display: flex; gap: 5px; margin-bottom: 16px; flex-wrap: wrap; }
 .dot { width: 22px; height: 4px; border-radius: 2px; background: var(--line); }
 .dot.done { background: var(--ink); }
@@ -321,7 +363,7 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 
 /* ===== 动效（克制；reduced-motion 下全部关闭） ===== */
 @media (prefers-reduced-motion: no-preference) {
-  .card, .opt, .btn, .cover-cell .cover-img { transition: background-color .15s, border-color .15s, color .15s, transform .2s, box-shadow .2s; }
+  .card, .opt, .img-opt, .btn, .cover-cell .cover-img { transition: background-color .15s, border-color .15s, color .15s, transform .2s, box-shadow .2s, opacity .15s; }
   .cover-cell:hover .cover-img { transform: translateY(-3px); box-shadow: 0 2px 3px rgba(38,34,27,0.07), 0 10px 22px rgba(38,34,27,0.09); }
   @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.02); } 100% { transform: scale(1); } }
   .feedback.ok, .feedback.bad { animation: pop .25s ease; }
@@ -329,6 +371,11 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
   .fade-in { animation: fadein .24s ease; }
   @keyframes seal { 0% { transform: scale(1.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
   .badge-seal:not(.locked) { animation: seal .28s ease backwards; }
+  /* 详情抽屉展开：三角旋转 + 内容淡入，均 ≤200ms */
+  .word-detail > summary::before { transition: transform .15s; }
+  .word-detail[open] > summary::before { transform: rotate(90deg); }
+  @keyframes detail-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+  .word-detail[open] > .word-detail-body { animation: detail-in .18s ease; }
 }
 
 /* ===== 移动端（≤768px 启用 tab bar；≤480px 紧凑） ===== */
