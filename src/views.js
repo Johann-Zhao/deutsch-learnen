@@ -60,6 +60,10 @@ export function dashboard() {
   bGram.onclick = function () { location.hash = '#/review-grammar'; };
   gRow.appendChild(bGram);
   card.appendChild(gRow);
+  const remain = pool.filter(function (w) { return !s.srs[w.id]; }).length;
+  card.appendChild(UI.el('p', 'stat-label', remain === 0
+    ? '本级词已全部学过了'
+    : '按每天 ' + s.settings.dailyNew + ' 个新词，预计 ' + Math.ceil(remain / s.settings.dailyNew) + ' 天学完本级剩余 ' + remain + ' 个词'));
   v.appendChild(card);
 
   // 档案式统计栏

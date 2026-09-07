@@ -229,6 +229,15 @@ function learnSession(themeId) {
     return v;
   }
 
+  // 标题下进度行：今日新词 x/N · 本组第 k/5 个（介绍推进时更新）
+  const sub = UI.el('p', 'page-sub');
+  v.appendChild(sub);
+  function paintSub() {
+    const t = s.daily[todayStr] || {};
+    sub.textContent = '今日新词 ' + (t.new || 0) + ' / ' + s.settings.dailyNew +
+      ' · 本组第 ' + (pos - groupStart + 1) + ' / ' + BATCH + ' 个';
+  }
+
   let groupStart = 0;          // 当前批起点（queue 下标）
   let pos = 0;                 // 当前介绍到的词（queue 下标）
   let lit = 0;                 // 已点亮的词数（介绍即点亮）
@@ -251,6 +260,7 @@ function learnSession(themeId) {
   /* --- 介绍阶段：逐词 wordCard + 三按钮分流 --- */
   function showIntro() {
     paintDots();
+    paintSub();
     stage.innerHTML = '';
     const w = queue[pos];
     stage.appendChild(UI.el('p', 'micro', 'WORT ' + (pos + 1) + ' / ' + queue.length +
