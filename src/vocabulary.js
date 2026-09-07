@@ -861,6 +861,10 @@ function reviewSession(onlyMistakes) {
         speak: audio.playWord,
         onDone: function (firstTry) {
           if (firstTry === true) correct(); else wrongFn();
+          // 图片题正确时 renderImageChoice 的反馈条会被后续 DOM 覆盖，
+          // 答对/转正的关键反馈（尤其斩转正）必须仍写进 fb
+          if (firstTry === true) fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) +
+            (s.srs[w.id] && s.srs[w.id].sealed ? ' · 已通过验证，斩掉此词，不再安排复习' : '') + '</div>';
         }
       });
     } else if (q.opts) { // 词性三选一
