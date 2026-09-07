@@ -7,6 +7,7 @@ import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
+import { maskWord, maskWordHalf } from '../src/vocabulary.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -488,6 +489,12 @@ test('正确图位置参与洗牌（不固定在第 4 格）', function () {
   }
   assert.ok(Object.keys(seen).length > 1, '正确图位置应随洗牌变化，实际只出现: ' + Object.keys(seen).join(','));
   assert.ok(pos3 < 100, '正确图不应永远在第 4 格');
+});
+
+console.log('\n拼写提示遮罩：');
+test('maskWordHalf 揭示前半', function () {
+  assert.strictEqual(maskWordHalf('lernen'), 'ler···');
+  assert.strictEqual(maskWordHalf('der Tag'), 'der Ta·');
 });
 
 Promise.all(asyncQueue).then(function () {
