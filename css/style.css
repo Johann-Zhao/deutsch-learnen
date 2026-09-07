@@ -184,12 +184,16 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .word-detail-body b.hl-m { color: var(--m); }
 .word-detail-body b.hl-f { color: var(--f); }
 .word-detail-body b.hl-n { color: var(--n); }
-/* 变位小表：极简墨线（仅行下边框，无竖线、无阴影） */
-.word-detail-conj { border-collapse: collapse; width: 100%; margin: 6px 0 4px; }
-.word-detail-conj td { border-bottom: 1px solid var(--line); padding: 5px 8px 5px 0; }
-.word-detail-conj tr:last-child td { border-bottom: none; }
-.word-detail-conj td:first-child { color: var(--ink-2); font-family: var(--mono); font-size: 12px; min-width: 76px; }
-.word-detail-conj td:last-child { color: var(--ink); font-weight: 600; }
+/* 抽屉内的变位表复用 .archive-table，仅收敛字号贴合小字内容区 */
+.word-detail-body .archive-table { font-size: 13px; }
+
+/* 非名词词性的纯文本角标（动词/形容词等，无三色） */
+.pos-tag {
+  display: inline-block; font-size: 12px; font-weight: 600;
+  padding: 1px 10px; border-radius: 999px; margin-right: 8px;
+  font-family: var(--mono); letter-spacing: 0.04em;
+  color: var(--ink-2); background: rgba(110, 103, 90, 0.12);
+}
 
 /* ===== 进度 / 统计 ===== */
 .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }

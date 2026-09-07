@@ -14,9 +14,20 @@ import { hasImage, renderImageChoice } from './imgquiz.js';
 import { lookup, Conjugate } from './conjugate.js';
 
 const GENDER_LABEL = { m: ['der', 'm'], f: ['die', 'f'], n: ['das', 'n'], pl: ['die', 'pl'] };
+// 非名词词性的中文标签（genderTag 降级为纯文本角标时使用）
+const POS_LABEL = { v: '动词', adj: '形容词', adv: '副词', num: '数词', pron: '代词', phrase: '短语', conj: '连词', part: '小品词' };
+
+// 词性标签文本：名词四格用 der/die/das/die，其余词性用中文名；未知标记原样返回
+export function posLabel(g) {
+  if (GENDER_LABEL[g]) return GENDER_LABEL[g][0];
+  return POS_LABEL[g] || g || '';
+}
 
 export function genderTag(g) {
-  return '<span class="gender-tag ' + g + '">' + GENDER_LABEL[g][0] + '</span>';
+  if (GENDER_LABEL[g]) {
+    return '<span class="gender-tag ' + g + '">' + GENDER_LABEL[g][0] + '</span>';
+  }
+  return '<span class="pos-tag">' + UI.esc(posLabel(g)) + '</span>';
 }
 
 // 例句中高亮目标词（按词性染色）
@@ -77,8 +88,9 @@ function detailDrawer(w) {
     body.appendChild(ex);
   }
   if (conj) {
-    const t = UI.el('table', 'word-detail-conj');
-    let html = '';
+    // 复用变位页同款档案表格（.archive-table）
+    const t = UI.el('table', 'archive-table');
+    let html = '<tr><th>人称</th><th>' + UI.esc(conj.verb) + '（' + conj.note + '）</th></tr>';
     Conjugate.persons.forEach(function (p, i) {
       html += '<tr><td>' + p + '</td><td>' + UI.esc(conj.forms[i]) + '</td></tr>';
     });
@@ -374,6 +386,7 @@ function learnSession(themeId) {
             nextStep();
           }
         });
+        card.appendChild(detailDrawer(w));
         stage.appendChild(card);
         return;
       }

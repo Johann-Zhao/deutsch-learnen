@@ -7,7 +7,7 @@ import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
-import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue } from '../src/vocabulary.js';
+import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -510,6 +510,33 @@ console.log('\n拼写提示遮罩：');
 test('maskWordHalf 揭示前半', function () {
   assert.strictEqual(maskWordHalf('lernen'), 'ler···');
   assert.strictEqual(maskWordHalf('der Tag'), 'der Ta·');
+});
+
+console.log('\n词性标签（detailDrawer 词性行依赖）：');
+test('posLabel：名词四格用冠词，动词/副词等用中文名，不抛错', function () {
+  assert.strictEqual(posLabel('m'), 'der');
+  assert.strictEqual(posLabel('f'), 'die');
+  assert.strictEqual(posLabel('n'), 'das');
+  assert.strictEqual(posLabel('pl'), 'die');
+  assert.strictEqual(posLabel('v'), '动词');
+  assert.strictEqual(posLabel('adj'), '形容词');
+  assert.strictEqual(posLabel('adv'), '副词');
+  assert.strictEqual(posLabel('num'), '数词');
+  assert.strictEqual(posLabel('pron'), '代词');
+  assert.strictEqual(posLabel('phrase'), '短语');
+  assert.strictEqual(posLabel('conj'), '连词');
+  assert.strictEqual(posLabel('part'), '小品词');
+});
+test('genderTag：名词保留三色角标，非名词降级纯文本 pos-tag，不抛错', function () {
+  assert.ok(genderTag('m').indexOf('gender-tag m') > 0);
+  assert.ok(genderTag('m').indexOf('der') > 0);
+  assert.ok(genderTag('pl').indexOf('gender-tag pl') > 0);
+  const v = genderTag('v');
+  assert.ok(v.indexOf('pos-tag') > 0);
+  assert.ok(v.indexOf('动词') > 0);
+  assert.ok(v.indexOf('gender-tag') === -1, '动词不应使用 gender-tag 类');
+  assert.ok(genderTag('adv').indexOf('副词') > 0);
+  assert.strictEqual(genderTag('xyz'), '<span class="pos-tag">xyz</span>', '未知标记原样返回');
 });
 
 console.log('\n再练队列（百词斩式错词复现）：');
