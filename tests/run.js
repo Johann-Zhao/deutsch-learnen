@@ -6,7 +6,7 @@ import * as SRS from '../src/srs.js';
 import { Storage, today, KEY } from '../src/storage.js';
 import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
-import { pickImageDistractors, hasImage } from '../src/imgquiz.js';
+import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -475,6 +475,19 @@ test('pickImageDistractors 同主题不足时跨主题补足', function () {
 test('无图词 hasImage 为 false', function () {
   assert.strictEqual(hasImage({id:'x-0'}, ['a-0']), false);
   assert.strictEqual(hasImage({id:'a-0'}, ['a-0']), true);
+});
+test('正确图位置参与洗牌（不固定在第 4 格）', function () {
+  let pos3 = 0;
+  const seen = {};
+  for (let i = 0; i < 100; i++) {
+    const order = orderImageChoices('c', ['a', 'b', 'd']);
+    assert.strictEqual(order.length, 4);
+    assert.strictEqual(order.slice().sort().join(''), 'abcd');
+    seen[order.indexOf('c')] = 1;
+    if (order.indexOf('c') === 3) pos3++;
+  }
+  assert.ok(Object.keys(seen).length > 1, '正确图位置应随洗牌变化，实际只出现: ' + Object.keys(seen).join(','));
+  assert.ok(pos3 < 100, '正确图不应永远在第 4 格');
 });
 
 Promise.all(asyncQueue).then(function () {

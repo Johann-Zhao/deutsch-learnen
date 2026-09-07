@@ -33,6 +33,11 @@ function shuffle(arr) {
   return arr;
 }
 
+// 正确图与干扰项一起洗牌，决定 2×2 格子中的渲染顺序（纯函数，供测试采样位置）
+export function orderImageChoices(correct, distractors) {
+  return shuffle([correct].concat(distractors));
+}
+
 // 渲染 2×2 图片选择题；ctx = { imageIds, pool, speak(id, de), onDone(firstTry) }
 export function renderImageChoice(container, w, ctx) {
   container.innerHTML = '';
@@ -72,7 +77,15 @@ export function renderImageChoice(container, w, ctx) {
     img.onerror = function () {
       b.style.display = 'none';
       b.disabled = true;
-      if (isCorrect || done) return;
+      if (done) return;
+      if (isCorrect) {
+        // 正确图缺失：题目无法作答，按答错处理
+        done = true;
+        eliminate();
+        showFb('bad', '图片加载失败，按答错处理');
+        setTimeout(function () { ctx.onDone(false); }, 600);
+        return;
+      }
       const i = wrongBtns.indexOf(b);
       if (i >= 0) wrongBtns.splice(i, 1);
       refill();
@@ -128,10 +141,10 @@ export function renderImageChoice(container, w, ctx) {
   }
 
   const correctBtn = buildOpt(w, true);
-  shuffle(pickImageDistractors(w, ctx.imageIds, ctx.pool)).forEach(function (d) {
+  const ds = pickImageDistractors(w, ctx.imageIds, ctx.pool).map(function (d) {
     const b = buildOpt(d, false);
     wrongBtns.push(b);
-    grid.appendChild(b);
+    return b;
   });
-  grid.appendChild(correctBtn);
+  orderImageChoices(correctBtn, ds).forEach(function (b) { grid.appendChild(b); });
 }
