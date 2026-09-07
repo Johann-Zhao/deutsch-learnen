@@ -315,7 +315,7 @@ function learnSession(themeId) {
 
   /* --- 加强阶段：本批加强名单逐词过题 --- */
   function startStrengthen(i) {
-    if (i >= strengthen.length) { showGroupSummary(); return; }
+    if (i >= strengthen.length) { drainStrengthen(); return; }
     const w = strengthen[i];
     runSteps(w, stepsFor(w), function (wrongs, spellFails) {
       finishWord(w, wrongs, spellFails);
@@ -323,6 +323,18 @@ function learnSession(themeId) {
       doneCount++;
       strengthenNext(i);
     });
+  }
+
+  // 名单耗尽后 drain 再练队列：批末答错的词不再等下一个 3 的倍数
+  function drainStrengthen() {
+    const rw = rq.drain();
+    if (!rw) { showGroupSummary(); return; }
+    runSteps(rw, stepsFor(rw), function (wrongs, spellFails) {
+      finishWord(rw, wrongs, spellFails);
+      if (wrongs > 0 || spellFails > 0) rq.push(rw);
+      doneCount++;
+      drainStrengthen();
+    }, true);
   }
 
   // 每完成一个词（含再练词）先检查再练队列：取到错词立即插练，否则推进名单
@@ -613,7 +625,8 @@ function learnSession(themeId) {
 /* ---------- 复习（SRS） ---------- */
 
 // 百词斩式错词再练队列：push 记录再练次数（超 maxRounds 忽略），
-// take(idx) 在每完成 3 题（idx % 3 === 0 且 idx > 0）时取出队首错词复现
+// take(idx) 在每完成 3 题（idx % 3 === 0 且 idx > 0）时取出队首错词复现；
+// drain() 在名单/队列耗尽时无视 %3 闸直接出队（批末/会话末追加复现）
 export function makeRequeue(maxRounds) {
   const queue = [];
   const counts = {};
@@ -626,6 +639,11 @@ export function makeRequeue(maxRounds) {
     },
     take: function (idx) {
       if (idx % 3 !== 0 || idx <= 0 || !queue.length) return null;
+      return queue.shift();
+    },
+    // 队尾追加：名单/队列耗尽时无视 %3 闸直接出队（push 仍受 maxRounds 封顶，不会死循环）
+    drain: function () {
+      if (!queue.length) return null;
       return queue.shift();
     },
     countOf: function (id) {
@@ -945,7 +963,14 @@ function reviewSession(onlyMistakes) {
     if (rw) { show(rw, true); return; }
     idx++;
     if (idx < queue.length) show();
-    else finish();
+    else drainReview();
+  }
+
+  // 会话末 drain 再练队列：队尾答错的词不再等下一个 3 的倍数
+  function drainReview() {
+    const rw = rq.drain();
+    if (!rw) { finish(); return; }
+    show(rw, true);
   }
 
   function finish() {

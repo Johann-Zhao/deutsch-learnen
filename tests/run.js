@@ -551,6 +551,20 @@ test('再练队列：答错词隔 3 张复现，超上限不再出现', function
   assert.strictEqual(rq.take(3), null, '达到上限后队列为空');
 });
 
+test('再练队列 drain：非 3 倍数位置可取、取空返回 null、超 maxRounds 不再出现', function () {
+  const rq = makeRequeue(2);
+  rq.push({ id: 'b-0' });
+  assert.strictEqual(rq.take(1), null, '非 3 倍数 take 仍被闸住');
+  const w = rq.drain();
+  assert.strictEqual(w.id, 'b-0', 'drain 无视 %3 闸取出队首');
+  assert.strictEqual(rq.drain(), null, '取空后返回 null');
+  rq.push({ id: 'b-1' }); rq.push({ id: 'b-1' }); rq.push({ id: 'b-1' }); // 第 3 次 push 超上限被忽略
+  assert.strictEqual(rq.countOf('b-1'), 2);
+  assert.strictEqual(rq.drain().id, 'b-1');
+  assert.strictEqual(rq.drain().id, 'b-1');
+  assert.strictEqual(rq.drain(), null, '超 maxRounds 的词不再出现');
+});
+
 Promise.all(asyncQueue).then(function () {
   console.log('\n结果：' + passed + ' 通过，' + failed + ' 失败');
   process.exit(failed ? 1 : 0);
