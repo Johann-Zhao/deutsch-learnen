@@ -484,6 +484,10 @@ function learnSession(themeId) {
     SRS.review(card, quality, todayStr);
     store.save();
     if (spellFails === 0 && store.state.mistakes[w.id]) store.removeMistake(w.id);
+    // 再练词会第二次走到这里：同一词只保留最后一次状态，避免小结 pass 计数超分母、重复列两行
+    for (let ri = results.length - 1; ri >= 0; ri--) {
+      if (results[ri].w.id === w.id) results.splice(ri, 1);
+    }
     results.push({ w: w, status: spellFails === 0 ? 'pass' : 'fail' });
   }
 
