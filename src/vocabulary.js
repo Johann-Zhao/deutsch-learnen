@@ -11,6 +11,7 @@ import {
 } from './data.js';
 import { render } from './app.js';
 import { hasImage, renderImageChoice } from './imgquiz.js';
+import { lookup, Conjugate } from './conjugate.js';
 
 const GENDER_LABEL = { m: ['der', 'm'], f: ['die', 'f'], n: ['das', 'n'], pl: ['die', 'pl'] };
 
@@ -48,7 +49,44 @@ function wordCard(w) {
   const sp = speakBtn(w.ex, 'sent', w.id); sp.title = '朗读例句';
   ex.insertBefore(sp, ex.firstChild);
   c.appendChild(ex);
+  c.appendChild(detailDrawer(w));
   return c;
+}
+
+/* ---------- 单词详情抽屉（百词斩式下拉：释义 / 例句 / 变位） ----------
+   仅当 w.de 是单个词（无空格、非 der/die/das 名词）且 lookup 命中时才附变位小表 */
+function verbForms(w) {
+  const de = w.de.trim();
+  if (/^(der|die|das) /.test(de)) return null;
+  if (/\s/.test(de)) return null;
+  return lookup(de.toLowerCase());
+}
+
+function detailDrawer(w) {
+  const conj = verbForms(w);
+  const d = UI.el('details', 'word-detail');
+  d.appendChild(UI.el('summary', null, conj ? '详情 · 释义 / 例句 / 变位' : '详情 · 释义 / 例句'));
+  const body = UI.el('div', 'word-detail-body');
+  body.appendChild(UI.el('div', 'word-detail-row',
+    genderTag(w.g) + '<span class="stat-label">' + UI.esc(w.level || 'A1') + '</span>　<span>' + UI.esc(w.zh) + '</span>'));
+  if (w.ex) {
+    const ex = UI.el('div', 'word-detail-row');
+    ex.innerHTML = highlightEx(w) + '<br><span>' + UI.esc(w.exZh || '') + '</span>';
+    const sp = speakBtn(w.ex, 'sent', w.id); sp.title = '朗读例句';
+    ex.insertBefore(sp, ex.firstChild);
+    body.appendChild(ex);
+  }
+  if (conj) {
+    const t = UI.el('table', 'word-detail-conj');
+    let html = '';
+    Conjugate.persons.forEach(function (p, i) {
+      html += '<tr><td>' + p + '</td><td>' + UI.esc(conj.forms[i]) + '</td></tr>';
+    });
+    t.innerHTML = html;
+    body.appendChild(t);
+  }
+  d.appendChild(body);
+  return d;
 }
 
 // 干扰项：取 3 个不同词条（keyFn 用于去重，如同义中文）
@@ -469,6 +507,7 @@ function learnSession(themeId) {
         card.appendChild(UI.el('p', 'stat-label', 'ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
         input.focus();
       }
+      card.appendChild(detailDrawer(w));
       card.appendChild(fb);
       card.appendChild(next);
       stage.appendChild(card);
@@ -868,6 +907,7 @@ function reviewSession(onlyMistakes) {
       card.appendChild(UI.el('p', 'stat-label', '输入时可不带冠词；ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
       card.onkeydown = function (ev) { if (ev.key === 'Enter' && !q.answered) check.click(); else if (ev.key === 'Enter') next.click(); };
     }
+    card.appendChild(detailDrawer(w));
     card.appendChild(fb);
     card.appendChild(next);
     stage.appendChild(card);
