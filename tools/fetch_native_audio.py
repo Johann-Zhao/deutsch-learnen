@@ -73,7 +73,7 @@ def download(url, dest_tmp):
     err = ""
     for attempt in range(RETRIES + 1):
         _throttle()
-        r = subprocess.run(["curl", "-sS", "-f", "-A", USER_AGENT,
+        r = subprocess.run(["curl", "-sS", "-f", "--max-time", "120", "-A", USER_AGENT,
                             "-o", str(dest_tmp), url], capture_output=True)
         if r.returncode == 0:
             return
@@ -91,6 +91,7 @@ def to_ogg(src, dest):
         return True
     if not shutil.which("ffmpeg"):
         print("  ✗ 需要 ffmpeg 转码但未安装，跳过", flush=True)
+        src.unlink(missing_ok=True)
         return False
     r = subprocess.run(["ffmpeg", "-y", "-i", str(src), "-ac", "1", "-ar", "22050",
                         "-c:a", "libvorbis", "-q:a", "3", str(dest)],
@@ -113,6 +114,9 @@ def update_manifest_and_credits(credits):
 
 
 def main():
+    if not shutil.which("curl"):
+        print("需要 curl")
+        sys.exit(1)
     limit = None
     ids = None
     if "--limit" in sys.argv:
@@ -137,6 +141,8 @@ def main():
             continue
         wt = fetch_wikitext(query_word(word))
         filename = extract_audio(wt) if wt else None
+        if filename:
+            filename = re.sub(r"[‎‏‪-‮⁦-⁩﻿]", "", filename)
         info = imageinfo(filename) if filename else None
         if not info:
             miss += 1
