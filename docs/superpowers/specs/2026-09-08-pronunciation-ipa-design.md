@@ -21,26 +21,27 @@
 
 ### 2.1 数据源
 
-Wikimedia Commons API（`https://commons.wikimedia.org/w/api.php`），覆盖两类文件：
-
-- Lingua Libre 录音：`File:LL-Q188 (deu)-<speaker>-<word>.wav`（现代、质量统一）
-- 传统录音：`File:De-<word>.ogg`（较老，已是 ogg vorbis）
+**已实测验证（2026-09-08）**：Kaikki 逐词 JSON 端点不存在（404），改用 **de.wiktionary.org API**
+（`action=parse&prop=wikitext`，数据与 Kaikki 同源自维基词典，CC BY-SA 相同）：
+- 词条 wikitext 的 `{{Audio|De-X.ogg}}` 模板直接给出 Wikimedia Commons 发音文件名；
+- Commons `imageinfo` API（`iiprop=url|extmetadata`）取下载 URL、许可与说话人署名。
 
 许可：CC BY-SA / CC0，允许分发，须署名说话人（§12.1 已列为许可安全资源）。
 
 ### 2.2 流程
 
 ```
-对全部 1945 词（读 data/vocabulary*.js，复用现有 load 逻辑，取去冠词后的词干查询）：
-  1. 已存在 audio/native/<wordId>.* → 跳过（断点续跑）
-  2. Commons API list=search，namespace=6(File)，查询词（先整词，名词再试词干）
-  3. 候选排序：Lingua Libre (deu) 优先 > De-<word>.ogg 精确命名 > 其他；
-     同名多说话人取列表首个（稳定、可复现）
-  4. 下载；wav 用 ffmpeg 转 ogg（libvorbis, q≈3, 单声道 22050Hz）；ogg 原样保留
-  5. 产物：audio/native/<wordId>.<ext>
-  6. 署名：audio/credits_native.json（自动生成，勿手改）
+对全部 1945 词（读 data/vocabulary*.js，复用 tools/generate_audio.py 的 load_items）：
+  1. 已存在 audio/native/<wordId>.ogg → 跳过（断点续跑）
+  2. 查询词 = 去掉冠词 der/die/das/ein/eine/einen 与反身 sich 的词干
+  3. de.wiktionary API 取 wikitext（redirects=1），抽取 {{Audio|...}} 模板：
+     全部候选中优先第一个文件名不含空格的（词条本体发音优先于例句发音）
+  4. Commons imageinfo API 取下载 URL / LicenseShortName / Artist
+  5. 下载；ogg/oga 原样保存，其他格式用 ffmpeg 转 ogg（libvorbis q3，单声道 22050Hz）
+  6. 产物：audio/native/<wordId>.ogg
+  7. 署名：audio/credits_native.json（自动生成，勿手改）
      { wordId: { file, speaker, license, url } }
-  7. 更新 audio/manifest.js：新增 AUDIO_NATIVE = { wordId: "native/<wordId>.ogg" }（自动生成，勿手改）
+  8. 更新 audio/manifest.js：新增 AUDIO_NATIVE = { wordId: "native/<wordId>.ogg" }（自动生成，勿手改）
 ```
 
 - 请求礼貌延迟 ≥0.5s；失败重试 2 次；查不到的词记录到日志，最终汇总「真人覆盖率 x/1945」。
@@ -49,7 +50,7 @@ Wikimedia Commons API（`https://commons.wikimedia.org/w/api.php`），覆盖两
 
 ## 3. IPA 管道（`tools/fetch_ipa.py`，新增）
 
-- 数据源：Kaikki.org 德语词典（CC BY-SA）。逐词请求 kaikki.org 的单词 JSON 端点，抽取 `sounds[].ipa` 中标准德语读音（排除方言/奥地利/瑞士变体，取第一条通用读音）。
+- 数据源：de.wiktionary.org API（CC BY-SA；Kaikki 逐词端点已验证不存在，维基词典同源替代）。逐词请求 `action=parse&prop=wikitext&redirects=1`，抽取 `{{IPA}}` 后首个 `{{Lautschrift|...}}` 作为标准德语读音（首个即通用读音，后续的 `{{reg.}}`/`{{Pl.}}` 变体忽略）。
 - 输出 `data/ipa.js`（手写风格生成文件，头部注释「由 tools/fetch_ipa.py 自动生成，勿手改」）：
 
 ```javascript
@@ -89,7 +90,7 @@ Object.assign(window.WORD_IPA, {
 
 ### 4.4 署名与致谢
 
-- 设置页「学习统计」卡片下新增「音频与音标来源」小段：真人发音来自 Wikimedia Commons / Lingua Libre 贡献者（CC BY-SA，详见 `audio/credits_native.json`）；IPA 来自 Kaikki.org（CC BY-SA）。
+- 设置页「学习统计」卡片下新增「音频与音标来源」小段：真人发音来自 Wikimedia Commons / Lingua Libre 贡献者（CC BY-SA，详见 `audio/credits_native.json`）；IPA 来自 de.wiktionary.org（CC BY-SA）。
 - 满足 §12.1 对 CC BY-SA 数据「应用内署名并标明许可」的要求。
 
 ## 5. 数据与格式约束
