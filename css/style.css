@@ -397,3 +397,5 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
   .self-rate { flex-direction: column; }
   .self-rate .btn { width: 100%; }
 }
+
+.word-ipa { margin: 2px 0 0; letter-spacing: 0.04em; }
