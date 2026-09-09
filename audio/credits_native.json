@@ -58,5 +58,29 @@
   "speaker": "joni",
   "license": "CC BY-SA 3.0",
   "url": "https://commons.wikimedia.org/wiki/File%3ADe-Kind.ogg"
+ },
+ "family-6": {
+  "file": "De-Großvater.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Gro%C3%9Fvater.ogg"
+ },
+ "family-8": {
+  "file": "De-Onkel.ogg",
+  "speaker": "Kampy",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Onkel.ogg"
+ },
+ "a2-bank-0": {
+  "file": "De-Bank.ogg",
+  "speaker": "No machine-readable author provided. Cyrotux assumed (based on copyright claims).",
+  "license": "CC BY-SA 2.5",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Bank.ogg"
+ },
+ "a2-bank-1": {
+  "file": "De-Konto.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Konto.ogg"
  }
 }

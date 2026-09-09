@@ -13,15 +13,18 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
-from dewikt import ROOT, USER_AGENT, query_word, fetch_wikitext, extract_audio
+from dewikt import ROOT, USER_AGENT, query_word, fetch_wikitext, extract_audio, _retry_after
 from generate_audio import load_items
 
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
-DELAY = 0.5
+DELAY = 1.5
 RETRIES = 2
+RATE_RETRIES = 4
+RATE_BACKOFF = (15, 45, 90)
 NATIVE_DIR = ROOT / "audio" / "native"
 CREDITS = ROOT / "audio" / "credits_native.json"
 MANIFEST = ROOT / "audio" / "manifest.js"
@@ -43,10 +46,14 @@ def _get_json(url):
 
 
 def imageinfo(filename):
-    """返回 (download_url, license, speaker, page_url)；失败返回 None。"""
+    """返回 (download_url, license, speaker, page_url)；失败返回 None。
+    429 尊敬 Retry-After（缺省 15/45/90s），最多重试 RATE_RETRIES 次；
+    其他错误沿用 1.5s 倍数退避 RETRIES 次。"""
     params = ("action=query&prop=imageinfo&iiprop=url|extmetadata"
               "&format=json&formatversion=2&titles=" + urllib.parse.quote("File:" + filename))
-    for attempt in range(RETRIES + 1):
+    err_attempt = 0   # 非 429 错误已重试次数
+    rate_attempt = 0  # 429 已重试次数
+    while True:
         try:
             data = _get_json(COMMONS_API + "?" + params)
             page = data["query"]["pages"][0]
@@ -59,28 +66,76 @@ def imageinfo(filename):
             url = ii["url"].split("?")[0]  # 去掉 utm 跟踪参数
             page_url = "https://commons.wikimedia.org/wiki/" + urllib.parse.quote("File:" + filename)
             return url, license_, artist, page_url
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                if rate_attempt >= RATE_RETRIES:
+                    print(f"  ✗ imageinfo 限流放弃 {filename}: {e}", flush=True)
+                    return None
+                wait = _retry_after(e, RATE_BACKOFF[min(rate_attempt, len(RATE_BACKOFF) - 1)])
+                rate_attempt += 1
+                print(f"  … imageinfo 429 限流 {filename}，等待 {wait:.0f}s 重试"
+                      f"（{rate_attempt}/{RATE_RETRIES}）", flush=True)
+                time.sleep(wait)
+            else:
+                if err_attempt >= RETRIES:
+                    print(f"  ✗ imageinfo 失败 {filename}: {e}", flush=True)
+                    return None
+                err_attempt += 1
+                time.sleep(1.5 * err_attempt)
         except Exception as e:
-            if attempt == RETRIES:
+            if err_attempt >= RETRIES:
                 print(f"  ✗ imageinfo 失败 {filename}: {e}", flush=True)
                 return None
-            time.sleep(1.5 * (attempt + 1))
-    return None
+            err_attempt += 1
+            time.sleep(1.5 * err_attempt)
+
+
+def _curl_retry_after(hdr_path, fallback):
+    """从 curl -D 头部 dump 解析 Retry-After 秒数；缺失/非法用 fallback。"""
+    try:
+        m = re.search(r"(?im)^Retry-After:\s*([0-9]+)",
+                      hdr_path.read_text(encoding="utf-8", errors="replace"))
+        if m:
+            return max(float(m.group(1)), 0.0)
+    except Exception:
+        pass
+    return float(fallback)
 
 
 def download(url, dest_tmp):
     """upload.wikimedia.org 按 TLS 指纹封 Python HTTP 客户端（urllib/requests 均 429，
-    curl 正常），故经系统 curl 下载；失败退避重试。"""
+    curl 正常），故经系统 curl 下载。
+    HTTP 429：尊敬 Retry-After（缺省 15/45/90s），最多重试 RATE_RETRIES 次；
+    非 429 失败：5s/10s 退避 RETRIES 次。"""
+    hdr = dest_tmp.with_name(dest_tmp.name + ".hdr")
     err = ""
-    for attempt in range(RETRIES + 1):
+    rate_attempt = 0  # 429 已重试次数
+    err_attempt = 0   # 非 429 失败已重试次数
+    while True:
         _throttle()
         r = subprocess.run(["curl", "-sS", "-f", "--max-time", "120", "-A", USER_AGENT,
+                            "-D", str(hdr), "-w", "%{http_code}",
                             "-o", str(dest_tmp), url], capture_output=True)
+        code = r.stdout.decode("ascii", "replace").strip()[-3:]
         if r.returncode == 0:
+            hdr.unlink(missing_ok=True)
             return
         err = r.stderr.decode("utf-8", "replace")[:200]
-        if attempt < RETRIES:
-            time.sleep(5 * (attempt + 1))
-    raise RuntimeError("curl 下载失败: " + err)
+        if code == "429":
+            if rate_attempt >= RATE_RETRIES:
+                break
+            wait = _curl_retry_after(hdr, RATE_BACKOFF[min(rate_attempt, len(RATE_BACKOFF) - 1)])
+            rate_attempt += 1
+            print(f"  … 下载 429 限流，等待 {wait:.0f}s 重试"
+                  f"（{rate_attempt}/{RATE_RETRIES}）", flush=True)
+            time.sleep(wait)
+        else:
+            if err_attempt >= RETRIES:
+                break
+            err_attempt += 1
+            time.sleep(5 * err_attempt)
+    hdr.unlink(missing_ok=True)
+    raise RuntimeError("curl 下载失败" + (f" (HTTP {code})" if code else "") + ": " + err)
 
 
 def to_ogg(src, dest):
