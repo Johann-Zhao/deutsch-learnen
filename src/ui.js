@@ -31,3 +31,14 @@ export function speakBtn(text, kind, id, cls) {
   };
   return b;
 }
+
+export function slowBtn(text, id) {
+  const b = el('button', 'speak-btn slow-btn', '0.5×');
+  b.title = '慢速朗读（0.5×）';
+  b.setAttribute('aria-label', '慢速朗读 ' + text);
+  b.onclick = function (e) {
+    e.stopPropagation();
+    audio.playWord(id, text, { rate: 0.5 });
+  };
+  return b;
+}

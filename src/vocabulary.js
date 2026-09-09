@@ -4,7 +4,7 @@ import { store } from './store.js';
 import { today } from './storage.js';
 import * as SRS from './srs.js';
 import { audio } from './audio.js';
-import { UI, speakBtn } from './ui.js';
+import { UI, speakBtn, slowBtn } from './ui.js';
 import {
   currentLevel, getVocabThemes, allWords, wordsOfLevel, wordById,
   loadLevelData, isLevelLoaded, inferLevelFromId, themeLevels, getImageWords, getImageCovers,
@@ -54,6 +54,7 @@ function wordCard(w) {
   const de = UI.el('div', 'word-de');
   de.innerHTML = UI.esc(w.de);
   de.appendChild(speakBtn(w.de, 'word', w.id));
+  de.appendChild(slowBtn(w.de, w.id));
   c.appendChild(de);
   const ipa = getWordIpa(w.id);
   if (ipa) c.appendChild(UI.el('div', 'word-ipa stat-label', '/' + UI.esc(ipa) + '/'));
@@ -475,6 +476,8 @@ function learnSession(themeId) {
         play.style.marginBottom = '12px';
         play.onclick = function () { audio.playWord(w.id, w.de); };
         card.appendChild(play);
+        const slow1 = slowBtn(w.de, w.id); slow1.style.marginLeft = '6px';
+        card.appendChild(slow1);
         audio.playWord(w.id, w.de);
         card.appendChild(UI.el('div', 'quiz-prompt', '听音频，选出你听到的词'));
         const optsL = shuffle([w].concat(distractors(w, function (x) { return x.de; })));
@@ -510,6 +513,8 @@ function learnSession(themeId) {
         play2.style.margin = '0 0 12px';
         play2.onclick = function () { audio.playWord(w.id, w.de); };
         card.appendChild(play2);
+        const slow2 = slowBtn(w.de, w.id); slow2.style.marginLeft = '6px';
+        card.appendChild(slow2);
         const input = UI.el('input');
         input.type = 'text'; input.autocomplete = 'off';
         input.className = 'spell-input';
@@ -803,6 +808,8 @@ function reviewSession(onlyMistakes) {
       play.onclick = function () { audio.playWord(w.id, w.de); };
       play.style.marginBottom = '12px';
       card.appendChild(play);
+      const slowR = slowBtn(w.de, w.id); slowR.style.marginLeft = '6px';
+      card.appendChild(slowR);
       audio.playWord(w.id, w.de);
     }
     if (q.type !== 'image') {
