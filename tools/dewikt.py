@@ -2,6 +2,8 @@
 """de.wiktionary.org 共享访问模块：fetch_ipa.py 与 fetch_native_audio.py 共用。
 
 - fetch_wikitext: action=parse&prop=wikitext，磁盘缓存到 tools/.cache/wikitext/
+  HTTP 429 按 Retry-After 退避（缺省 15s/45s/90s），最多重试 RATE_RETRIES 次；
+  其他网络错误沿用 1.5s 倍数退避（RETRIES 次）；失败一律不落缓存。
 - extract_ipa:   {{IPA}} 后首个 {{Lautschrift|...}}（标准读音；reg./Pl. 变体忽略）
 - extract_audio: {{Audio|...}} 模板，优先第一个文件名不含空格的（词条发音优先于例句发音）
 """
@@ -9,6 +11,7 @@ import json
 import pathlib
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -16,8 +19,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 CACHE = pathlib.Path(__file__).resolve().parent / ".cache" / "wikitext"
 API = "https://de.wiktionary.org/w/api.php"
 USER_AGENT = "deutsch-lernen/1.0 (personal project; contact: local)"
-DELAY = 0.5
+DELAY = 2.0
 RETRIES = 2
+RATE_RETRIES = 4
+RATE_BACKOFF = (15, 45, 90)
 
 ARTICLES = re.compile(r"^(der|die|das|ein|eine|einen|sich)\s+", re.IGNORECASE)
 _last_call = [0.0]
@@ -35,6 +40,20 @@ def _throttle():
     _last_call[0] = time.time()
 
 
+def _retry_after(e, fallback):
+    """429 的 Retry-After（秒）优先；缺失/非法则用 fallback 秒。"""
+    try:
+        raw = e.headers.get("Retry-After")
+    except Exception:
+        raw = None
+    if raw:
+        try:
+            return max(float(raw.strip()), 0.0)
+        except ValueError:
+            pass
+    return float(fallback)
+
+
 def fetch_wikitext(word):
     """返回词条 wikitext；页面不存在/无内容返回 None。带磁盘缓存。"""
     CACHE.mkdir(parents=True, exist_ok=True)
@@ -47,7 +66,9 @@ def fetch_wikitext(word):
     req = urllib.request.Request(API + "?" + params, headers={"User-Agent": USER_AGENT})
     text = None
     missing = False  # True 仅表示页面确实不存在，可缓存为「无」
-    for attempt in range(RETRIES + 1):
+    err_attempt = 0   # 非 429 网络错误已重试次数
+    rate_attempt = 0  # 429 已重试次数
+    while True:
         try:
             _throttle()
             with urllib.request.urlopen(req, timeout=30) as r:
@@ -57,11 +78,28 @@ def fetch_wikitext(word):
             else:
                 missing = True  # 页面不存在（error 字段）不重试
             break
-        except Exception as e:
-            if attempt == RETRIES:
-                print(f"  ✗ wikitext 获取失败 {word}: {e}", flush=True)
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                if rate_attempt >= RATE_RETRIES:
+                    print(f"  ✗ wikitext 限流放弃 {word}: {e}", flush=True)
+                    break
+                wait = _retry_after(e, RATE_BACKOFF[min(rate_attempt, len(RATE_BACKOFF) - 1)])
+                rate_attempt += 1
+                print(f"  … 429 限流 {word}，等待 {wait:.0f}s 重试"
+                      f"（{rate_attempt}/{RATE_RETRIES}）", flush=True)
+                time.sleep(wait)
             else:
-                time.sleep(1.5 * (attempt + 1))
+                if err_attempt >= RETRIES:
+                    print(f"  ✗ wikitext 获取失败 {word}: {e}", flush=True)
+                    break
+                err_attempt += 1
+                time.sleep(1.5 * err_attempt)
+        except Exception as e:
+            if err_attempt >= RETRIES:
+                print(f"  ✗ wikitext 获取失败 {word}: {e}", flush=True)
+                break
+            err_attempt += 1
+            time.sleep(1.5 * err_attempt)
     if text is None and not missing:
         return None  # 网络/限流失败：不写缓存，重跑可恢复
     cache_file.write_text(text or "", encoding="utf-8")
