@@ -115,7 +115,7 @@ async def main():
         for ln in old_manifest.read_text(encoding="utf-8").splitlines():
             if ln.startswith("window.AUDIO_NATIVE"):
                 native_line = ln + "\n"
-    manifest = ("// 由 tools/generate_audio.py 自动生成，勿手改\n"
+    manifest = ("// 由 tools/generate_audio.py 与 tools/fetch_native_audio.py 自动维护，勿手改\n"
                 f"window.AUDIO_WORDS = {repr(word_ids).replace(chr(39), chr(34))};\n"
                 f"window.AUDIO_SENTS = {repr(sent_ids).replace(chr(39), chr(34))};\n"
                 f"window.AUDIO_CONJ = {repr(conj_ids).replace(chr(39), chr(34))};\n"
