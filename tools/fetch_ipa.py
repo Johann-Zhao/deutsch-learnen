@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """从 de.wiktionary 抓取全部词汇的 IPA 音标，生成 data/ipa.js。
 
-用法：python tools/fetch_ipa.py [--limit N]
+用法：python tools/fetch_ipa.py [--limit N] [--force]
 - 复用 generate_audio.load_items() 取得全部 (wordId, word, sentence)
 - 查不到的词不写条目（前端不显示，宁缺毋滥）；wikitext 经 dewikt 磁盘缓存，可断点续跑
+- 默认拒绝覆写条目数变少的 data/ipa.js（疑似抓取不完整），--force 强制覆写
 """
 import json
+import re
 import sys
 
 from dewikt import ROOT, query_word, fetch_wikitext, extract_ipa
@@ -13,13 +15,18 @@ from generate_audio import load_items
 
 
 def write_ipa_js(mapping):
+    out = ROOT / "data" / "ipa.js"
+    if out.exists() and "--force" not in sys.argv:
+        existing = len(re.findall(r'^\s*"[^"]+":\s*"', out.read_text(encoding="utf-8"), re.M))
+        if len(mapping) < existing:
+            print(f"新结果 {len(mapping)} 条少于现有 {existing} 条，疑似抓取不完整，未覆写（--force 强制）")
+            sys.exit(1)
     lines = ["// 由 tools/fetch_ipa.py 自动生成，勿手改",
              "window.WORD_IPA = window.WORD_IPA || {};",
              "Object.assign(window.WORD_IPA, {"]
     for wid in sorted(mapping):
         lines.append("  %s: %s," % (json.dumps(wid), json.dumps(mapping[wid], ensure_ascii=False)))
     lines.append("});")
-    out = ROOT / "data" / "ipa.js"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return out
 

@@ -54,7 +54,8 @@ function wordCard(w) {
   const de = UI.el('div', 'word-de');
   de.innerHTML = UI.esc(w.de);
   de.appendChild(speakBtn(w.de, 'word', w.id));
-  de.appendChild(slowBtn(w.de, w.id));
+  const slowC = slowBtn(w.de, w.id); slowC.style.marginLeft = '6px';
+  de.appendChild(slowC);
   c.appendChild(de);
   const ipa = getWordIpa(w.id);
   if (ipa) c.appendChild(UI.el('div', 'word-ipa stat-label', '/' + UI.esc(ipa) + '/'));
