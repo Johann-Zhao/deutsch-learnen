@@ -198,6 +198,13 @@ export function settingsPage() {
   cStat.appendChild(rSeal);
   v.appendChild(cStat);
 
+  const cCredits = UI.el('div', 'card');
+  cCredits.appendChild(UI.el('h3', null, '音频与音标来源'));
+  cCredits.appendChild(UI.el('p', 'stat-label',
+    '真人发音：Wikimedia Commons / Lingua Libre 贡献者（CC BY-SA，逐词署名见 audio/credits_native.json）。' +
+    '音标：de.wiktionary.org（CC BY-SA）。合成语音：Microsoft edge-tts（个人自用）。'));
+  v.appendChild(cCredits);
+
   const c2 = UI.el('div', 'card');
   c2.appendChild(UI.el('h3', null, '数据备份'));
   c2.appendChild(UI.el('p', 'stat-label', '学习进度保存在本浏览器中。换电脑或清缓存前，请先导出备份。'));
