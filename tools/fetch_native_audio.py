@@ -21,7 +21,7 @@ from dewikt import ROOT, USER_AGENT, query_word, fetch_wikitext, extract_audio, 
 from generate_audio import load_items
 
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
-DELAY = 1.5
+DELAY = 3.0
 RETRIES = 2
 RATE_RETRIES = 4
 RATE_BACKOFF = (15, 45, 90)
