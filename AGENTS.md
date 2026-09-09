@@ -17,12 +17,15 @@
 │   ├── vocabulary_b1.js    # B1 词汇主题
 │   ├── grammar.js          # A1 语法专题
 │   ├── grammar_a2.js       # A2 语法专题
-│   └── grammar_b1.js       # B1 语法专题
-├── audio/                  # 预生成 mp3 与清单
-│   ├── word/               # 单词音频
-│   ├── sent/               # 例句音频
-│   ├── conj/               # 变位音频
-│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ
+│   ├── grammar_b1.js       # B1 语法专题
+│   └── ipa.js              # 自动生成：WORD_IPA 音标（fetch_ipa.py）
+├── audio/                  # 预生成音频与清单
+│   ├── word/               # 单词音频（edge-tts）
+│   ├── sent/               # 例句音频（edge-tts）
+│   ├── conj/               # 变位音频（edge-tts）
+│   ├── native/             # 真人发音 ogg（Wikimedia Commons，CC BY-SA/CC0）
+│   ├── credits_native.json # 自动生成：真人发音逐词署名（file/speaker/license/url）
+│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE
 ├── images/                 # 配图与封面
 │   ├── covers/             # 38 张主题 zine 纸感封面
 │   ├── zine/               # 装饰刊头插画（hero / 空状态，zine 纸感）
@@ -34,6 +37,9 @@
 │   ├── requirements.txt
 │   ├── README.md
 │   ├── generate_audio.py
+│   ├── dewikt.py           # de.wiktionary 共享访问（wikitext 缓存 tools/.cache/）
+│   ├── fetch_ipa.py        # IPA 抓取 → data/ipa.js
+│   ├── fetch_native_audio.py # 真人发音抓取 → audio/native/ + credits + manifest
 │   ├── fetch_images.py
 │   ├── finalize_images.py
 │   ├── gen_zine_covers.py
@@ -175,11 +181,13 @@ docs(tools): 新增 README 与 requirements.txt
 3. 运行测试：`npm test`。
 4. 提交：`feat(data): 新增 B1 语法专题 g-b1-xxx`。
 
-### 8.3 重新生成音频 / 图片
+### 8.3 重新生成音频 / 图片 / 音标
 
-- **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。
+- **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。重写 manifest 时自动保留 `AUDIO_NATIVE` 行。
+- **真人发音**：`python tools/fetch_native_audio.py [--limit N] [--ids id1,id2]`（经 de.wiktionary 定位 Wikimedia Commons 真人录音；依赖 curl 与 ffmpeg；断点续跑）。
+- **音标**：`python tools/fetch_ipa.py [--limit N]`（de.wiktionary `{{Lautschrift}}` → `data/ipa.js`；wikitext 有磁盘缓存，重跑便宜）。
 - **主题封面**：`python tools/gen_zine_covers.py [--force]`（需 Seedream API key，zine 纸感风格）。
 - **词条配图**：`python tools/fetch_images.py [--limit N]`（无需 API key，依赖外部图库可用性）。
 - **更换问题配图**：`python tools/fetch_images.py --ids <id,...> --candidates 6` 抓候选到 `images/candidates/`（不碰正式目录），审核选择写入 `images/candidates/choices.json` 后 `python tools/finalize_images.py` 落盘；选 `"none"` 则删除该词配图。
 
-> 注意：`audio/manifest.js` 由 `generate_audio.py` 自动生成，`images/manifest.js` 由 `gen_zine_covers.py` 与 `fetch_images.py` 自动更新，**请勿手改**。
+> 注意：`audio/manifest.js` 由 `generate_audio.py` 与 `fetch_native_audio.py` 自动维护，`audio/credits_native.json`、`images/manifest.js`、`data/ipa.js` 由各脚本自动生成，**请勿手改**。

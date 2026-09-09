@@ -6,6 +6,19 @@
 
 无。
 
+## [4.3.0] - 2026-09-08
+
+### Added
+- **真人发音**：经 de.wiktionary `{{Audio}}` 模板定位 Wikimedia Commons 真人录音（CC BY-SA/CC0），下载为 `audio/native/*.ogg`；播放回退链改为 真人发音 → edge-tts 预生成 → speechSynthesis。逐词署名见 `audio/credits_native.json`。
+- **IPA 音标**：学新词卡片与单词详情抽屉显示标准德语 IPA（源自 de.wiktionary，`data/ipa.js`）；复习页不显示，避免提示效应。
+- **0.5× 慢速朗读**：学新词、加强练习、复习的单词播放按钮旁新增「0.5×」按钮，一次性慢放该词，不影响全局语速设置。
+- 设置页新增「音频与音标来源」署名卡片。
+- 新管道脚本：`tools/dewikt.py`（de.wiktionary 共享访问，带磁盘缓存）、`tools/fetch_ipa.py`、`tools/fetch_native_audio.py`；`audio/manifest.js` 新增 `AUDIO_NATIVE` 清单。
+
+### Changed
+- `audio.playWord/playSentence/playConj` 支持一次性 `opts.rate`；`audio.hasWord` 覆盖真人发音词。
+- `tools/generate_audio.py` 重写 manifest 时保留 `AUDIO_NATIVE` 行。
+
 ## [4.2.0] - 2026-09-06
 
 ### Added
