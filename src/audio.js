@@ -1,32 +1,56 @@
-/* 音频播放层：优先播放 edge-tts 预生成的标准德语音频（audio/ 目录），
-   清单中没有的词回退到浏览器 speechSynthesis */
+/* 音频播放层：真人发音（audio/native/，Wikimedia Commons）优先，
+   其次 edge-tts 预生成 mp3（audio/word|sent|conj/），
+   清单都没有的词回退浏览器 speechSynthesis */
 
 import { TTS } from './tts.js';
-import { getAudioWords, getAudioSents, getAudioConj } from './data.js';
+import { getAudioWords, getAudioSents, getAudioConj, getAudioNative } from './data.js';
 
-let wordSet = null, sentSet = null, conjSet = null, current = null, rate = 1;
+let wordSet = null, sentSet = null, conjSet = null, nativeMap = null, current = null, rate = 1;
 
 function buildSets() {
   const words = getAudioWords();
   const sents = getAudioSents();
   const conjs = getAudioConj();
+  const native = getAudioNative();
   if (words.length) wordSet = new Set(words);
   if (sents.length) sentSet = new Set(sents);
   if (conjs.length) conjSet = new Set(conjs);
+  if (Object.keys(native).length) nativeMap = native;
 }
 
-function play(kind, id, fallbackText) {
-  const set = kind === 'word' ? wordSet : (kind === 'sent' ? sentSet : conjSet);
-  const dir = kind === 'conj' ? 'conj' : kind;
-  if (set && set.has(id)) {
-    stop();
-    const a = new Audio('audio/' + dir + '/' + id + '.mp3');
-    a.playbackRate = rate;
-    current = a;
-    a.play().catch(function () { TTS.speak(fallbackText); });
-    return true;
+/* 纯函数：决定单词音频播放来源（真人发音 > TTS 预生成 > null=交给 TTS 引擎） */
+export function pickWordSrc(id, native, wordSet) {
+  if (native && native[id]) return 'audio/' + native[id];
+  if (wordSet && wordSet.has(id)) return 'audio/word/' + id + '.mp3';
+  return null;
+}
+
+/* 纯函数：一次性语速覆盖全局语速 */
+export function resolveRate(oneShot, global) {
+  return typeof oneShot === 'number' ? oneShot : global;
+}
+
+function playUrl(url, r, fallbackText) {
+  stop();
+  const a = new Audio(url);
+  a.playbackRate = r;
+  current = a;
+  a.play().catch(function () { TTS.speak(fallbackText, r); });
+  return true;
+}
+
+function play(kind, id, fallbackText, oneShotRate) {
+  const r = resolveRate(oneShotRate, rate);
+  if (kind === 'word') {
+    const url = pickWordSrc(id, nativeMap, wordSet);
+    if (url) return playUrl(url, r, fallbackText);
+    TTS.speak(fallbackText, r);
+    return false;
   }
-  TTS.speak(fallbackText);
+  const set = kind === 'sent' ? sentSet : conjSet;
+  const dir = kind === 'conj' ? 'conj' : kind;
+  if (set && set.has(id)) return playUrl('audio/' + dir + '/' + id + '.mp3', r, fallbackText);
+  TTS.speak(fallbackText, r);
   return false;
 }
 
@@ -41,12 +65,12 @@ export function init() {
 
 export const audio = {
   init: init,
-  hasWord: function (id) { return !!(wordSet && wordSet.has(id)); },
+  hasWord: function (id) { return !!((nativeMap && nativeMap[id]) || (wordSet && wordSet.has(id))); },
   hasSentence: function (id) { return !!(sentSet && sentSet.has(id)); },
   hasConj: function (id) { return !!(conjSet && conjSet.has(id)); },
-  playWord: function (id, fallbackText) { return play('word', id, fallbackText); },
-  playSentence: function (id, fallbackText) { return play('sent', id, fallbackText); },
-  playConj: function (id, fallbackText) { return play('conj', id, fallbackText); },
+  playWord: function (id, fallbackText, opts) { return play('word', id, fallbackText, opts && opts.rate); },
+  playSentence: function (id, fallbackText, opts) { return play('sent', id, fallbackText, opts && opts.rate); },
+  playConj: function (id, fallbackText, opts) { return play('conj', id, fallbackText, opts && opts.rate); },
   setRate: function (r) { rate = r; },
   stop: stop
 };

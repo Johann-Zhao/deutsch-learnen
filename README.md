@@ -17,7 +17,8 @@
 - **渐进式提示**：答得错得多，提示给得多——图片题：释义 → 排除至二选一 → 高亮答案；选择题：词性+首字母 → 揭示；拼写：首字母 → 半词 → 完整答案
 - **错词反复出现**：答错的词当次隔 3 题再来，直到答对（每词上限 2 轮）
 - **FSRS 遗忘曲线复习**：Anki 同款 FSRS-4.5 算法；复习队列按可提取度升序，最容易忘的优先；待验证卡与错词插队
-- **单词详情抽屉**：任意词卡可展开释义、例句（含朗读），动词附现在时六人称变位小表
+- **单词详情抽屉**：任意词卡可展开释义、IPA 音标、例句（含朗读），动词附现在时六人称变位小表
+- **真人发音 + 慢速朗读**：真人录音优先（Wikimedia Commons，逐词署名），合成语音兜底；词卡支持 0.5× 慢速播放
 - **每日节奏**：「今日新词 x/N」进度可见，设置页 5–30 词可调，今日页显示预计学完天数
 
 ## 内容规模
@@ -26,7 +27,7 @@
 |---|---|
 | 词汇 | 1945 词（A1 618 / A2 612 / B1 715），38 个主题 |
 | 语法 | 36 个专题（讲解 + 交互练习），错题纳入 FSRS |
-| 音频 | 1945 词 + 1945 例句 + 251 变位形式，全部预生成 mp3（神经语音） |
+| 音频 | 1945 词 + 1945 例句 + 251 变位形式；真人发音（Wikimedia Commons）优先，edge-tts 神经语音兜底 |
 | 图片 | 833 张词条配图（全部经视觉审核）+ 38 张 Seedream 生成的 zine 风主题封面 |
 | 其他 | 动词变位查询、错题本、连胜日历、成就徽章、移动端底部导航 |
 
@@ -59,7 +60,7 @@ python -m http.server 8765
 ```bash
 npm install         # 仅 esbuild 一个构建依赖
 npm run dev         # watch 模式：src/ → js/bundle.js
-npm test            # 57 项单元测试（FSRS、判分、斩机制、图片选题、数据完整性）
+npm test            # 62 项单元测试（FSRS、判分、斩机制、图片选题、发音回退链、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
@@ -68,7 +69,7 @@ npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 data/     内容数据（按级别分文件，懒加载）
 src/      ESM 源码（构建入口 src/main.js）
-audio/    预生成 mp3（edge-tts Katja 神经语音）
+audio/    预生成音频（word/sent/conj 为 edge-tts；native/ 为 Wikimedia Commons 真人发音）
 images/   配图与封面（credits.json 记录每张图的授权信息）
 tools/    内容生产管道（音频/配图/封面生成，详见 tools/README.md）
 ```
@@ -77,7 +78,8 @@ tools/    内容生产管道（音频/配图/封面生成，详见 tools/README.
 
 - **词条配图**：[Wikimedia Commons](https://commons.wikimedia.org/) 与 [Openverse](https://api.openverse.org/) 的免费授权图片（CC 系列/公有领域），逐张授权信息见 `images/credits.json`；全部经过逐张视觉相关性审核，错配图已移除
 - **主题封面与装饰插画**：由 Seedream 5.0 pro 生成的 zine 纸感风格图
-- **语音**：edge-tts 神经语音预生成（个人学习用途；如二次分发请重新评估语音授权）
+- **语音**：真人发音来自 [Wikimedia Commons](https://commons.wikimedia.org/) / Lingua Libre 贡献者（CC BY-SA/CC0），逐词署名见 `audio/credits_native.json`；合成兜底为 edge-tts 神经语音（个人学习用途；如二次分发请重新评估语音授权）
+- **音标（IPA）**：[de.wiktionary.org](https://de.wiktionary.org/)（CC BY-SA），见 `data/ipa.js`
 - **词汇/语法内容**：项目自编，参照 CEFR A1–B1 大纲
 
 ## 文档

@@ -4,10 +4,11 @@ import { store } from './store.js';
 import { today } from './storage.js';
 import * as SRS from './srs.js';
 import { audio } from './audio.js';
-import { UI, speakBtn } from './ui.js';
+import { UI, speakBtn, slowBtn } from './ui.js';
 import {
   currentLevel, getVocabThemes, allWords, wordsOfLevel, wordById,
-  loadLevelData, isLevelLoaded, inferLevelFromId, themeLevels, getImageWords, getImageCovers
+  loadLevelData, isLevelLoaded, inferLevelFromId, themeLevels, getImageWords, getImageCovers,
+  getWordIpa
 } from './data.js';
 import { render } from './app.js';
 import { hasImage, renderImageChoice } from './imgquiz.js';
@@ -53,7 +54,11 @@ function wordCard(w) {
   const de = UI.el('div', 'word-de');
   de.innerHTML = UI.esc(w.de);
   de.appendChild(speakBtn(w.de, 'word', w.id));
+  const slowC = slowBtn(w.de, w.id); slowC.style.marginLeft = '6px';
+  de.appendChild(slowC);
   c.appendChild(de);
+  const ipa = getWordIpa(w.id);
+  if (ipa) c.appendChild(UI.el('div', 'word-ipa stat-label', '/' + UI.esc(ipa) + '/'));
   c.appendChild(UI.el('div', 'word-zh', UI.esc(w.zh)));
   const ex = UI.el('div', 'word-ex');
   ex.innerHTML = highlightEx(w) + '<br><span>' + UI.esc(w.exZh) + '</span>';
@@ -73,13 +78,16 @@ function verbForms(w) {
   return lookup(de.toLowerCase());
 }
 
-function detailDrawer(w) {
+function detailDrawer(w, showIpa) {
   const conj = verbForms(w);
   const d = UI.el('details', 'word-detail');
   d.appendChild(UI.el('summary', null, conj ? '详情 · 释义 / 例句 / 变位' : '详情 · 释义 / 例句'));
   const body = UI.el('div', 'word-detail-body');
   body.appendChild(UI.el('div', 'word-detail-row',
     genderTag(w.g) + '<span class="stat-label">' + UI.esc(w.level || 'A1') + '</span>　<span>' + UI.esc(w.zh) + '</span>'));
+  const ipaRow = getWordIpa(w.id);
+  if (showIpa !== false && ipaRow) body.appendChild(UI.el('div', 'word-detail-row',
+    '<span class="stat-label">音标</span>　<span>/' + UI.esc(ipaRow) + '/</span>'));
   if (w.ex) {
     const ex = UI.el('div', 'word-detail-row');
     ex.innerHTML = highlightEx(w) + '<br><span>' + UI.esc(w.exZh || '') + '</span>';
@@ -469,6 +477,8 @@ function learnSession(themeId) {
         play.style.marginBottom = '12px';
         play.onclick = function () { audio.playWord(w.id, w.de); };
         card.appendChild(play);
+        const slow1 = slowBtn(w.de, w.id); slow1.style.marginLeft = '6px';
+        card.appendChild(slow1);
         audio.playWord(w.id, w.de);
         card.appendChild(UI.el('div', 'quiz-prompt', '听音频，选出你听到的词'));
         const optsL = shuffle([w].concat(distractors(w, function (x) { return x.de; })));
@@ -504,6 +514,8 @@ function learnSession(themeId) {
         play2.style.margin = '0 0 12px';
         play2.onclick = function () { audio.playWord(w.id, w.de); };
         card.appendChild(play2);
+        const slow2 = slowBtn(w.de, w.id); slow2.style.marginLeft = '6px';
+        card.appendChild(slow2);
         const input = UI.el('input');
         input.type = 'text'; input.autocomplete = 'off';
         input.className = 'spell-input';
@@ -797,6 +809,8 @@ function reviewSession(onlyMistakes) {
       play.onclick = function () { audio.playWord(w.id, w.de); };
       play.style.marginBottom = '12px';
       card.appendChild(play);
+      const slowR = slowBtn(w.de, w.id); slowR.style.marginLeft = '6px';
+      card.appendChild(slowR);
       audio.playWord(w.id, w.de);
     }
     if (q.type !== 'image') {
@@ -952,7 +966,7 @@ function reviewSession(onlyMistakes) {
       card.appendChild(UI.el('p', 'stat-label', '输入时可不带冠词；ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
       card.onkeydown = function (ev) { if (ev.key === 'Enter' && !q.answered) check.click(); else if (ev.key === 'Enter') next.click(); };
     }
-    card.appendChild(detailDrawer(w));
+    card.appendChild(detailDrawer(w, false));
     card.appendChild(fb);
     card.appendChild(next);
     stage.appendChild(card);

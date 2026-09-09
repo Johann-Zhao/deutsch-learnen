@@ -31,6 +31,15 @@ export function getAudioConj() {
   return (w && w.AUDIO_CONJ) || [];
 }
 
+export function getAudioNative() {
+  return (typeof window !== 'undefined' && window.AUDIO_NATIVE) || {};
+}
+
+export function getWordIpa(id) {
+  const m = (typeof window !== 'undefined' && window.WORD_IPA) || {};
+  return m[id] || null;
+}
+
 export function getImageWords() {
   const w = globalWindow();
   return (w && w.IMAGE_WORDS) || [];

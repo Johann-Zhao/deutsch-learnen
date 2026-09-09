@@ -1,0 +1,86 @@
+{
+ "greet-0": {
+  "file": "De-Tag.ogg",
+  "speaker": "Kampy",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Tag.ogg"
+ },
+ "greet-1": {
+  "file": "De-Morgen.ogg",
+  "speaker": "",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Morgen.ogg"
+ },
+ "greet-4": {
+  "file": "De-Name2.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Name2.ogg"
+ },
+ "greet-7": {
+  "file": "De-Frau.ogg",
+  "speaker": "joni",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Frau.ogg"
+ },
+ "greet-2": {
+  "file": "De-Abend.ogg",
+  "speaker": "Arnim Faryn",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Abend.ogg"
+ },
+ "greet-3": {
+  "file": "De-Nacht.ogg",
+  "speaker": "Kampy",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Nacht.ogg"
+ },
+ "greet-5": {
+  "file": "De-Freund.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Freund.ogg"
+ },
+ "greet-6": {
+  "file": "De-Freundin.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Freundin.ogg"
+ },
+ "greet-8": {
+  "file": "De-Mann.ogg",
+  "speaker": "joni",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Mann.ogg"
+ },
+ "greet-9": {
+  "file": "De-Kind.ogg",
+  "speaker": "joni",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Kind.ogg"
+ },
+ "family-6": {
+  "file": "De-Großvater.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Gro%C3%9Fvater.ogg"
+ },
+ "family-8": {
+  "file": "De-Onkel.ogg",
+  "speaker": "Kampy",
+  "license": "CC BY-SA 3.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Onkel.ogg"
+ },
+ "a2-bank-0": {
+  "file": "De-Bank.ogg",
+  "speaker": "No machine-readable author provided. Cyrotux assumed (based on copyright claims).",
+  "license": "CC BY-SA 2.5",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Bank.ogg"
+ },
+ "a2-bank-1": {
+  "file": "De-Konto.ogg",
+  "speaker": "Jeuwre",
+  "license": "CC BY-SA 4.0",
+  "url": "https://commons.wikimedia.org/wiki/File%3ADe-Konto.ogg"
+ }
+}

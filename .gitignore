@@ -4,3 +4,4 @@ node_modules/
 .env
 images/candidates/
 shots/audit/
+tools/.cache/

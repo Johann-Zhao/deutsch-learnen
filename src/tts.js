@@ -24,14 +24,14 @@ if (synth) {
 export const TTS = {
   available: function () { return !!globalSynth(); },
   setRate: function (r) { rate = r; },
-  speak: function (text) {
+  speak: function (text, r) {
     const synth = globalSynth();
     if (!synth || !text) return;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'de-DE';
     if (voice) u.voice = voice;
-    u.rate = rate;
+    u.rate = typeof r === 'number' ? r : rate;
     synth.speak(u);
   },
   stop: function () { const synth = globalSynth(); if (synth) synth.cancel(); }

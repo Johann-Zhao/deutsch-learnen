@@ -8,6 +8,8 @@ import { buildWordIndex } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
 import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
+import { pickWordSrc, resolveRate } from '../src/audio.js';
+import { getWordIpa } from '../src/data.js';
 
 let passed = 0, failed = 0;
 const asyncQueue = [];
@@ -563,6 +565,35 @@ test('再练队列 drain：非 3 倍数位置可取、取空返回 null、超 ma
   assert.strictEqual(rq.drain().id, 'b-1');
   assert.strictEqual(rq.drain().id, 'b-1');
   assert.strictEqual(rq.drain(), null, '超 maxRounds 的词不再出现');
+});
+
+console.log('\n真人发音回退链与一次性语速：');
+test('pickWordSrc：真人发音优先于 TTS 预生成', function () {
+  const native = { 'greet-0': 'native/greet-0.ogg' };
+  const words = new Set(['greet-0', 'greet-1']);
+  assert.strictEqual(pickWordSrc('greet-0', native, words), 'audio/native/greet-0.ogg');
+});
+test('pickWordSrc：无真人发音回退到 word mp3', function () {
+  const words = new Set(['greet-1']);
+  assert.strictEqual(pickWordSrc('greet-1', {}, words), 'audio/word/greet-1.mp3');
+  assert.strictEqual(pickWordSrc('greet-1', null, words), 'audio/word/greet-1.mp3');
+});
+test('pickWordSrc：都没有返回 null', function () {
+  assert.strictEqual(pickWordSrc('x-9', {}, new Set()), null);
+});
+test('resolveRate：一次性 rate 覆盖全局，缺省用全局', function () {
+  assert.strictEqual(resolveRate(0.5, 1), 0.5);
+  assert.strictEqual(resolveRate(undefined, 0.9), 0.9);
+  assert.strictEqual(resolveRate(null, 0.75), 0.75);
+});
+test('getWordIpa：命中返回音标，缺失返回 null', function () {
+  globalThis.window = { WORD_IPA: { 'greet-0': 'ˈtaːk' } };
+  try {
+    assert.strictEqual(getWordIpa('greet-0'), 'ˈtaːk');
+    assert.strictEqual(getWordIpa('greet-9'), null);
+  } finally {
+    delete globalThis.window;
+  }
 });
 
 Promise.all(asyncQueue).then(function () {
