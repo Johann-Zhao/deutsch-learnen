@@ -119,7 +119,7 @@ cp .env.example .env
   - 更新 `audio/manifest.js` 的 `window.AUDIO_DIALOGS`（`{ 对话 id: 从第 0 行起连续可用的音频文件数 }`；全部生成成功时即等于对话行数）
 - **注意**：`audio/manifest.js` 中 `AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE` 四行按原文件逐行保留不变，`AUDIO_DIALOGS` 由本脚本维护，**请勿手改**。
 - **断点续跑**：已存在且非空的 mp3 自动跳过；请求间隔 ≥1 秒；单行失败自动重试 2 次，结束时打印失败行清单与逐组抽查清单（`[ok] 级别 id: 可用行数/总行数`）。
-- **操作提醒**：`tools/generate_audio.py` 目前只保留 `AUDIO_NATIVE` 行，重跑它会丢掉 `AUDIO_DIALOGS` 行；重跑后需再执行一次本脚本恢复（保留逻辑待后续任务补上）。
+- **与其他脚本的关系**：`tools/generate_audio.py` 重写 manifest 时会同时保留 `AUDIO_NATIVE` 与 `AUDIO_DIALOGS` 行，本脚本与它可任意顺序重复运行、互不覆盖。
 
 ### `dump_conj.js`
 
@@ -141,7 +141,7 @@ cp .env.example .env
    python tools/generate_audio.py          # 词汇 / 例句 / 变位
    python tools/generate_dialog_audio.py   # 听力小对话逐行音频（分角色）
    ```
-   > 注意顺序：先 `generate_audio.py`、后 `generate_dialog_audio.py`，否则 `AUDIO_DIALOGS` 行会被覆盖掉。
+   > 两个音频脚本互不覆盖对方写在 `audio/manifest.js` 里的清单行，顺序不限。
 
 2. **主题封面**（需要 Seedream API key）：
    ```bash
