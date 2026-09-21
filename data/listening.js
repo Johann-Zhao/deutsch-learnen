@@ -183,5 +183,95 @@ window.LISTEN_DIALOGS = [
       { type: 'choice', q: 'Was kostet die Wohnung?', opts: ['Sechshundert Euro', 'Eintausend Euro', 'Achthundert Euro'], a: 2,
         tip: 'Achthundert Euro warm, die Nebenkosten sind schon drin——暖租 800 欧。德语房租 warm 指含附加费，kalt 不含。' }
     ]
+  },
+  {
+    id: 'dl-a2-city', title: '市民登记', level: 'A2', theme: '城市与公共设施',
+    lines: [
+      { sp: 'A', de: 'Guten Morgen! Was kann ich für Sie tun?', zh: '早上好！请问您办什么业务？' },
+      { sp: 'B', de: 'Guten Morgen. Ich bin neu in der Stadt und möchte mich anmelden.', zh: '早上好。我刚搬来这座城市，想办迁入登记。' },
+      { sp: 'A', de: 'Haben Sie Ihren Ausweis und die Bestätigung von Ihrem Vermieter dabei?', zh: '您带证件和房东的确认单了吗？' },
+      { sp: 'B', de: 'Ja, hier bitte. Muss ich noch ein Formular ausfüllen?', zh: '带了，给您。我还需要填表格吗？' },
+      { sp: 'A', de: 'Nein, das mache ich. Ich brauche nur Ihre Unterschrift hier unten.', zh: '不用，我来填。我只需要您在这里签个名。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Wo findet der Dialog statt?', opts: ['In der Bibliothek', 'Im Supermarkt', 'Im Rathaus'], a: 2,
+        tip: 'anmelden、Ausweis、Unterschrift——在市政厅（Bürgeramt）办迁入登记。' },
+      { type: 'choice', q: 'Was möchte der Mann machen?', opts: ['Ein Auto kaufen', 'Sich anmelden', 'Einen Kurs besuchen'], a: 1,
+        tip: 'Ich bin neu in der Stadt und möchte mich anmelden——新迁入要登记。' },
+      { type: 'choice', q: 'Was braucht die Frau von dem Mann?', opts: ['Seine Unterschrift', 'Sein Geld', 'Seine Fahrkarte'], a: 0,
+        tip: '最后一句 Ich brauche nur Ihre Unterschrift hier unten——只需要他签名。' }
+    ]
+  },
+  {
+    id: 'dl-a2-office', title: '打电话请病假', level: 'A2', theme: '职业与办公室',
+    lines: [
+      { sp: 'A', de: 'Guten Morgen, Herr Berger. Ich kann heute nicht zur Arbeit kommen.', zh: '早上好，贝格尔先生。我今天不能来上班了。' },
+      { sp: 'B', de: 'Guten Morgen, Frau Lang. Das tut mir leid. Was haben Sie denn?', zh: '早上好，朗女士。真不巧。您怎么了？' },
+      { sp: 'A', de: 'Fieber und starke Kopfschmerzen. Ich war schon beim Arzt.', zh: '发烧，头疼得厉害。我已经去看过医生了。' },
+      { sp: 'B', de: 'Dann bleiben Sie zu Hause. Ich sage den Kollegen Bescheid.', zh: '那您就在家休息吧。我跟同事们说一声。' },
+      { sp: 'A', de: 'Danke. Ich schreibe Ihnen später eine E-Mail.', zh: '谢谢。我晚点给您写邮件。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Warum ruft die Frau an?', opts: ['Sie möchte Urlaub machen', 'Sie ist krank', 'Sie sucht ein Büro'], a: 1,
+        tip: 'Ich kann heute nicht zur Arbeit kommen，还说明了症状——打电话请病假，德语叫 sich krankmelden。' },
+      { type: 'choice', q: 'Was hat die Frau?', opts: ['Fieber und Kopfschmerzen', 'Bauchschmerzen', 'Rückenschmerzen'], a: 0,
+        tip: 'Fieber und starke Kopfschmerzen——发烧和剧烈头痛。' },
+      { type: 'choice', q: 'Was macht die Frau später?', opts: ['Sie kommt ins Büro', 'Sie ruft den Arzt an', 'Sie schreibt eine E-Mail'], a: 2,
+        tip: 'Ich schreibe Ihnen später eine E-Mail；她已看过医生，不用再打电话。' }
+    ]
+  },
+  {
+    id: 'dl-a2-bank', title: '开银行账户', level: 'A2', theme: '银行与信件往来',
+    lines: [
+      { sp: 'A', de: 'Guten Tag! Möchten Sie ein Konto eröffnen?', zh: '您好！您想开个账户吗？' },
+      { sp: 'B', de: 'Ja, genau. Ein Girokonto. Was brauchen Sie von mir?', zh: '对。一个转账账户。您需要我提供什么？' },
+      { sp: 'A', de: 'Nur Ihren Ausweis und ein Formular von uns.', zh: '只需要您的证件和我们的一份表格。' },
+      { sp: 'B', de: 'Kein Problem. Und was kostet das Konto?', zh: '没问题。那账户要收费用吗？' },
+      { sp: 'A', de: 'Nichts, wenn Ihr Gehalt auf das Konto kommt. Sonst drei Euro im Monat.', zh: '如果您的工资打进这个账户就免费，否则每月三欧。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was möchte der Mann?', opts: ['Geld abheben', 'Eine Überweisung machen', 'Ein Konto eröffnen'], a: 2,
+        tip: 'Möchten Sie ein Konto eröffnen?——他想开一个银行账户。' },
+      { type: 'choice', q: 'Was braucht die Beraterin von ihm?', opts: ['Den Ausweis', 'Die Kreditkarte', 'Das Bargeld'], a: 0,
+        tip: 'Nur Ihren Ausweis und ein Formular von uns——只要证件和表格。' },
+      { type: 'choice', q: 'Wann kostet das Konto nichts?', opts: ['Wenn viel Geld auf dem Konto liegt', 'Wenn das Gehalt auf das Konto kommt', 'Wenn man die Karte verliert'], a: 1,
+        tip: 'Nichts, wenn Ihr Gehalt auf das Konto kommt——工资入账就免费。' }
+    ]
+  },
+  {
+    id: 'dl-a2-festival', title: '生日邀请', level: 'A2', theme: '节日与习俗',
+    lines: [
+      { sp: 'A', de: 'Hallo Timo! Ich feiere am Samstag meinen Geburtstag. Kommst du?', zh: '嗨，蒂莫！周六我过生日，你来吗？' },
+      { sp: 'B', de: 'Oh, schön! Wie alt wirst du denn?', zh: '哦，太好了！那你这次是几岁生日？' },
+      { sp: 'A', de: 'Dreißig. Wir feiern im Garten und beginnen um sechs.', zh: '三十岁。我们在花园里庆祝，六点开始。' },
+      { sp: 'B', de: 'Klingt gut! Soll ich etwas mitbringen?', zh: '听起来不错！我要带点什么吗？' },
+      { sp: 'A', de: 'Bring gern einen Salat mit. Getränke haben wir genug.', zh: '带一份沙拉来吧。饮料我们准备得够多了。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was feiert die Frau?', opts: ['Ihre Hochzeit', 'Ihren Geburtstag', 'Weihnachten'], a: 1,
+        tip: 'Ich feiere am Samstag meinen Geburtstag——过生日。' },
+      { type: 'choice', q: 'Wann beginnt die Feier?', opts: ['Um sieben Uhr', 'Um halb sechs', 'Um sechs Uhr'], a: 2,
+        tip: 'beginnen um sechs——六点开始。' },
+      { type: 'choice', q: 'Was soll der Mann mitbringen?', opts: ['Einen Salat', 'Getränke', 'Einen Kuchen'], a: 0,
+        tip: 'Bring gern einen Salat mit——带一份沙拉；主人说饮料已经够了。' }
+    ]
+  },
+  {
+    id: 'dl-a2-education', title: '报名语言班', level: 'A2', theme: '教育与培训',
+    lines: [
+      { sp: 'A', de: 'Guten Tag! Suchen Sie einen Kurs?', zh: '您好！您想找课程吗？' },
+      { sp: 'B', de: 'Ja, einen Deutschkurs. Ich lerne schon seit einem Jahr.', zh: '是的，想找一个德语课程。我已经学了一年了。' },
+      { sp: 'A', de: 'Dann ist der Fortgeschrittenenkurs genau richtig. Er beginnt im Oktober.', zh: '那提高班正合适，十月开课。' },
+      { sp: 'B', de: 'Und wie oft ist der Unterricht?', zh: '那多久上一次课？' },
+      { sp: 'A', de: 'Zweimal pro Woche, abends von sechs bis acht. Zweihundert Euro im Monat.', zh: '每周两次，晚上六点到八点。每月两百欧。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was sucht der Mann?', opts: ['Eine Wohnung', 'Eine Arbeit', 'Einen Deutschkurs'], a: 2,
+        tip: 'einen Deutschkurs——他要找德语课程。' },
+      { type: 'choice', q: 'Wann beginnt der Kurs?', opts: ['Im August', 'Im Oktober', 'Im Dezember'], a: 1,
+        tip: 'Er beginnt im Oktober——十月开课。' },
+      { type: 'choice', q: 'Wie oft ist der Unterricht?', opts: ['Zweimal pro Woche', 'Jeden Tag', 'Einmal im Monat'], a: 0,
+        tip: 'Zweimal pro Woche, abends von sechs bis acht——每周两次，晚上六点到八点。' }
+    ]
   }
 ];
