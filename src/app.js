@@ -6,6 +6,7 @@ import { currentLevel, loadLevelData } from './data.js';
 import { Vocab } from './vocabulary.js';
 import { Grammar, Mistakes } from './grammar.js';
 import { Conjugate } from './conjugate.js';
+import { Listen } from './listen.js';
 import { dashboard, settingsPage } from './views.js';
 
 let ready = false;
@@ -34,6 +35,10 @@ export function render() {
   else if (hash === '#/review-grammar') view.appendChild(Grammar.reviewPage());
   else if ((m = hash.match(/^#\/topic\/([\w-]+)$/))) view.appendChild(Grammar.topicPage(m[1]));
   else if (hash === '#/conjugate') view.appendChild(Conjugate.page());
+  else if (hash === '#/listen') view.appendChild(Listen.homePage());
+  else if (hash === '#/listen/dictation') view.appendChild(Listen.dictationPage());
+  else if (hash === '#/listen-review') view.appendChild(Listen.reviewPage());
+  else if ((m = hash.match(/^#\/listen\/dialog\/([\w-]+)$/))) view.appendChild(Listen.dialogPage(m[1]));
   else if (hash === '#/mistakes') view.appendChild(Mistakes.page());
   else if (hash === '#/settings') view.appendChild(settingsPage());
   else view.appendChild(dashboard());
@@ -43,6 +48,7 @@ export function render() {
 
 export function navActive(hash) {
   if (hash === '#/review-grammar' || hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
+  if (hash.indexOf('#/listen') === 0) return '/listen';
   if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';
   if (hash.indexOf('#/conjugate') === 0) return '/conjugate';
   if (hash.indexOf('#/mistakes') === 0) return '/mistakes';
