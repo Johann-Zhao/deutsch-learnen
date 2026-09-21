@@ -401,3 +401,39 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .word-ipa { margin: 2px 0 0; letter-spacing: 0.04em; }
 
 .slow-btn { font-size: 11px; padding: 2px 6px; }
+
+/* ===== 听力（S7：小对话 + 听写强化） ===== */
+.listen-steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.listen-step {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  color: var(--ink-3); background: var(--card);
+  border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px;
+}
+.listen-step.on { color: var(--card); background: var(--ink); border-color: var(--ink); }
+.listen-step.done { color: var(--ink-2); }
+
+.play-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.dialog-line {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.dialog-line:last-of-type { border-bottom: none; }
+.dialog-line .sp-tag {
+  flex: 0 0 auto; margin-top: 2px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--ink-2); background: var(--paper);
+  border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px;
+}
+.dialog-line .dl-body { flex: 1; min-width: 0; }
+.dialog-line .dl-de { font-family: var(--serif); font-size: 17px; font-weight: 600; }
+.dialog-line .dl-zh { font-size: 13px; color: var(--ink-2); }
+.dialog-line .speak-btn { flex: 0 0 auto; }
+
+.topic-item .t-name .badge { margin-left: 8px; vertical-align: 2px; }
+
+/* 375px：tab bar 六项等分不溢出，标签收紧 */
+@media (max-width: 420px) {
+  .tabbar a { font-size: 10px; padding: 0 2px; min-width: 0; }
+  .tabbar a .tab-ic { font-size: 16px; }
+}

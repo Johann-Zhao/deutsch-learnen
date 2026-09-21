@@ -5,15 +5,16 @@ import { today } from './storage.js';
 import * as SRS from './srs.js';
 import { UI } from './ui.js';
 import {
-  getGrammar, grammarLevels, themeLevels,
-  loadLevelData, isLevelLoaded, inferLevelFromId, grammarOfLevel, wordById
+  getGrammar, grammarLevels, themeLevels, getListenDialogs,
+  loadLevelData, isLevelLoaded, inferLevelFromId, grammarOfLevel, wordById, isGrammarCardId
 } from './data.js';
 import { Vocab } from './vocabulary.js';
 import { render } from './app.js';
 
 // 渲染单道语法题（choice/fill），供专题练习与语法复习共用
 // onAnswer(ok) 在答题后被调用；nextText 为下一题按钮文案
-function renderExerciseItem(ex, number, onAnswer, nextText) {
+// 听力对话理解题（同为 choice 型）也复用本函数，保证答题版式与 a11y 一致
+export function renderExerciseItem(ex, number, onAnswer, nextText) {
   const item = UI.el('div');
   item.appendChild(UI.el('div', 'quiz-prompt', '第 ' + number + ' 题：' + UI.esc(ex.q)));
   const fb = UI.el('div');
@@ -208,7 +209,7 @@ function reviewPage() {
   // 跨级别防御：到期语法卡若属于未加载级别，先懒加载
   const needed = {};
   Object.keys(s.srs).forEach(function (id) {
-    if (id.indexOf('#') === -1 || !SRS.isDue(s.srs[id], todayStr)) return;
+    if (!isGrammarCardId(id) || !SRS.isDue(s.srs[id], todayStr)) return;
     const topicId = id.split('#')[0];
     const lv = grammarLevels[topicId] || inferLevelFromId(topicId);
     if (lv && lv !== 'A1' && !isLevelLoaded(lv)) needed[lv] = true;
@@ -223,9 +224,9 @@ function reviewPage() {
     return loading;
   }
 
-  // 取 store.state.srs 中 key 含 # 且到期的语法卡，按 due 升序
+  // 取 store.state.srs 中到期的语法卡（g-…#n），按 due 升序；听力卡 listen-…#n 归听力复习页
   const queue = Object.keys(s.srs).filter(function (id) {
-    return id.indexOf('#') >= 0 && SRS.isDue(s.srs[id], todayStr);
+    return isGrammarCardId(id) && SRS.isDue(s.srs[id], todayStr);
   }).map(function (id) {
     const parts = id.split('#');
     const t = getGrammar().find(function (g) { return g.id === parts[0]; });
@@ -323,6 +324,8 @@ const Mistakes = (function () {
         const dash = id.lastIndexOf('-');
         const themeId = dash > 0 ? id.substring(0, dash) : id;
         lv = themeLevels[themeId] || inferLevelFromId(themeId);
+      } else if (m.type === 'listen') {
+        lv = null; // 听力对话随 index.html 静态加载，不需要懒加载
       } else {
         const topicId = id.split('#')[0];
         lv = grammarLevels[topicId] || inferLevelFromId(topicId);
@@ -357,14 +360,21 @@ const Mistakes = (function () {
     // 按错误次数排序
     entries.sort(function (a, b) { return b.m.wrong - a.m.wrong; });
     const vocabN = entries.filter(function (x) { return x.m.type === 'vocab'; }).length;
+    const listenN = entries.filter(function (x) { return x.m.type === 'listen'; }).length;
 
     const bar = UI.el('div', 'card');
-    bar.appendChild(UI.el('h3', null, '共 ' + entries.length + ' 条（词汇 ' + vocabN + ' · 语法 ' + (entries.length - vocabN) + '）'));
+    bar.appendChild(UI.el('h3', null, '共 ' + entries.length + ' 条（词汇 ' + vocabN + ' · 语法 ' +
+      (entries.length - vocabN - listenN) + ' · 听力 ' + listenN + '）'));
     const row = UI.el('div', null); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;flex-wrap:wrap';
     if (vocabN) {
       const b1 = UI.el('button', 'btn btn-sm', '重练错词');
       b1.onclick = function () { location.hash = '#/review-mistakes'; };
       row.appendChild(b1);
+    }
+    if (listenN) {
+      const bl = UI.el('button', 'btn btn-sm', '去听力复习');
+      bl.onclick = function () { location.hash = '#/listen-review'; };
+      row.appendChild(bl);
     }
     const b2 = UI.el('button', 'btn btn-sm btn-ghost', '清空错题本');
     b2.onclick = function () {
@@ -379,22 +389,29 @@ const Mistakes = (function () {
     const list = UI.el('div', 'card');
     entries.forEach(function (x) {
       const item = UI.el('div', 'mistake-item');
-      let body;
+      let body, redo;
       if (x.m.type === 'vocab') {
         const w = wordById(x.id);
         body = w ? Vocab.genderTag(w.g) + ' <b>' + UI.esc(w.de) + '</b> — ' + UI.esc(w.zh) : x.id;
+      } else if (x.m.type === 'listen') {
+        const parts = x.id.slice('listen-'.length).split('#');
+        const dial = getListenDialogs().find(function (d) { return d.id === parts[0]; });
+        const q = dial && dial.questions ? dial.questions[+parts[1]] : null;
+        body = '<span class="badge">听力</span> ' + (dial ? UI.esc(dial.title) + '：' : '') + (q ? UI.esc(q.q) : UI.esc(x.id));
+        redo = ' <a class="btn btn-ghost btn-sm" href="#/listen-review">重练</a>';
       } else {
         const parts = x.id.split('#');
         const t = getGrammar().find(function (g) { return g.id === parts[0]; });
         const ex = t && t.exercises[+parts[1]];
         body = '<span class="badge">语法</span> ' + (t ? UI.esc(t.title) + '：' : '') + (ex ? UI.esc(ex.q) : x.id);
+        redo = ' <a class="btn btn-ghost btn-sm" href="#/topic/' + parts[0] + '">重练</a>';
       }
       let dueLabel = '';
-      if (x.m.type === 'grammar' && s.srs[x.id] && s.srs[x.id].due) {
+      if (x.m.type !== 'vocab' && s.srs[x.id] && s.srs[x.id].due) {
         dueLabel = ' <span class="badge">下次 ' + s.srs[x.id].due + '</span>';
       }
       item.innerHTML = '<div class="m-body">' + body + '</div><span class="badge">错 ' + x.m.wrong + ' 次</span>' +
-        (x.m.type === 'vocab' ? '' : ' <a class="btn btn-ghost btn-sm" href="#/topic/' + x.id.split('#')[0] + '">重练</a>') + dueLabel;
+        (redo || '') + dueLabel;
       list.appendChild(item);
     });
     v.appendChild(list);
