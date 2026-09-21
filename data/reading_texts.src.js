@@ -26,5 +26,25 @@ window.READING_TEXTS_SRC = [
   {
     id: 'rd-a1-aushang', title: '寻猫启事', level: 'A1', theme: '居住与家居',
     text: 'ACHTUNG! Unsere Katze Paula ist weg! Sie ist grau und weiß und hat große grüne Augen. Paula ist etwas scheu, aber ganz lieb. Sie wohnt mit uns in der Bergstraße zwölf. Vielleicht sehen Sie sie im Garten, im Keller oder auf der Straße. Bitte rufen Sie Jonas an. Wer Paula findet, bekommt eine große Schokolade als Dank. Bitte helfen Sie uns! Familie Sommer'
+  },
+  {
+    id: 'rd-a1-markt', title: '周六集市', level: 'A1', theme: '购物与金钱',
+    text: 'Am Samstagmorgen geht Nora mit ihrer Mutter auf den Markt. Der Markt ist groß und bunt. Es gibt Obst, Gemüse, Käse und Blumen. Mutter kauft Äpfel und Tomaten. Nora riecht an frischen Erdbeeren und kauft einen kleinen Strauß für die Oma. Ein Mann verkauft Honig und gibt allen eine kleine Probe. Alles ist frisch und nicht teuer. Am Ende trinken Nora und ihre Mutter einen Kakao auf dem Marktplatz. „Nächste Woche kommen wir wieder“, sagt Nora.'
+  },
+  {
+    id: 'rd-a1-familie', title: '一封笔友邮件', level: 'A1', theme: '家庭与人',
+    text: 'Hallo Clara! Danke für deine E-Mail. Du fragst nach meiner Familie – gern! Ich wohne mit meinen Eltern und meiner kleinen Schwester Lina in einem Haus. Mein Vater ist Mechaniker und meine Mutter arbeitet in einer Bäckerei. Lina ist sechs Jahre alt und geht in die erste Klasse. Wir haben auch einen Hund. Er heißt Balu und schläft gern auf dem Sofa. Am Abend essen wir immer zusammen, und am Wochenende besuchen wir oft die Großeltern. Das ist meine Familie. Und deine? Schreib mir bald! Liebe Grüße, Tom'
+  },
+  {
+    id: 'rd-a1-tag', title: '我的一天', level: 'A1', theme: '数字、时间与日期',
+    text: 'Hallo! Ich bin Aylin und heute zeige ich euch meinen Tag. Ich stehe um halb sieben auf und frühstücke mit meiner Familie. Um Viertel nach acht fahre ich mit dem Bus zur Schule. Der Unterricht beginnt um acht Uhr. Am Mittag esse ich in der Mensa, manchmal auch ein Butterbrot von zu Hause. Nachmittags mache ich Hausaufgaben und treffe meine Freundin. Abends koche ich mit meinem Bruder, und um zehn gehe ich ins Bett. Mein Tag ist voll, aber schön. Und wie sieht dein Tag aus?'
+  },
+  {
+    id: 'rd-a2-camping', title: '海边露营记', level: 'A2', theme: '旅行与假期',
+    text: 'Letzten Sommer bin ich mit meiner besten Freundin eine Woche an die Ostsee gefahren. Wir haben nicht im Hotel übernachtet, sondern direkt am Strand gezeltet. Unser Zelt war alt, und in der ersten Nacht hat es stark geregnet. Drinnen war alles nass! Trotzdem hatten wir viel Spaß. Tagsüber sind wir geschwommen und haben Fahrräder gemietet. Abends haben wir Fisch gegessen und den Sonnenuntergang am Strand gesehen. Am letzten Abend sind wir zum Leuchtturm gelaufen und haben viele Fotos gemacht. Ein solcher Urlaub ist einfach und billig, aber wunderbar. Diesen Sommer fahren wir wieder ans Meer. Dann nehmen wir ein neues Zelt mit!'
+  },
+  {
+    id: 'rd-a2-anzeige', title: '二手自行车出售', level: 'A2', theme: '购物与金钱',
+    text: 'VERKAUFE: Fahrrad in gutem Zustand! Ich verkaufe mein blaues Damenfahrrad, weil ich mir bald ein E-Bike kaufen möchte. Das Fahrrad ist drei Jahre alt, aber es fährt noch sehr gut. Es hat sieben Gänge, eine neue Kette und einen gepolsterten Sitz. Es gibt auch zwei Taschen am Gepäckträger – perfekt für den Einkauf! Der Preis: einhundertfünfzig Euro. Das ist viel billiger als im Geschäft. Wer Interesse hat, kann mich am Wochenende anrufen oder eine E-Mail schreiben. Eine Probefahrt ist natürlich möglich. Bitte nur ernsthafte Interessenten! Sabine'
   }
 ];
