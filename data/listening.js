@@ -29,7 +29,7 @@ window.LISTEN_DIALOGS = [
       { sp: 'B', de: 'Guten Tag. Ich möchte einen Kaffee, bitte.', zh: '您好。我要一杯咖啡。' },
       { sp: 'A', de: 'Mit Milch und Zucker?', zh: '要加牛奶和糖吗？' },
       { sp: 'B', de: 'Nur Milch, danke. Und ein Käsebrötchen, bitte.', zh: '只要牛奶，谢谢。再要一个奶酪小面包。' },
-      { sp: 'A', de: 'Gern. Das macht zusammen drei Euro fünfzig.', zh: '好的。一共三欧五。' }
+      { sp: 'A', de: 'Gern. Das macht zusammen drei Euro fünfzig.', zh: '好的。一共三块五欧。' }
     ],
     questions: [
       { type: 'choice', q: 'Wo sind die beiden?', opts: ['Im Café', 'Im Büro', 'In der Schule'], a: 0,
@@ -37,7 +37,7 @@ window.LISTEN_DIALOGS = [
       { type: 'choice', q: 'Was möchte der Mann trinken?', opts: ['Tee mit Milch', 'Wasser', 'Kaffee mit Milch'], a: 2,
         tip: '他要的是 Kaffee，而且 Nur Milch——只加奶，不加糖。' },
       { type: 'choice', q: 'Was kostet alles zusammen?', opts: ['Vier Euro fünfzehn', 'Drei Euro fünfzig', 'Fünf Euro dreißig'], a: 1,
-        tip: 'Das macht zusammen drei Euro fünfzig：一共 3.5 欧。德语价格习惯说 drei Euro fünfzig，不说 Komma。' }
+        tip: 'Das macht zusammen drei Euro fünfzig：一共 3.5 欧。德语价格习惯说 drei Euro fünfzig，口语也常说 drei fünfzig。' }
     ]
   },
   {
@@ -70,8 +70,8 @@ window.LISTEN_DIALOGS = [
     questions: [
       { type: 'choice', q: 'Wann treffen sich die beiden?', opts: ['Am Samstag', 'Am Sonntag', 'Am Montag'], a: 1,
         tip: 'Samstag 要上班，最后约在 Sonntag。' },
-      { type: 'choice', q: 'Warum geht es am Samstag nicht?', opts: ['Anna ist krank', 'Anna ist im Urlaub', 'Ben arbeitet'], a: 2,
-        tip: 'Am Samstag arbeite ich leider——周六 Ben 要工作。' },
+      { type: 'choice', q: 'Warum treffen sie sich nicht am Samstag?', opts: ['Ben ist krank', 'Ben ist im Urlaub', 'Ben arbeitet'], a: 2,
+        tip: 'Am Samstag arbeite ich leider——周六 Ben 要工作，所以只能约周日。' },
       { type: 'choice', q: 'Was möchten sie machen?', opts: ['Ins Schwimmbad gehen', 'Ins Kino gehen', 'Fußball spielen'], a: 0,
         tip: 'Wir können ins Schwimmbad gehen——去游泳馆。' }
     ]
@@ -242,7 +242,7 @@ window.LISTEN_DIALOGS = [
     id: 'dl-a2-festival', title: '生日邀请', level: 'A2', theme: '节日与习俗',
     lines: [
       { sp: 'A', de: 'Hallo Timo! Ich feiere am Samstag meinen Geburtstag. Kommst du?', zh: '嗨，蒂莫！周六我过生日，你来吗？' },
-      { sp: 'B', de: 'Oh, schön! Wie alt wirst du denn?', zh: '哦，太好了！那你这次是几岁生日？' },
+      { sp: 'B', de: 'Oh, schön! Wie alt wirst du denn?', zh: '哦，太好了！你要过几岁生日？' },
       { sp: 'A', de: 'Dreißig. Wir feiern im Garten und beginnen um sechs.', zh: '三十岁。我们在花园里庆祝，六点开始。' },
       { sp: 'B', de: 'Klingt gut! Soll ich etwas mitbringen?', zh: '听起来不错！我要带点什么吗？' },
       { sp: 'A', de: 'Bring gern einen Salat mit. Getränke haben wir genug.', zh: '带一份沙拉来吧。饮料我们准备得够多了。' }
@@ -351,7 +351,7 @@ window.LISTEN_DIALOGS = [
     lines: [
       { sp: 'A', de: 'Hast du am Freitag schon etwas vor? Ich habe zwei Karten fürs Theater.', zh: '你周五有安排了吗？我有两张剧院的票。' },
       { sp: 'B', de: 'Fürs Theater? Was wird denn gespielt?', zh: '剧院？演什么呀？' },
-      { sp: 'A', de: 'Eine moderne Inszenierung. Die Kritiken waren richtig gut.', zh: '一部现代版的舞台剧。评论都很不错。' },
+      { sp: 'A', de: 'Ein Klassiker, aber eine moderne Inszenierung. Die Kritiken waren richtig gut.', zh: '一部经典作品，不过是现代版演绎。评论都很不错。' },
       { sp: 'B', de: 'Klingt spannend. Wann fängt es an?', zh: '听起来很有意思。几点开始？' },
       { sp: 'A', de: 'Um halb acht. Wir treffen uns vorher am Eingang.', zh: '七点半。我们提前在入口碰面。' }
     ],
