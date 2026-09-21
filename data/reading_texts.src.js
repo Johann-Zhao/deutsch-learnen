@@ -65,7 +65,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-a2-pruefung', title: '考试周', level: 'A2', theme: '教育与培训',
-    text: 'Nächste Woche schreibt Ben seine erste große Prüfung, und er ist etwas nervös. Deshalb macht er einen Lernplan: Am Montag lernt er Mathe, am Dienstag Englisch, am Mittwoch Deutsch. Nach jeder Lerneinheit macht er eine Pause und geht mit dem Hund raus. Sein Bruder hilft ihm bei den schweren Aufgaben und prüft ihn mit Karteikarten. Am Abend vor der Prüfung packt Ben seine Tasche und geht früh ins Bett. Am nächsten Morgen steht er früh auf und isst ein gutes Frühstück. In der Schule atmet er tief ein und liest zuerst alle Aufgaben durch. Nach zwei Stunden ist alles vorbei. „Gar nicht schlimm“, sagt Ben und lächelt. Die Angst vor der Prüfung ist manchmal schlimmer als die Prüfung selbst.'
+    text: 'Nächste Woche schreibt Ben seine erste große Prüfung, und er ist etwas nervös. Deshalb macht er einen Lernplan: Am Montag lernt er Mathe, am Dienstag Englisch, am Mittwoch Deutsch. Nach jeder Lerneinheit macht er eine Pause und geht mit dem Hund raus. Sein Bruder hilft ihm bei den schweren Aufgaben und fragt ihn mit Karteikarten ab. Am Abend vor der Prüfung packt Ben seine Tasche und geht früh ins Bett. Am nächsten Morgen steht er früh auf und isst ein gutes Frühstück. In der Schule atmet er tief ein und liest zuerst alle Aufgaben durch. Nach zwei Stunden ist alles vorbei. „Gar nicht schlimm“, sagt Ben und lächelt. Die Angst vor der Prüfung ist manchmal schlimmer als die Prüfung selbst.'
   },
   {
     id: 'rd-b1-umzug', title: '搬到大城市', level: 'B1', theme: '社会与移民',
