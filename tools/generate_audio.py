@@ -4,6 +4,8 @@
 用法：python tools/generate_audio.py
 - 读取 data/vocabulary.js，输出 audio/word/<id>.mp3 与 audio/sent/<id>.mp3
 - 生成 audio/manifest.js（已有哪些音频的清单，供网页加载）
+  重写 manifest 时保留 AUDIO_NATIVE 行（fetch_native_audio.py）与 AUDIO_DIALOGS 行
+  （generate_dialog_audio.py），这两类音频本脚本不管理
 - 已存在的文件自动跳过（可断点续跑）
 """
 import asyncio
@@ -108,18 +110,23 @@ async def main():
                 if (ROOT / "audio" / "sent" / f"{wid}.mp3").exists()]
     conj_ids = [f"{c['verb']}-{c['idx']}" for c in conj
                 if (ROOT / "audio" / "conj" / f"{c['verb']}-{c['idx']}.mp3").exists()]
-    # 保留 fetch_native_audio.py 生成的 AUDIO_NATIVE 行（本脚本不管理真人发音）
+    # 保留 fetch_native_audio.py 生成的 AUDIO_NATIVE 行与 generate_dialog_audio.py 生成的
+    # AUDIO_DIALOGS 行（本脚本都不管理）
     native_line = ""
+    dialogs_line = ""
     old_manifest = ROOT / "audio" / "manifest.js"
     if old_manifest.exists():
         for ln in old_manifest.read_text(encoding="utf-8").splitlines():
             if ln.startswith("window.AUDIO_NATIVE"):
                 native_line = ln + "\n"
-    manifest = ("// 由 tools/generate_audio.py 与 tools/fetch_native_audio.py 自动维护，勿手改\n"
+            elif ln.startswith("window.AUDIO_DIALOGS"):
+                dialogs_line = ln + "\n"
+    manifest = ("// 由 tools/generate_audio.py、tools/fetch_native_audio.py 与 "
+                "tools/generate_dialog_audio.py 自动维护，勿手改\n"
                 f"window.AUDIO_WORDS = {repr(word_ids).replace(chr(39), chr(34))};\n"
                 f"window.AUDIO_SENTS = {repr(sent_ids).replace(chr(39), chr(34))};\n"
                 f"window.AUDIO_CONJ = {repr(conj_ids).replace(chr(39), chr(34))};\n"
-                ) + native_line
+                ) + native_line + dialogs_line
     (ROOT / "audio" / "manifest.js").write_text(manifest, encoding="utf-8")
     print(f"完成：单词 {len(word_ids)}，例句 {len(sent_ids)}，变位 {len(conj_ids)} → audio/manifest.js")
 
