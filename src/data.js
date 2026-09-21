@@ -50,6 +50,17 @@ export function getAudioDialogs() {
   return (typeof window !== 'undefined' && window.AUDIO_DIALOGS) || {};
 }
 
+/* 阅读短文（data/reading.js 静态加载；文件缺失时按空数组处理，UI 显示空状态） */
+export function getReadingTexts() {
+  return (typeof window !== 'undefined' && window.READING_TEXTS) || [];
+}
+
+/* 整篇朗读音频清单（audio/manifest.js 的 AUDIO_READING，数组形态同 AUDIO_WORDS） */
+export function getAudioReading() {
+  const w = globalWindow();
+  return (w && w.AUDIO_READING) || [];
+}
+
 /* 卡 id 谓词：语法卡 g-…#n 与听力卡 listen-{dialogueId}#{qIndex} 都含 #，
    只能按前缀区分——否则听力卡会被误计入语法复习（S7 规格 §6 关键集成点） */
 export function isGrammarCardId(id) {
