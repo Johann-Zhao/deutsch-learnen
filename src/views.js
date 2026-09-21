@@ -4,10 +4,13 @@ import { UI } from './ui.js';
 import { store } from './store.js';
 import { today } from './storage.js';
 import * as SRS from './srs.js';
-import { currentLevel, wordsOfLevel, getGrammar } from './data.js';
+import { currentLevel, wordsOfLevel, getGrammar, isGrammarCardId, isListenCardId } from './data.js';
 import { TTS } from './tts.js';
 import { audio } from './audio.js';
 import { render } from './app.js';
+
+// 卡 id 谓词由 data.js 单点定义，这里再导出供测试与其他模块引用
+export { isGrammarCardId, isListenCardId };
 
 /* ---------- 仪表盘 ---------- */
 export function dashboard() {
@@ -18,7 +21,8 @@ export function dashboard() {
   const learned = pool.filter(function (w) { return s.srs[w.id]; }).length;
   const mastered = pool.filter(function (w) { return s.srs[w.id] && s.srs[w.id].mastered; }).length;
   const due = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') === -1 && SRS.isDue(s.srs[id], todayStr); }).length;
-  const grammarDue = Object.keys(s.srs).filter(function (id) { return id.indexOf('#') >= 0 && SRS.isDue(s.srs[id], todayStr); }).length;
+  const grammarDue = Object.keys(s.srs).filter(function (id) { return isGrammarCardId(id) && SRS.isDue(s.srs[id], todayStr); }).length;
+  const listenDue = Object.keys(s.srs).filter(function (id) { return isListenCardId(id) && SRS.isDue(s.srs[id], todayStr); }).length;
   const t = s.daily[todayStr] || { new: 0, reviewed: 0, correct: 0 };
 
   const v = UI.el('div');
@@ -60,6 +64,13 @@ export function dashboard() {
   bGram.onclick = function () { location.hash = '#/review-grammar'; };
   gRow.appendChild(bGram);
   card.appendChild(gRow);
+  const lRow = UI.el('div', null);
+  lRow.style.cssText = 'margin-top:10px';
+  const bListen = UI.el('button', 'btn btn-sm ' + (listenDue ? '' : 'btn-ghost'), listenDue ? '听力复习 ' + listenDue + ' 题' : '无到期听力复习');
+  bListen.disabled = !listenDue;
+  bListen.onclick = function () { location.hash = '#/listen-review'; };
+  lRow.appendChild(bListen);
+  card.appendChild(lRow);
   const remain = pool.filter(function (w) { return !s.srs[w.id]; }).length;
   card.appendChild(UI.el('p', 'stat-label', remain === 0
     ? '本级词已全部学过了'
