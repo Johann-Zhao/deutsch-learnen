@@ -40,6 +40,26 @@ export function getWordIpa(id) {
   return m[id] || null;
 }
 
+/* 听力小对话（data/listening.js 静态加载；文件缺失时按空数组处理，UI 显示空状态） */
+export function getListenDialogs() {
+  return (typeof window !== 'undefined' && window.LISTEN_DIALOGS) || [];
+}
+
+/* 对话行音频清单 dialogueId -> 行数（audio/manifest.js 的 AUDIO_DIALOGS） */
+export function getAudioDialogs() {
+  return (typeof window !== 'undefined' && window.AUDIO_DIALOGS) || {};
+}
+
+/* 卡 id 谓词：语法卡 g-…#n 与听力卡 listen-{dialogueId}#{qIndex} 都含 #，
+   只能按前缀区分——否则听力卡会被误计入语法复习（S7 规格 §6 关键集成点） */
+export function isGrammarCardId(id) {
+  return id.indexOf('#') >= 0 && !isListenCardId(id);
+}
+
+export function isListenCardId(id) {
+  return /^listen-[^#]+#\d+$/.test(String(id));
+}
+
 export function getImageWords() {
   const w = globalWindow();
   return (w && w.IMAGE_WORDS) || [];

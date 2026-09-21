@@ -15,6 +15,8 @@ export function emptyState() {
     mistakes: {},
     // 已完成的语法专题练习 id 列表 -> 最佳正确率
     grammarDone: {},
+    // 听力对话完成记录: dialogueId -> { right, total, at: 'YYYY-MM-DD' }
+    listen: {},
     // streak: last 最后学习日 / count 连续天数 / freezes 冻结券数量 / protected 使用冻结保住的日子
     streak: { last: null, count: 0, freezes: 1, protected: [] }
   };
@@ -123,6 +125,8 @@ Storage.prototype._mergeState = function (s) {
   const base = emptyState();
   if (s && typeof s === 'object') Object.assign(base, s);
   base.settings = Object.assign({}, DEFAULT_SETTINGS, base.settings || {});
+  // 旧存档缺 listen 子树（或值非法）时补默认值，避免听力页读 undefined
+  if (!base.listen || typeof base.listen !== 'object') base.listen = {};
   return base;
 };
 
