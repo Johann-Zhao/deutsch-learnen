@@ -1,4 +1,5 @@
-/* 听力小对话：S7 听力模块，LLM 草稿，待 SLA 视角审核定稿。
+/* 听力小对话：S7 听力模块，LLM 草稿经 SLA 视角审核（高级学习者 + 二语习得研究者视角），
+   R1 审核意见（dl-a1-family 题干/选项、中文译文润色、答案位置分布）已修复。
    格式：{ id: 'dl-<级别>-<场景>', title, level, theme, lines: [{ sp, de, zh }],
           questions: [{ type: 'choice', q, opts, a, tip }] }
    角色约定：sp 'A' 固定女声（de-DE-KatjaNeural），sp 'B' 固定男声（de-DE-ConradNeural）；
@@ -16,7 +17,7 @@ window.LISTEN_DIALOGS = [
     questions: [
       { type: 'choice', q: 'Wo sprechen die beiden?', opts: ['Im Bus', 'Im Supermarkt', 'Im Haus'], a: 2,
         tip: '两人初次见面、说住在哪一层，是邻居在楼里碰面的典型场景。' },
-      { type: 'choice', q: 'Wo wohnt Anna?', opts: ['Im ersten Stock', 'Im Erdgeschoss', 'Im dritten Stock'], a: 0,
+      { type: 'choice', q: 'Wo wohnt Anna?', opts: ['Im Erdgeschoss', 'Im dritten Stock', 'Im ersten Stock'], a: 2,
         tip: 'Anna 说自己住在 erster Stock。德语里 Erdgeschoss 是地面层（中文一楼），erster Stock 是它上面的一层（中文二楼）。' },
       { type: 'choice', q: 'Was sind Anna und Thomas jetzt?', opts: ['Kollegen', 'Nachbarn', 'Freunde'], a: 1,
         tip: '最后一句 Dann sind wir ja Nachbarn——从现在起两人是同一栋楼的邻居。' }
@@ -50,7 +51,7 @@ window.LISTEN_DIALOGS = [
       { sp: 'A', de: 'Ja, hier in Blau, bitte. Ihre Schwester freut sich bestimmt!', zh: '有的，这条蓝色的。您妹妹一定会喜欢的！' }
     ],
     questions: [
-      { type: 'choice', q: 'Wo findet der Dialog statt?', opts: ['Im Restaurant', 'Im Kino', 'Im Geschäft'], a: 2,
+      { type: 'choice', q: 'Wo findet der Dialog statt?', opts: ['Im Geschäft', 'Im Restaurant', 'Im Kino'], a: 0,
         tip: '售货员问 Kann ich Ihnen helfen?，又谈价格——是在商店里。' },
       { type: 'choice', q: 'Welche Farbe möchte der Mann?', opts: ['Blau', 'Rot', 'Braun'], a: 0,
         tip: 'Haben Sie ihn auch in Blau?——他想要蓝色。' },
@@ -72,7 +73,7 @@ window.LISTEN_DIALOGS = [
         tip: 'Samstag 要上班，最后约在 Sonntag。' },
       { type: 'choice', q: 'Warum treffen sie sich nicht am Samstag?', opts: ['Ben ist krank', 'Ben ist im Urlaub', 'Ben arbeitet'], a: 2,
         tip: 'Am Samstag arbeite ich leider——周六 Ben 要工作，所以只能约周日。' },
-      { type: 'choice', q: 'Was möchten sie machen?', opts: ['Ins Schwimmbad gehen', 'Ins Kino gehen', 'Fußball spielen'], a: 0,
+      { type: 'choice', q: 'Was möchten sie machen?', opts: ['Ins Kino gehen', 'Fußball spielen', 'Ins Schwimmbad gehen'], a: 2,
         tip: 'Wir können ins Schwimmbad gehen——去游泳馆。' }
     ]
   },
@@ -206,13 +207,13 @@ window.LISTEN_DIALOGS = [
     id: 'dl-a2-office', title: '打电话请病假', level: 'A2', theme: '职业与办公室',
     lines: [
       { sp: 'A', de: 'Guten Morgen, Herr Berger. Ich kann heute nicht zur Arbeit kommen.', zh: '早上好，贝格尔先生。我今天不能来上班了。' },
-      { sp: 'B', de: 'Guten Morgen, Frau Lang. Das tut mir leid. Was haben Sie denn?', zh: '早上好，朗女士。真不巧。您怎么了？' },
+      { sp: 'B', de: 'Guten Morgen, Frau Lang. Das tut mir leid. Was haben Sie denn?', zh: '早上好，朗女士。哦，那太遗憾了。您怎么了？' },
       { sp: 'A', de: 'Fieber und starke Kopfschmerzen. Ich war schon beim Arzt.', zh: '发烧，头疼得厉害。我已经去看过医生了。' },
       { sp: 'B', de: 'Dann bleiben Sie zu Hause. Ich sage den Kollegen Bescheid.', zh: '那您就在家休息吧。我跟同事们说一声。' },
       { sp: 'A', de: 'Danke. Ich schreibe Ihnen später eine E-Mail.', zh: '谢谢。我晚点给您写邮件。' }
     ],
     questions: [
-      { type: 'choice', q: 'Warum ruft die Frau an?', opts: ['Sie möchte Urlaub machen', 'Sie ist krank', 'Sie sucht ein Büro'], a: 1,
+      { type: 'choice', q: 'Warum ruft die Frau an?', opts: ['Sie möchte Urlaub machen', 'Sie sucht ein Büro', 'Sie ist krank'], a: 2,
         tip: 'Ich kann heute nicht zur Arbeit kommen，还说明了症状——打电话请病假，德语叫 sich krankmelden。' },
       { type: 'choice', q: 'Was hat die Frau?', opts: ['Fieber und Kopfschmerzen', 'Bauchschmerzen', 'Rückenschmerzen'], a: 0,
         tip: 'Fieber und starke Kopfschmerzen——发烧和剧烈头痛。' },
@@ -280,7 +281,7 @@ window.LISTEN_DIALOGS = [
       { sp: 'A', de: 'Guten Tag, hier ist Sandra Keller von der Firma Lehmann. Ich rufe wegen Ihrer Bewerbung an.', zh: '您好，我是莱曼公司的桑德拉·凯勒。我打电话是为了您的求职申请。' },
       { sp: 'B', de: 'Guten Tag, Frau Keller. Schön, dass Sie sich melden.', zh: '您好，凯勒女士。很高兴您联系我。' },
       { sp: 'A', de: 'Wir möchten Sie gern kennenlernen. Passt Ihnen Mittwoch um zehn Uhr?', zh: '我们很想认识您。周三上午十点您方便吗？' },
-      { sp: 'B', de: 'Mittwoch habe ich leider einen Termin. Ginge es auch am Donnerstag?', zh: '周三我恰好有安排。周四可以吗？' },
+      { sp: 'B', de: 'Mittwoch habe ich leider einen Termin. Ginge es auch am Donnerstag?', zh: '真不巧，周三我有个安排。周四可以吗？' },
       { sp: 'A', de: 'Donnerstag um elf ist notiert. Die Einladung schicken wir Ihnen per E-Mail.', zh: '记下了，周四十一点。邀请函我们会通过邮件发给您。' }
     ],
     questions: [
@@ -320,7 +321,7 @@ window.LISTEN_DIALOGS = [
       { sp: 'A', de: 'Mach das! Das ist besser fürs Klima, und morgens bist du gleich wacher.', zh: '试吧！这样对气候更友好，而且早上人一下就清醒了。' }
     ],
     questions: [
-      { type: 'choice', q: 'Worüber sprechen die beiden?', opts: ['Über den Urlaub', 'Über das Wetter', 'Über den Weg zur Arbeit'], a: 2,
+      { type: 'choice', q: 'Worüber sprechen die beiden?', opts: ['Über den Urlaub', 'Über den Weg zur Arbeit', 'Über das Wetter'], a: 1,
         tip: '谈的是上班通勤：开车、公交还是骑车。' },
       { type: 'choice', q: 'Wie fährt der Mann zur Arbeit?', opts: ['Mit dem Auto', 'Mit dem Fahrrad', 'Mit dem Bus'], a: 0,
         tip: 'immer noch mit dem Auto——他一直开车上班。' },
