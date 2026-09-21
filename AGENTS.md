@@ -18,14 +18,16 @@
 │   ├── grammar.js          # A1 语法专题
 │   ├── grammar_a2.js       # A2 语法专题
 │   ├── grammar_b1.js       # B1 语法专题
+│   ├── listening.js        # 听力小对话 20 组（S7；index.html 静态加载，跨级别复习需全量）
 │   └── ipa.js              # 自动生成：WORD_IPA 音标（fetch_ipa.py）
 ├── audio/                  # 预生成音频与清单
 │   ├── word/               # 单词音频（edge-tts）
 │   ├── sent/               # 例句音频（edge-tts）
 │   ├── conj/               # 变位音频（edge-tts）
+│   ├── dialog/             # 对话行音频（分角色 edge-tts，generate_dialog_audio.py）
 │   ├── native/             # 真人发音 ogg（Wikimedia Commons，CC BY-SA/CC0）
 │   ├── credits_native.json # 自动生成：真人发音逐词署名（file/speaker/license/url）
-│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE
+│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE / AUDIO_DIALOGS
 ├── images/                 # 配图与封面
 │   ├── covers/             # 38 张主题 zine 纸感封面
 │   ├── zine/               # 装饰刊头插画（hero / 空状态，zine 纸感）
@@ -37,6 +39,7 @@
 │   ├── requirements.txt
 │   ├── README.md
 │   ├── generate_audio.py
+│   ├── generate_dialog_audio.py # 对话行音频：分角色 edge-tts → audio/dialog/ + AUDIO_DIALOGS 清单
 │   ├── dewikt.py           # de.wiktionary 共享访问（wikitext 缓存 tools/.cache/）
 │   ├── fetch_ipa.py        # IPA 抓取 → data/ipa.js
 │   ├── fetch_native_audio.py # 真人发音抓取 → audio/native/ + credits + manifest
@@ -161,6 +164,8 @@ docs(tools): 新增 README 与 requirements.txt
 
 词汇卡全局 id：`{themeId}-{index}`（如 `greet-0`、`a2-travel-5`）。
 语法错题卡 id：`{topicId}#{exerciseIndex}`（如 `g-praesens#2`），含 `#`，与词汇 id 天然区分。
+听力对话 id：`dl-` 前缀并含级别段（如 `dl-a1-greet`、`dl-b1-health`），与词汇/语法 id 天然区分。
+听力 SRS 卡 id：`listen-{dialogueId}#{qIndex}`（如 `listen-dl-a1-greet#0`），含 `#` 但非 `g-` 前缀——语法/听力到期过滤必须用 `isGrammarCardId`/`isListenCardId` 谓词按前缀区分，不得按「含 `#`」粗判，否则听力卡会被误计入语法复习。
 
 ## 8. 标准操作流程（SOP）
 
@@ -184,6 +189,7 @@ docs(tools): 新增 README 与 requirements.txt
 ### 8.3 重新生成音频 / 图片 / 音标
 
 - **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。重写 manifest 时自动保留 `AUDIO_NATIVE` 行。
+- **对话行音频**：`python tools/generate_dialog_audio.py [--limit N] [--ids id1,id2]`（分角色 edge-tts：A = `de-DE-KatjaNeural`、B = `de-DE-ConradNeural`，默认语速 1.0；逐行 → `audio/dialog/<id>-<行号>.mp3`，manifest 自动新增/更新 `AUDIO_DIALOGS` 行）。
 - **真人发音**：`python tools/fetch_native_audio.py [--limit N] [--ids id1,id2]`（经 de.wiktionary 定位 Wikimedia Commons 真人录音；依赖 curl 与 ffmpeg；断点续跑）。
 - **音标**：`python tools/fetch_ipa.py [--limit N] [--force]`（de.wiktionary `{{Lautschrift}}` → `data/ipa.js`；wikitext 有磁盘缓存，重跑便宜；全量结果少于现有条目数时拒写，需 --force 强制）。
 - **主题封面**：`python tools/gen_zine_covers.py [--force]`（需 Seedream API key，zine 纸感风格）。

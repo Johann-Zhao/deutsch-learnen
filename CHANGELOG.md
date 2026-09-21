@@ -6,6 +6,18 @@
 
 无。
 
+## [4.4.0] - 2026-09-21
+
+### Added
+- **听力 Tab**：20 组小对话理解（A1×8 / A2×7 / B1×5，LLM 草稿经 SLA 视角审核），每组分角色 edge-tts 音频（A = Katja / B = Conrad）逐行预生成；三级交互：盲听整组 → 看题作答（即时反馈 + 解析）→ 逐句精听。
+- **听写强化**：复用现有听音/拼写题型与渐进提示，到期词优先、每次上限 20 词，评分照旧写词卡 SRS。
+- **听力错题进 FSRS**：答错的对话理解题按 `listen-{dialogueId}#{qIndex}` 卡 id 入间隔重复，今日页与听力首页显示到期数，独立 `#/listen-review` 复习入口（重听整组再答）。
+- 新数据文件 `data/listening.js`（index.html 静态加载）；新管道脚本 `tools/generate_dialog_audio.py`；`audio/manifest.js` 新增 `AUDIO_DIALOGS` 清单。
+
+### Changed
+- 语法到期过滤按前缀收窄（`g-` 且含 `#`）：听力卡 id 同样含 `#`，原先「id 含 `#`」的过滤会把听力卡误计入语法复习，现以 `isGrammarCardId` / `isListenCardId` 谓词区分两类（S7 规格 §6 关键集成点，测试锁定互斥）。
+- 桌面侧栏与移动端 tab bar 新增第 6 项「听力」。
+
 ## [4.3.0] - 2026-09-08
 
 ### Added
@@ -143,7 +155,8 @@
 ### Added
 - 德语 A1 学习站初始版本：618 词、12 主题、10 语法专题、间隔复习、错题本、设置。
 
-[Unreleased]: https://github.com/yourname/deutsch-lernen/compare/v3.0...HEAD
+[Unreleased]: https://github.com/yourname/deutsch-lernen/compare/v4.4.0...HEAD
+[4.4.0]: https://github.com/yourname/deutsch-lernen/compare/v4.3.0...v4.4.0
 [3.0.0]: https://github.com/yourname/deutsch-lernen/compare/v2.1...v3.0
 [2.1.0]: https://github.com/yourname/deutsch-lernen/compare/v2.0...v2.1
 [2.0.0]: https://github.com/yourname/deutsch-lernen/compare/v1.2...v2.0
