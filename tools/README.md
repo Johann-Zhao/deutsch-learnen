@@ -104,6 +104,23 @@ cp .env.example .env
 - **注意**：`audio/manifest.js` 由本脚本自动生成，**请勿手改**。
 - **断点续跑**：已存在且非空的 mp3 会自动跳过；失败条目会在下次运行时重试。
 
+### `generate_dialog_audio.py`
+
+- **用途**：为听力小对话（`data/listening.js` 的 `window.LISTEN_DIALOGS`）逐行生成德语音频，分角色音色：A = `de-DE-KatjaNeural`（女声），B = `de-DE-ConradNeural`（男声），默认语速 1.0（不在生成端减速，保「原生、地道、清晰」，播放变速交给前端）。
+- **依赖**：`edge-tts`
+- **用法**：
+  ```bash
+  python tools/generate_dialog_audio.py                # 全量（20 组 × 各行）
+  python tools/generate_dialog_audio.py --limit 1      # 只跑前 1 组（小样本验证）
+  python tools/generate_dialog_audio.py --ids dl-a1-greet,dl-b1-health  # 定向重跑指定组
+  ```
+- **产物**：
+  - `audio/dialog/<dialogueId>-<lineIndex>.mp3`（lineIndex 从 0 起，逐行一个文件；不做整组拼接）
+  - 更新 `audio/manifest.js` 的 `window.AUDIO_DIALOGS`（`{ 对话 id: 从第 0 行起连续可用的音频文件数 }`；全部生成成功时即等于对话行数）
+- **注意**：`audio/manifest.js` 中 `AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE` 四行按原文件逐行保留不变，`AUDIO_DIALOGS` 由本脚本维护，**请勿手改**。
+- **断点续跑**：已存在且非空的 mp3 自动跳过；请求间隔 ≥1 秒；单行失败自动重试 2 次，结束时打印失败行清单与逐组抽查清单（`[ok] 级别 id: 可用行数/总行数`）。
+- **操作提醒**：`tools/generate_audio.py` 目前只保留 `AUDIO_NATIVE` 行，重跑它会丢掉 `AUDIO_DIALOGS` 行；重跑后需再执行一次本脚本恢复（保留逻辑待后续任务补上）。
+
 ### `dump_conj.js`
 
 - **用途**：导出变位音频生成清单（JSON 到 stdout），覆盖全部内置不规则动词与常用规则动词。
@@ -121,8 +138,10 @@ cp .env.example .env
 
 1. **音频**（无需 API key）：
    ```bash
-   python tools/generate_audio.py
+   python tools/generate_audio.py          # 词汇 / 例句 / 变位
+   python tools/generate_dialog_audio.py   # 听力小对话逐行音频（分角色）
    ```
+   > 注意顺序：先 `generate_audio.py`、后 `generate_dialog_audio.py`，否则 `AUDIO_DIALOGS` 行会被覆盖掉。
 
 2. **主题封面**（需要 Seedream API key）：
    ```bash
