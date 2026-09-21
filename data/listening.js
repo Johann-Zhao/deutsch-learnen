@@ -273,5 +273,95 @@ window.LISTEN_DIALOGS = [
       { type: 'choice', q: 'Wie oft ist der Unterricht?', opts: ['Zweimal pro Woche', 'Jeden Tag', 'Einmal im Monat'], a: 0,
         tip: 'Zweimal pro Woche, abends von sechs bis acht——每周两次，晚上六点到八点。' }
     ]
+  },
+  {
+    id: 'dl-b1-career', title: '面试通知电话', level: 'B1', theme: '工作与职业发展',
+    lines: [
+      { sp: 'A', de: 'Guten Tag, hier ist Sandra Keller von der Firma Lehmann. Ich rufe wegen Ihrer Bewerbung an.', zh: '您好，我是莱曼公司的桑德拉·凯勒。我打电话是为了您的求职申请。' },
+      { sp: 'B', de: 'Guten Tag, Frau Keller. Schön, dass Sie sich melden.', zh: '您好，凯勒女士。很高兴您联系我。' },
+      { sp: 'A', de: 'Wir möchten Sie gern kennenlernen. Passt Ihnen Mittwoch um zehn Uhr?', zh: '我们很想认识您。周三上午十点您方便吗？' },
+      { sp: 'B', de: 'Mittwoch habe ich leider einen Termin. Ginge es auch am Donnerstag?', zh: '周三我恰好有安排。周四可以吗？' },
+      { sp: 'A', de: 'Donnerstag um elf ist notiert. Die Einladung schicken wir Ihnen per E-Mail.', zh: '记下了，周四十一点。邀请函我们会通过邮件发给您。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Warum ruft die Frau an?', opts: ['Wegen einer Rechnung', 'Wegen eines Urlaubs', 'Wegen der Bewerbung des Mannes'], a: 2,
+        tip: 'Ich rufe wegen Ihrer Bewerbung an——因为他的求职申请。' },
+      { type: 'choice', q: 'Wann findet das Gespräch statt?', opts: ['Am Donnerstag', 'Am Mittwoch', 'Am Freitag'], a: 0,
+        tip: 'Mittwoch 他有约，最后定在 Donnerstag um elf。' },
+      { type: 'choice', q: 'Wie bekommt der Mann die Einladung?', opts: ['Per Post', 'Per E-Mail', 'Per Telefon'], a: 1,
+        tip: 'Die Einladung schicken wir Ihnen per E-Mail——通过邮件发送。' }
+    ]
+  },
+  {
+    id: 'dl-b1-health', title: '压力与睡眠', level: 'B1', theme: '健康与心理',
+    lines: [
+      { sp: 'A', de: 'Sag mal, du siehst müde aus. Schläfst du schlecht?', zh: '我说，你看起来很累。睡得不好吗？' },
+      { sp: 'B', de: 'Ja, im Moment kaum. Ich bin total erschöpft, aber abends komme ich nicht zur Ruhe.', zh: '是啊，最近几乎睡不着。我累得不行，可晚上就是静不下来。' },
+      { sp: 'A', de: 'Das kenne ich. Machst du nach der Arbeit noch Sport?', zh: '我懂。你下班后还运动吗？' },
+      { sp: 'B', de: 'Ehrlich gesagt sitze ich abends nur am Handy. Ich weiß, dass das nicht gut ist.', zh: '说实话，我晚上就坐在那儿玩手机。我知道这样不好。' },
+      { sp: 'A', de: 'Dann probier es mal mit einem Spaziergang. Und leg das Handy eine Stunde vorher weg.', zh: '那你不妨试试散散步，睡前一小时把手机放到一边。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Worum geht es im Gespräch?', opts: ['Um Stress und schlechten Schlaf', 'Um ein neues Projekt', 'Um Sport im Verein'], a: 0,
+        tip: 'erschöpft、nicht zur Ruhe kommen、abends am Handy——聊的是压力和失眠。' },
+      { type: 'choice', q: 'Was macht der Mann abends?', opts: ['Er geht spazieren', 'Er sitzt am Handy', 'Er macht Sport'], a: 1,
+        tip: 'Ehrlich gesagt sitze ich abends nur am Handy——晚上一直看手机。' },
+      { type: 'choice', q: 'Was empfiehlt die Frau?', opts: ['Mehr Kaffee am Abend', 'Früher zur Arbeit gehen', 'Vor dem Schlafen spazieren und weniger Handy'], a: 2,
+        tip: '建议：睡前散步，并把手机提前一小时放下。' }
+    ]
+  },
+  {
+    id: 'dl-b1-environment', title: '骑车上班？', level: 'B1', theme: '环境与能源',
+    lines: [
+      { sp: 'A', de: 'Sag mal, fährst du immer noch mit dem Auto zur Arbeit?', zh: '我说，你还一直开车上班吗？' },
+      { sp: 'B', de: 'Ja, leider. Mit dem Bus brauche ich fast eine Stunde.', zh: '是啊，没办法。坐公交我要将近一个小时。' },
+      { sp: 'A', de: 'Und mit dem Fahrrad? Es gibt doch jetzt diesen neuen Radweg.', zh: '那骑自行车呢？现在不是新修了那条自行车道嘛。' },
+      { sp: 'B', de: 'Stimmt. Im Sommer könnte ich das mal ausprobieren.', zh: '对哦。夏天我可以试试。' },
+      { sp: 'A', de: 'Mach das! Das ist besser fürs Klima, und morgens bist du gleich wacher.', zh: '试吧！这样对气候更友好，而且早上人一下就清醒了。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Worüber sprechen die beiden?', opts: ['Über den Urlaub', 'Über das Wetter', 'Über den Weg zur Arbeit'], a: 2,
+        tip: '谈的是上班通勤：开车、公交还是骑车。' },
+      { type: 'choice', q: 'Wie fährt der Mann zur Arbeit?', opts: ['Mit dem Auto', 'Mit dem Fahrrad', 'Mit dem Bus'], a: 0,
+        tip: 'immer noch mit dem Auto——他一直开车上班。' },
+      { type: 'choice', q: 'Warum fährt er nicht mit dem Bus?', opts: ['Der Bus ist zu teuer', 'Er braucht zu lange', 'Der Bus fährt nicht'], a: 1,
+        tip: 'Mit dem Bus brauche ich fast eine Stunde——坐公交要将近一小时，太久了。' }
+    ]
+  },
+  {
+    id: 'dl-b1-digital', title: '办公室里的 AI', level: 'B1', theme: '数字化与人工智能',
+    lines: [
+      { sp: 'A', de: 'Sag mal, benutzt du diese neuen Programme mit künstlicher Intelligenz für die Arbeit?', zh: '我说，你工作里用那些带人工智能的新程序吗？' },
+      { sp: 'B', de: 'Ja, für E-Mails und Berichte. Das spart mir jeden Tag bestimmt eine Stunde.', zh: '用，写邮件和报告。每天肯定能给我省一个小时。' },
+      { sp: 'A', de: 'Ehrlich? Ich bin da skeptisch. Ich weiß nicht, was mit unseren Daten passiert.', zh: '真的吗？我可有点怀疑。我不知道我们的数据会被怎么处理。' },
+      { sp: 'B', de: 'Ein gutes Argument. Wir dürfen keine Kundendaten eingeben, das ist klar.', zh: '这个理由很充分。我们当然不能输入客户数据，这很清楚。' },
+      { sp: 'A', de: 'Genau. Ohne Kundendaten ist es für mich in Ordnung.', zh: '对。不涉及客户数据的话，我可以接受。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Worüber sprechen die beiden?', opts: ['Über Programme mit künstlicher Intelligenz', 'Über den Urlaubsplan', 'Über ein neues Büro'], a: 0,
+        tip: '开头就点题：diese neuen Programme mit künstlicher Intelligenz。' },
+      { type: 'choice', q: 'Wofür benutzt der Mann die Programme?', opts: ['Für Fotos und Videos', 'Für E-Mails und Berichte', 'Für Musik'], a: 1,
+        tip: 'für E-Mails und Berichte——写邮件和报告。' },
+      { type: 'choice', q: 'Was ist der Frau wichtig?', opts: ['Die Geschwindigkeit', 'Der Preis', 'Der Schutz der Daten'], a: 2,
+        tip: '她担心 Ich weiß nicht, was mit unseren Daten passiert——最在意数据安全。' }
+    ]
+  },
+  {
+    id: 'dl-b1-culture', title: '剧院之约', level: 'B1', theme: '文化与艺术',
+    lines: [
+      { sp: 'A', de: 'Hast du am Freitag schon etwas vor? Ich habe zwei Karten fürs Theater.', zh: '你周五有安排了吗？我有两张剧院的票。' },
+      { sp: 'B', de: 'Fürs Theater? Was wird denn gespielt?', zh: '剧院？演什么呀？' },
+      { sp: 'A', de: 'Eine moderne Inszenierung. Die Kritiken waren richtig gut.', zh: '一部现代版的舞台剧。评论都很不错。' },
+      { sp: 'B', de: 'Klingt spannend. Wann fängt es an?', zh: '听起来很有意思。几点开始？' },
+      { sp: 'A', de: 'Um halb acht. Wir treffen uns vorher am Eingang.', zh: '七点半。我们提前在入口碰面。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was möchte die Frau mit dem Mann machen?', opts: ['Ins Kino gehen', 'Ins Theater gehen', 'Ins Museum gehen'], a: 1,
+        tip: 'zwei Karten fürs Theater——去看戏。' },
+      { type: 'choice', q: 'Wann beginnt die Vorstellung?', opts: ['Um halb acht', 'Um acht', 'Um halb neun'], a: 0,
+        tip: '德语 um halb acht 是七点半（差半小时到八点），不是八点半。' },
+      { type: 'choice', q: 'Wo treffen sich die beiden?', opts: ['Im Café', 'An der Haltestelle', 'Am Eingang'], a: 2,
+        tip: 'Wir treffen uns vorher am Eingang——在入口碰面。' }
+    ]
   }
 ];
