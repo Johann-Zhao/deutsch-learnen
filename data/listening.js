@@ -93,5 +93,95 @@ window.LISTEN_DIALOGS = [
       { type: 'choice', q: 'Wie kommt die Frau zum Bahnhof?', opts: ['Zu Fuß', 'Mit dem Taxi', 'Mit dem Bus'], a: 2,
         tip: '她最后说 dann nehme ich den Bus——决定坐公交车。' }
     ]
+  },
+  {
+    id: 'dl-a1-health', title: '预约就诊', level: 'A1', theme: '身体与健康',
+    lines: [
+      { sp: 'A', de: 'Praxis Doktor Vogel, guten Tag. Was kann ich für Sie tun?', zh: '福格尔医生诊所，您好。请问需要什么帮助？' },
+      { sp: 'B', de: 'Guten Tag. Ich brauche einen Termin. Mein Hals tut weh und ich habe Husten.', zh: '您好。我需要预约。我嗓子疼，还咳嗽。' },
+      { sp: 'A', de: 'Haben Sie auch Fieber?', zh: '您发烧吗？' },
+      { sp: 'B', de: 'Ja, achtunddreißig Grad.', zh: '是的，三十八度。' },
+      { sp: 'A', de: 'Dann kommen Sie bitte heute um vier Uhr, und bringen Sie Ihre Karte mit.', zh: '那请您今天四点来，记得带上您的医保卡。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was möchte der Mann?', opts: ['Ein Brötchen', 'Einen Arzttermin', 'Eine Fahrkarte'], a: 1,
+        tip: 'Ich brauche einen Termin——他打电话是要预约看病。' },
+      { type: 'choice', q: 'Was hat der Mann?', opts: ['Husten und Fieber', 'Zahnschmerzen', 'Bauchschmerzen'], a: 0,
+        tip: 'Mein Hals tut weh、Husten，再加上 achtunddreißig Grad 的 Fieber——嗓子疼、咳嗽和发烧。' },
+      { type: 'choice', q: 'Wann ist der Termin?', opts: ['Heute um zehn Uhr', 'Morgen um vier Uhr', 'Heute um vier Uhr'], a: 2,
+        tip: 'heute um vier Uhr——今天四点。德国看病一般要先打电话约 Termin，并带上医保卡。' }
+    ]
+  },
+  {
+    id: 'dl-a1-family', title: '家庭照片', level: 'A1', theme: '家庭与人',
+    lines: [
+      { sp: 'A', de: 'Ist das deine Familie auf dem Foto?', zh: '照片上是你的家人吗？' },
+      { sp: 'B', de: 'Ja. Das sind meine Eltern und meine Schwester.', zh: '是的。这是我父母和我妹妹。' },
+      { sp: 'A', de: 'Und wer ist die Frau da?', zh: '那这位女士是谁？' },
+      { sp: 'B', de: 'Das ist meine Großmutter. Sie ist fünfundachtzig.', zh: '这是我奶奶。她八十五岁了。' },
+      { sp: 'A', de: 'Sie sieht jung aus!', zh: '她看起来真年轻！' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was machen die beiden?', opts: ['Sie kochen zusammen', 'Sie sehen ein Foto an', 'Sie spielen Fußball'], a: 1,
+        tip: '两人在看照片：Ist das deine Familie auf dem Foto?' },
+      { type: 'choice', q: 'Wer ist auf dem Foto?', opts: ['Der Bruder und die Eltern', 'Nur die Großmutter', 'Die Eltern und die Schwester'], a: 2,
+        tip: 'Das sind meine Eltern und meine Schwester——父母和妹妹。' },
+      { type: 'choice', q: 'Wie alt ist die Großmutter?', opts: ['Fünfundachtzig', 'Fünfundsiebzig', 'Fünfundneunzig'], a: 0,
+        tip: 'Sie ist fünfundachtzig——85 岁，注意 -und- 结构数字的听辨。' }
+    ]
+  },
+  {
+    id: 'dl-a1-free', title: '周末爱好', level: 'A1', theme: '空闲活动与爱好',
+    lines: [
+      { sp: 'A', de: 'Was machst du am Wochenende?', zh: '你周末做什么？' },
+      { sp: 'B', de: 'Ich spiele Fußball. Am Samstag habe ich ein Spiel.', zh: '我踢足球。周六我有一场比赛。' },
+      { sp: 'A', de: 'Und am Sonntag?', zh: '那周日呢？' },
+      { sp: 'B', de: 'Am Sonntag bin ich oft müde. Dann lese ich oder höre Musik. Und du?', zh: '周日我常常很累。那时我就看看书、听听音乐。你呢？' },
+      { sp: 'A', de: 'Ich gehe ins Schwimmbad. Schwimmen ist mein Hobby.', zh: '我去游泳馆。游泳是我的爱好。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was machen die beiden?', opts: ['Sie machen Hausaufgaben', 'Sie sprechen über Hobbys', 'Sie kaufen ein Auto'], a: 1,
+        tip: '两人互问周末做什么、有什么爱好——聊的是业余活动。' },
+      { type: 'choice', q: 'Was macht der Mann am Samstag?', opts: ['Er spielt Fußball', 'Er geht schwimmen', 'Er liest ein Buch'], a: 0,
+        tip: 'Am Samstag habe ich ein Spiel——周六踢比赛。' },
+      { type: 'choice', q: 'Was macht die Frau am Sonntag?', opts: ['Sie spielt Tennis', 'Sie arbeitet', 'Sie geht ins Schwimmbad'], a: 2,
+        tip: '她说 Ich gehe ins Schwimmbad——周日去游泳馆。' }
+    ]
+  },
+  {
+    id: 'dl-a2-travel', title: '酒店入住', level: 'A2', theme: '旅行与假期',
+    lines: [
+      { sp: 'A', de: 'Guten Abend! Haben Sie eine Reservierung?', zh: '晚上好！您有预订吗？' },
+      { sp: 'B', de: 'Ja, ein Einzelzimmer für drei Nächte. Der Name ist Weber.', zh: '有，一间单人间，住三晚。姓韦伯。' },
+      { sp: 'A', de: 'Zimmer zweihundertvierzehn, mit Frühstück. Hier ist Ihr Schlüssel.', zh: '214 房间，含早餐。这是您的钥匙。' },
+      { sp: 'B', de: 'Danke. Wann gibt es Frühstück?', zh: '谢谢。早餐几点开始？' },
+      { sp: 'A', de: 'Von sieben bis zehn Uhr. Der Frühstücksraum ist im Erdgeschoss.', zh: '早上七点到十点。早餐厅在一楼。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Wo findet der Dialog statt?', opts: ['Am Flughafen', 'Im Hotel', 'Im Restaurant'], a: 1,
+        tip: 'Reservierung、Zimmer、Schlüssel——是酒店入住场景。' },
+      { type: 'choice', q: 'Wie lange bleibt der Mann im Hotel?', opts: ['Eine Nacht', 'Eine Woche', 'Drei Nächte'], a: 2,
+        tip: 'ein Einzelzimmer für drei Nächte——单人间住三晚。' },
+      { type: 'choice', q: 'Wann beginnt das Frühstück?', opts: ['Um sieben Uhr', 'Um acht Uhr', 'Um zehn Uhr'], a: 0,
+        tip: 'Von sieben bis zehn Uhr——早餐七点到十点，开始时间是七点。' }
+    ]
+  },
+  {
+    id: 'dl-a2-housing', title: '看房', level: 'A2', theme: '住房与搬家',
+    lines: [
+      { sp: 'A', de: 'Willkommen! Die Wohnung liegt im ersten Stock und hat einen Balkon.', zh: '欢迎！房子在二楼，带一个阳台。' },
+      { sp: 'B', de: 'Sehr schön. Wie groß ist die Wohnung?', zh: '真不错。房子有多大？' },
+      { sp: 'A', de: 'Sechzig Quadratmeter, zwei Zimmer, Küche und Bad.', zh: '六十平米，两个房间，加上厨房和浴室。' },
+      { sp: 'B', de: 'Und was kostet die Miete?', zh: '那租金多少钱？' },
+      { sp: 'A', de: 'Achthundert Euro warm, die Nebenkosten sind schon drin.', zh: '暖租八百欧，附加费用已经包含在内。' }
+    ],
+    questions: [
+      { type: 'choice', q: 'Was machen die beiden?', opts: ['Sie sehen sich eine Wohnung an', 'Sie machen Urlaub', 'Sie kaufen Möbel'], a: 0,
+        tip: '看房场景：问面积、房间数和租金——德语叫 Wohnungsbesichtigung。' },
+      { type: 'choice', q: 'Wie viele Zimmer hat die Wohnung?', opts: ['Drei Zimmer', 'Zwei Zimmer', 'Vier Zimmer'], a: 1,
+        tip: 'zwei Zimmer, Küche und Bad——两个房间，厨房和浴室另算。' },
+      { type: 'choice', q: 'Was kostet die Wohnung?', opts: ['Sechshundert Euro', 'Eintausend Euro', 'Achthundert Euro'], a: 2,
+        tip: 'Achthundert Euro warm, die Nebenkosten sind schon drin——暖租 800 欧。德语房租 warm 指含附加费，kalt 不含。' }
+    ]
   }
 ];
