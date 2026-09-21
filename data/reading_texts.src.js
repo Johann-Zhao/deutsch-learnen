@@ -69,7 +69,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-b1-umzug', title: '搬到大城市', level: 'B1', theme: '社会与移民',
-    text: 'Vor drei Monaten bin ich von einem kleinen Dorf in Bayern nach Berlin gezogen. Am Anfang war alles fremd: die Straßen, die Menschen, sogar der Dialekt. Ich vermisste meine Familie und die Berge. Aber nach und nach fühle ich mich wohler. Die Nachbarn in meinem Haus sind freundlich, und jeden Morgen grüßt mich der Bäcker beim Namen. Die Stadt bietet unglaublich viele Möglichkeiten: kostenlose Konzerte, Sprachkurse, Volleyball im Park. Trotzdem vermisse ich manchmal die Ruhe. Im Dorf kannte ich jeden Menschen, hier kennt mich kaum jemand. Manchmal frage ich mich: Gehöre ich hierher? Aber wenn ich abends über die Brücke gehe und die Lichter der Stadt sehe, weiß ich es: Ja, für jetzt gehöre ich hierher. Eine neue Heimat entsteht nicht über Nacht – sie wächst mit jedem Tag.'
+    text: 'Vor drei Monaten bin ich von einem kleinen Dorf in Bayern nach Berlin gezogen. Am Anfang war alles fremd: die Straßen, die Menschen, sogar der Dialekt. Ich vermisste meine Familie und die Berge. Aber nach und nach fühle ich mich wohler. Die Nachbarn in meinem Haus sind freundlich, und jeden Morgen grüßt mich der Bäcker mit Namen. Die Stadt bietet unglaublich viele Möglichkeiten: kostenlose Konzerte, Sprachkurse, Volleyball im Park. Trotzdem vermisse ich manchmal die Ruhe. Im Dorf kannte ich jeden Menschen, hier kennt mich kaum jemand. Manchmal frage ich mich: Gehöre ich hierher? Aber wenn ich abends über die Brücke gehe und die Lichter der Stadt sehe, weiß ich es: Ja, für jetzt gehöre ich hierher. Eine neue Heimat entsteht nicht über Nacht – sie wächst mit jedem Tag.'
   },
   {
     id: 'rd-b1-homeoffice', title: '居家办公建议', level: 'B1', theme: '工作与职业发展',
