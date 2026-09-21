@@ -49,7 +49,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-a2-wanderung', title: '山间徒步', level: 'A2', theme: '自然与环境',
-    text: 'Am Wochenende macht Familie Brandt eine Wanderung in den Bergen. Am Anfang geht es leicht bergauf durch einen Wald. Die Kinder finden Pilze und einen kleinen Bach. Auf der Hälfte machen alle eine Pause auf einer Alm und essen Butterbrote und Äpfel. Danach wird der Weg steiler, und es fängt an zu regnen. Vater meint: „Wir gehen weiter, das Wetter wird gleich besser!“ Und er hat Recht. Oben wartet eine wunderbare Aussicht auf das Tal. Unten in der Stadt war es noch heiß, hier oben ist die Luft frisch und kühl. Müde, aber glücklich, fahren sie am Abend nach Hause. „Das war die beste Wanderung dieses Jahr!“, sagt die Tochter.'
+    text: 'Am Wochenende macht Familie Brandt eine Wanderung in den Bergen. Am Anfang geht es leicht bergauf durch einen Wald. Die Kinder finden Pilze und einen kleinen Bach. Auf halbem Weg machen alle eine Pause auf einer Alm und essen Butterbrote und Äpfel. Danach wird der Weg steiler, und es fängt an zu regnen. Vater meint: „Wir gehen weiter, das Wetter wird gleich besser!“ Und er hat Recht. Oben wartet eine wunderbare Aussicht auf das Tal. Unten in der Stadt war es noch heiß, hier oben ist die Luft frisch und kühl. Müde, aber glücklich, fahren sie am Abend nach Hause. „Das war die beste Wanderung dieses Jahr!“, sagt die Tochter.'
   },
   {
     id: 'rd-a2-weihnachten', title: '圣诞市场之夜', level: 'A2', theme: '节日与习俗',
