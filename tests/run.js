@@ -4,11 +4,12 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import * as SRS from '../src/srs.js';
 import { Storage, today, KEY } from '../src/storage.js';
-import { buildWordIndex } from '../src/data.js';
+import { buildWordIndex, isGrammarCardId, isListenCardId } from '../src/data.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
 import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
-import { pickWordSrc, resolveRate } from '../src/audio.js';
+import { pickWordSrc, pickDialogSrc, resolveRate } from '../src/audio.js';
+import { dialogueCardId, parseDialogueCardId, pickDictationQueue } from '../src/listen.js';
 import { getWordIpa } from '../src/data.js';
 
 let passed = 0, failed = 0;
@@ -421,6 +422,86 @@ test('语法 ≥34 专题、id 唯一、练习结构合法', function () {
     });
   });
   assert.ok(byLevel.A1 === 10 && byLevel.A2 >= 12 && byLevel.B1 >= 14, '各级专题数异常: ' + JSON.stringify(byLevel));
+});
+test('听力对话：恰好 20 组、id 合法唯一、字段完整', function () {
+  loadDataFile('../data/listening.js');
+  const d = dataWindow.LISTEN_DIALOGS;
+  assert.strictEqual(d.length, 20, '应为 20 组，实际 ' + d.length);
+  const ids = new Set(); const lv = { A1: 0, A2: 0, B1: 0 };
+  d.forEach(function (x) {
+    assert.ok(/^dl-(a1|a2|b1)-[\w-]+$/.test(x.id), 'id 非法: ' + x.id);
+    assert.ok(!ids.has(x.id), 'id 重复: ' + x.id); ids.add(x.id);
+    assert.ok(['A1', 'A2', 'B1'].indexOf(x.level) >= 0, x.id + ' 缺少合法 level');
+    lv[x.level]++;
+    assert.ok(x.title && x.theme, x.id + ' 缺 title/theme');
+    assert.ok(x.lines.length >= 3 && x.lines.length <= 5, x.id + ' lines 应为 3–5');
+    x.lines.forEach(function (l) {
+      assert.ok(/^[AB]$/.test(l.sp) && l.de && l.zh, x.id + ' 行字段缺失');
+    });
+    assert.ok(x.questions.length >= 2 && x.questions.length <= 3, x.id + ' 题数应为 2–3');
+    x.questions.forEach(function (q) {
+      assert.strictEqual(q.type, 'choice', x.id + ' 题目类型应为 choice');
+      assert.ok(q.opts.length >= 2 && q.opts.length <= 4, x.id + ' opts 数非法');
+      assert.ok(Number.isInteger(q.a) && q.a >= 0 && q.a < q.opts.length, x.id + ' a 索引非法');
+      assert.ok(q.tip, x.id + ' 缺 tip');
+    });
+  });
+  assert.deepStrictEqual(lv, { A1: 8, A2: 7, B1: 5 }, '级别分布应为 A1×8/A2×7/B1×5: ' + JSON.stringify(lv));
+});
+test('听力对话：AUDIO_DIALOGS 清单与对话行数一一对应', function () {
+  loadDataFile('../data/listening.js');
+  loadDataFile('../audio/manifest.js');
+  const d = dataWindow.LISTEN_DIALOGS;
+  const m = dataWindow.AUDIO_DIALOGS;
+  const ids = d.map(function (x) { return x.id; }).sort();
+  assert.deepStrictEqual(Object.keys(m).sort(), ids, 'AUDIO_DIALOGS 键应与对话 id 一致');
+  d.forEach(function (x) {
+    assert.strictEqual(m[x.id], x.lines.length, x.id + ' 清单行数与 lines 不符');
+  });
+});
+
+console.log('\n听力模块（S7）：');
+test('听力卡 id 与词汇/语法卡互不冲突', function () {
+  const id = dialogueCardId('dl-a1-greet', 0);
+  assert.ok(id.indexOf('listen-') === 0);
+  assert.ok(id.indexOf('#') >= 0);
+  assert.ok(!/^g-/.test(id), '不得与语法卡 g- 前缀冲突');
+  // 词汇卡 id 形如 greet-0 不含 #；语法卡 g-…#n；听力卡 listen-…#n 含 # 但非 g- 前缀
+  assert.ok(isListenCardId(id));
+  assert.ok(!isGrammarCardId(id), '听力卡不得被判定为语法卡');
+  assert.ok(!isListenCardId('greet-0') && !isGrammarCardId('greet-0'), '词汇卡两类都不是');
+  assert.ok(isGrammarCardId('g-praesens#2') && !isListenCardId('g-praesens#2'), '语法卡判定不受影响');
+});
+test('parseDialogueCardId 与 dialogueCardId 互逆，非听力卡返回 null', function () {
+  assert.deepStrictEqual(parseDialogueCardId('listen-dl-a1-greet#2'), { dialogueId: 'dl-a1-greet', qIndex: 2 });
+  assert.strictEqual(parseDialogueCardId(dialogueCardId('dl-b1-health', 1)).qIndex, 1);
+  assert.strictEqual(parseDialogueCardId('g-praesens#2'), null, '语法卡不是听力卡');
+  assert.strictEqual(parseDialogueCardId('greet-0'), null, '词汇卡不是听力卡');
+  assert.strictEqual(parseDialogueCardId('listen-dl-a1-greet#x'), null, '题号非数字');
+  assert.strictEqual(parseDialogueCardId('listen-#2'), null, '对话 id 为空');
+});
+test('语法/听力卡判定谓词互斥且按前缀收窄（S7 关键集成点回归）', function () {
+  const ids = ['greet-0', 'g-praesens#2', 'listen-dl-a1-greet#0', 'listen-dl-b1-health#1'];
+  assert.deepStrictEqual(ids.filter(isGrammarCardId), ['g-praesens#2']);
+  assert.deepStrictEqual(ids.filter(isListenCardId), ['listen-dl-a1-greet#0', 'listen-dl-b1-health#1']);
+  assert.ok(ids.every(function (id) { return !(isGrammarCardId(id) && isListenCardId(id)); }), '两类谓词必须互斥');
+});
+test('听写抽题：到期词优先、去重、上限生效', function () {
+  const words = [{ id: 'a-0' }, { id: 'a-1' }, { id: 'a-2' }];
+  const srs = {
+    'a-0': { due: '2026-09-01' },              // 到期
+    'a-1': { due: '2099-01-01' },              // 未到期但有卡
+    'a-2': { due: '2026-09-01', sealed: true } // 已斩排除
+  };
+  const q = pickDictationQueue(words, srs, '2026-09-21', 20);
+  assert.deepStrictEqual(q.map(function (w) { return w.id; }), ['a-0', 'a-1']);
+  assert.strictEqual(pickDictationQueue(words, srs, '2026-09-21', 1).length, 1);
+  assert.strictEqual(pickDictationQueue(words, {}, '2026-09-21', 20).length, 0, '无卡词不入队');
+});
+test('对话行音频选源：清单内给路径，越界/缺失给 null', function () {
+  assert.strictEqual(pickDialogSrc('dl-a1-greet', 1, { 'dl-a1-greet': 4 }), 'audio/dialog/dl-a1-greet-1.mp3');
+  assert.strictEqual(pickDialogSrc('dl-a1-greet', 4, { 'dl-a1-greet': 4 }), null);
+  assert.strictEqual(pickDialogSrc('dl-a1-greet', 0, {}), null);
 });
 
 console.log('变位查询（conjugate.js）：');
