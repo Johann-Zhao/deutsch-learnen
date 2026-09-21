@@ -124,8 +124,8 @@ window.LISTEN_DIALOGS = [
     questions: [
       { type: 'choice', q: 'Was machen die beiden?', opts: ['Sie kochen zusammen', 'Sie sehen ein Foto an', 'Sie spielen Fußball'], a: 1,
         tip: '两人在看照片：Ist das deine Familie auf dem Foto?' },
-      { type: 'choice', q: 'Wer ist auf dem Foto?', opts: ['Der Bruder und die Eltern', 'Nur die Großmutter', 'Die Eltern und die Schwester'], a: 2,
-        tip: 'Das sind meine Eltern und meine Schwester——父母和妹妹。' },
+      { type: 'choice', q: 'Wer ist außer der Großmutter noch auf dem Foto?', opts: ['Die Eltern und die Schwester', 'Die Eltern und der Bruder', 'Nur die Schwester'], a: 0,
+        tip: 'Das sind meine Eltern und meine Schwester——照片上除奶奶外还有父母和妹妹。' },
       { type: 'choice', q: 'Wie alt ist die Großmutter?', opts: ['Fünfundachtzig', 'Fünfundsiebzig', 'Fünfundneunzig'], a: 0,
         tip: 'Sie ist fünfundachtzig——85 岁，注意 -und- 结构数字的听辨。' }
     ]
