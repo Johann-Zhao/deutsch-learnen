@@ -73,8 +73,8 @@ worker 智能体按 §2 规格逐批写草稿（每批 5 组）
 
 ### 5.1 导航与路由
 
-- 路由 `#/listen`（听力首页）、`#/listen-review`（听力错题复习）；桌面侧栏与移动端 tab bar（≤768px）新增第 6 项「听力」，图标/文案/排版遵 `DESIGN.md` muted zine 规范。
-- `src/data.js` 注册 `data/listening.js` 懒加载（进入听力相关路由时按需注入，与 A2/B1 数据同机制）。
+- 路由 `#/listen`（听力首页）、`#/listen/dialog/<id>`（对话页）、`#/listen/dictation`（听写强化）、`#/listen-review`（听力错题复习）；桌面侧栏与移动端 tab bar（≤768px）新增第 6 项「听力」，图标/文案/排版遵 `DESIGN.md` muted zine 规范。
+- `data/listening.js` 采用 **index.html 静态加载**（与 `data/ipa.js` 同级：单文件约几十 KB，且 `#/listen-review` 需要跨级别访问全部对话，懒加载反而徒增复杂度）。前端读取须防御性：`window.LISTEN_DIALOGS` 缺失时按空数组处理，显示「内容建设中」空状态，不报错。
 
 ### 5.2 听力首页（对话列表）
 
@@ -117,8 +117,8 @@ worker 智能体按 §2 规格逐批写草稿（每批 5 组）
 
 ## 8. 文档与收尾
 
-- `README.md` 功能清单与内容规模（+20 组对话音频）；`CHANGELOG.md` [Unreleased] 记录 S7；`AGENTS.md` 补目录结构 / 命名约定（`dl-` 前缀、`listen-...#n` 卡 id）/ 音频 SOP；`tools/README.md` 补 `generate_dialog_audio.py` 条目。
-- 顺带还账：`package.json` 版本号对齐 CHANGELOG（当前 4.2.0 → 4.3.0）。
+- `README.md` 功能清单与内容规模（+20 组对话音频）；`CHANGELOG.md` 新增 `[4.4.0]` 条目记录 S7；`AGENTS.md` 补目录结构 / 命名约定（`dl-` 前缀、`listen-...#n` 卡 id）/ 音频 SOP；`tools/README.md` 补 `generate_dialog_audio.py` 条目。
+- 顺带还账：`package.json` 版本号由 4.2.0 直接升至 **4.4.0**（S6 漏 bump 到 4.3.0 的欠账一并跳过，版本号对齐本次发布）。
 - `js/bundle.js` 构建产物由收尾任务统一重建，各功能任务分支**不提交** bundle（避免二进制冲突）。
 
 ## 9. 任务拆分（tower 执行）
