@@ -29,7 +29,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-a1-markt', title: '周六集市', level: 'A1', theme: '购物与金钱',
-    text: 'Am Samstagmorgen geht Nora mit ihrer Mutter auf den Markt. Der Markt ist groß und bunt. Es gibt Obst, Gemüse, Käse und Blumen. Mutter kauft Äpfel und Tomaten. Nora riecht an frischen Erdbeeren und kauft einen kleinen Strauß für die Oma. Ein Mann verkauft Honig und gibt allen eine kleine Probe. Alles ist frisch und nicht teuer. Am Ende trinken Nora und ihre Mutter einen Kakao auf dem Marktplatz. „Nächste Woche kommen wir wieder“, sagt Nora.'
+    text: 'Am Samstagmorgen geht Nora mit ihrer Mutter auf den Markt. Der Markt ist groß und bunt. Es gibt Obst, Gemüse, Käse und Blumen. Mutter kauft Äpfel und Tomaten. Nora riecht an frischen Erdbeeren und kauft einen kleinen Strauß für die Oma. Ein Mann verkauft Honig und gibt allen eine kleine Kostprobe. Alles ist frisch und nicht teuer. Am Ende trinken Nora und ihre Mutter einen Kakao auf dem Marktplatz. „Nächste Woche kommen wir wieder“, sagt Nora.'
   },
   {
     id: 'rd-a1-familie', title: '一封笔友邮件', level: 'A1', theme: '家庭与人',
