@@ -21,7 +21,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-a1-wetter', title: '四季与我', level: 'A1', theme: '天气与季节',
-    text: 'Hallo! Ich heiße Emma und ich schreibe über das Wetter. Im Frühling ist es oft kühl, aber die Blumen kommen. Im Sommer ist es heiß. Dann fahren viele Leute an den See oder in den Wald. Im Herbst regnet es viel und die Blätter sind bunt. Im Winter schneit es manchmal. Ich mag den Winter, weil die Welt dann so ruhig ist. Und du? Welche Jahreszeit magst du am liebsten? Schreib mir!'
+    text: 'Hallo! Ich heiße Emma und ich schreibe über das Wetter. Im Frühling ist es oft kühl, aber die Blumen blühen. Im Sommer ist es heiß. Dann fahren viele Leute an den See oder in den Wald. Im Herbst regnet es viel und die Blätter sind bunt. Im Winter schneit es manchmal. Ich mag den Winter, weil die Welt dann so ruhig ist. Und du? Welche Jahreszeit magst du am liebsten? Schreib mir!'
   },
   {
     id: 'rd-a1-aushang', title: '寻猫启事', level: 'A1', theme: '居住与家居',
