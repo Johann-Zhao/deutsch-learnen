@@ -41,7 +41,7 @@ window.READING_TEXTS_SRC = [
   },
   {
     id: 'rd-a2-camping', title: '海边露营记', level: 'A2', theme: '旅行与假期',
-    text: 'Letzten Sommer bin ich mit meiner besten Freundin eine Woche an die Ostsee gefahren. Wir haben nicht im Hotel übernachtet, sondern direkt am Strand gezeltet. Unser Zelt war alt, und in der ersten Nacht hat es stark geregnet. Drinnen war alles nass! Trotzdem hatten wir viel Spaß. Tagsüber sind wir geschwommen und haben Fahrräder gemietet. Abends haben wir Fisch gegessen und den Sonnenuntergang am Strand gesehen. Am letzten Abend sind wir zum Leuchtturm gelaufen und haben viele Fotos gemacht. Ein solcher Urlaub ist einfach und billig, aber wunderbar. Diesen Sommer fahren wir wieder ans Meer. Dann nehmen wir ein neues Zelt mit!'
+    text: 'Letzten Sommer bin ich mit meiner besten Freundin eine Woche an die Ostsee gefahren. Wir haben nicht im Hotel übernachtet, sondern direkt am Strand gezeltet. Unser Zelt war alt, und in der ersten Nacht hat es stark geregnet. Drinnen war alles nass! Trotzdem hatten wir viel Spaß. Tagsüber sind wir geschwommen und haben Fahrräder gemietet. Abends haben wir Fisch gegessen und den Sonnenuntergang am Strand angeschaut. Am letzten Abend sind wir zum Leuchtturm gelaufen und haben viele Fotos gemacht. Ein solcher Urlaub ist einfach und billig, aber wunderbar. Diesen Sommer fahren wir wieder ans Meer. Dann nehmen wir ein neues Zelt mit!'
   },
   {
     id: 'rd-a2-anzeige', title: '二手自行车出售', level: 'A2', theme: '购物与金钱',
