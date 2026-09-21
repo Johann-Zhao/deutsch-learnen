@@ -46,5 +46,25 @@ window.READING_TEXTS_SRC = [
   {
     id: 'rd-a2-anzeige', title: '二手自行车出售', level: 'A2', theme: '购物与金钱',
     text: 'VERKAUFE: Fahrrad in gutem Zustand! Ich verkaufe mein blaues Damenfahrrad, weil ich mir bald ein E-Bike kaufen möchte. Das Fahrrad ist drei Jahre alt, aber es fährt noch sehr gut. Es hat sieben Gänge, eine neue Kette und einen gepolsterten Sitz. Es gibt auch zwei Taschen am Gepäckträger – perfekt für den Einkauf! Der Preis: einhundertfünfzig Euro. Das ist viel billiger als im Geschäft. Wer Interesse hat, kann mich am Wochenende anrufen oder eine E-Mail schreiben. Eine Probefahrt ist natürlich möglich. Bitte nur ernsthafte Interessenten! Sabine'
+  },
+  {
+    id: 'rd-a2-wanderung', title: '山间徒步', level: 'A2', theme: '自然与环境',
+    text: 'Am Wochenende macht Familie Brandt eine Wanderung in den Bergen. Am Anfang geht es leicht bergauf durch einen Wald. Die Kinder finden Pilze und einen kleinen Bach. Auf der Hälfte machen alle eine Pause auf einer Alm und essen Butterbrote und Äpfel. Danach wird der Weg steiler, und es fängt an zu regnen. Vater meint: „Wir gehen weiter, das Wetter wird gleich besser!“ Und er hat Recht. Oben wartet eine wunderbare Aussicht auf das Tal. Unten in der Stadt war es noch heiß, hier oben ist die Luft frisch und kühl. Müde, aber glücklich, fahren sie am Abend nach Hause. „Das war die beste Wanderung dieses Jahr!“, sagt die Tochter.'
+  },
+  {
+    id: 'rd-a2-weihnachten', title: '圣诞市场之夜', level: 'A2', theme: '节日与习俗',
+    text: 'An einem kalten Abend im Dezember gehen Jana und ihr Bruder auf den Weihnachtsmarkt. Überall leuchten bunte Lichter, und man riecht Zimt und gebrannte Mandeln. Jana kauft ein Geschenk für ihre Mutter, und ihr Bruder trinkt heiße Schokolade. Sie essen auch Kartoffelpuffer – leider ohne Apfelmus, denn der Stand hat schon geschlossen. Danach singt ein Chor Weihnachtslieder, und alle Menschen auf dem Marktplatz lauschen. Auf dem Weg nach Hause schneit es leicht. „Weihnachten ist noch zwei Wochen weg“, sagt der Bruder. „Aber die schönste Zeit fängt jetzt schon an“, antwortet Jana.'
+  },
+  {
+    id: 'rd-a2-fussball', title: '足球俱乐部招新', level: 'A2', theme: '运动与健身',
+    text: 'SPORT FREI! Fußballverein Blau-Weiß sucht neue Mitglieder! Du spielst gern Fußball und hast Zeit am Wochenende? Dann komm zu uns! Wir trainieren jeden Dienstag und Donnerstag von siebzehn bis achtzehn Uhr auf dem Sportplatz am See. Jeden Samstag spielen wir ein Spiel gegen andere Mannschaften aus der Stadt. Es ist egal, ob du Anfänger oder Profi bist – bei uns ist jeder willkommen. Die ersten zwei Trainingseinheiten sind kostenlos. Bitte bring Sportschuhe und eine Wasserflasche mit. Komm einfach vorbei und probiere es aus! Wir sehen uns auf dem Platz! Dein Verein Blau-Weiß'
+  },
+  {
+    id: 'rd-a2-email-kollegen', title: '办公室早餐邀请', level: 'A2', theme: '职业与办公室',
+    text: 'Hallo zusammen! Nächste Woche haben wir unser wichtiges Projekt abgeschlossen – das wollen wir feiern! Ich lade euch alle herzlich zum Frühstück im Büro ein. Am Donnerstag ist um neun Uhr alles bereit. Es gibt frische Brötchen, Obst, Käse und Kaffee. Wenn ihr möchtet, bringt bitte etwas Süßes mit, zum Beispiel einen Kuchen. Nach dem Essen machen wir eine kurze Pause auf der Terrasse. Bitte schreibt mir bis Dienstag, ob ihr kommt, damit ich genug einkaufen kann. Ich freue mich auf euch! Liebe Grüße, Markus'
+  },
+  {
+    id: 'rd-a2-pruefung', title: '考试周', level: 'A2', theme: '教育与培训',
+    text: 'Nächste Woche schreibt Ben seine erste große Prüfung, und er ist etwas nervös. Deshalb macht er einen Lernplan: Am Montag lernt er Mathe, am Dienstag Englisch, am Mittwoch Deutsch. Nach jeder Lerneinheit macht er eine Pause und geht mit dem Hund raus. Sein Bruder hilft ihm bei den schweren Aufgaben und prüft ihn mit Karteikarten. Am Abend vor der Prüfung packt Ben seine Tasche und geht früh ins Bett. Am nächsten Morgen steht er früh auf und isst ein gutes Frühstück. In der Schule atmet er tief ein und liest zuerst alle Aufgaben durch. Nach zwei Stunden ist alles vorbei. „Gar nicht schlimm“, sagt Ben und lächelt. Die Angst vor der Prüfung ist manchmal schlimmer als die Prüfung selbst.'
   }
 ];
