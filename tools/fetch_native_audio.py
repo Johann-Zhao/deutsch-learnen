@@ -7,17 +7,17 @@
 - 已存在文件自动跳过（断点续跑）；wikitext 经 dewikt 磁盘缓存
 """
 import json
+import os
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 
-from dewikt import ROOT, USER_AGENT, query_word, fetch_wikitext, extract_audio, _retry_after
+from dewikt import ROOT, USER_AGENT, query_word, fetch_wikitext, extract_audio
 from generate_audio import load_items
 
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -38,11 +38,35 @@ def _throttle():
     _last_call[0] = time.time()
 
 
-def _get_json(url):
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+def _safe_unlink(path):
+    """容错删除：Windows 瞬时文件锁（杀软/索引，WinError 32）时 sleep 1s 重试，
+    最多 3 次；仍失败打印警告不中断（孤儿 tmp 文件无害，glob *.ogg 会忽略）。"""
+    for attempt in range(3):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if attempt < 2:
+                time.sleep(1)
+    print(f"  ⚠ 临时文件删除失败（忽略）: {path.name}", flush=True)
+
+
+def _get_json(url, hdr_path):
+    """commons API 同样按 TLS 指纹封 Python 客户端（urllib 直接 SSL EOF），改走 curl。
+    返回 (http_code, json_data)；响应非 JSON 时 data 为 None。
+    响应头 dump 到 hdr_path（供 429 解析 Retry-After）。"""
     _throttle()
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read().decode("utf-8"))
+    r = subprocess.run(["curl", "-sS", "--max-time", "60", "-A", USER_AGENT,
+                        "-D", str(hdr_path), "-w", "%{http_code}", url],
+                       capture_output=True)
+    if r.returncode != 0:
+        raise RuntimeError("curl API 请求失败: " + r.stderr.decode("utf-8", "replace")[:200])
+    out = r.stdout.decode("utf-8", "replace")
+    code, body = out[-3:], out[:-3]
+    try:
+        return code, json.loads(body)
+    except ValueError:
+        return code, None
 
 
 def imageinfo(filename):
@@ -51,11 +75,39 @@ def imageinfo(filename):
     其他错误沿用 1.5s 倍数退避 RETRIES 次。"""
     params = ("action=query&prop=imageinfo&iiprop=url|extmetadata"
               "&format=json&formatversion=2&titles=" + urllib.parse.quote("File:" + filename))
+    fd, hdr_name = tempfile.mkstemp(suffix=".hdr")
+    os.close(fd)
+    hdr = pathlib.Path(hdr_name)
     err_attempt = 0   # 非 429 错误已重试次数
     rate_attempt = 0  # 429 已重试次数
-    while True:
-        try:
-            data = _get_json(COMMONS_API + "?" + params)
+    try:
+        while True:
+            try:
+                code, data = _get_json(COMMONS_API + "?" + params, hdr)
+            except Exception as e:
+                if err_attempt >= RETRIES:
+                    print(f"  ✗ imageinfo 失败 {filename}: {e}", flush=True)
+                    return None
+                err_attempt += 1
+                time.sleep(1.5 * err_attempt)
+                continue
+            if code == "429":
+                if rate_attempt >= RATE_RETRIES:
+                    print(f"  ✗ imageinfo 限流放弃 {filename} (HTTP 429)", flush=True)
+                    return None
+                wait = _curl_retry_after(hdr, RATE_BACKOFF[min(rate_attempt, len(RATE_BACKOFF) - 1)])
+                rate_attempt += 1
+                print(f"  … imageinfo 429 限流 {filename}，等待 {wait:.0f}s 重试"
+                      f"（{rate_attempt}/{RATE_RETRIES}）", flush=True)
+                time.sleep(wait)
+                continue
+            if code != "200" or not isinstance(data, dict) or "query" not in data:
+                if err_attempt >= RETRIES:
+                    print(f"  ✗ imageinfo 失败 {filename} (HTTP {code})", flush=True)
+                    return None
+                err_attempt += 1
+                time.sleep(1.5 * err_attempt)
+                continue
             page = data["query"]["pages"][0]
             if "imageinfo" not in page:
                 return None
@@ -66,28 +118,8 @@ def imageinfo(filename):
             url = ii["url"].split("?")[0]  # 去掉 utm 跟踪参数
             page_url = "https://commons.wikimedia.org/wiki/" + urllib.parse.quote("File:" + filename)
             return url, license_, artist, page_url
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                if rate_attempt >= RATE_RETRIES:
-                    print(f"  ✗ imageinfo 限流放弃 {filename}: {e}", flush=True)
-                    return None
-                wait = _retry_after(e, RATE_BACKOFF[min(rate_attempt, len(RATE_BACKOFF) - 1)])
-                rate_attempt += 1
-                print(f"  … imageinfo 429 限流 {filename}，等待 {wait:.0f}s 重试"
-                      f"（{rate_attempt}/{RATE_RETRIES}）", flush=True)
-                time.sleep(wait)
-            else:
-                if err_attempt >= RETRIES:
-                    print(f"  ✗ imageinfo 失败 {filename}: {e}", flush=True)
-                    return None
-                err_attempt += 1
-                time.sleep(1.5 * err_attempt)
-        except Exception as e:
-            if err_attempt >= RETRIES:
-                print(f"  ✗ imageinfo 失败 {filename}: {e}", flush=True)
-                return None
-            err_attempt += 1
-            time.sleep(1.5 * err_attempt)
+    finally:
+        _safe_unlink(hdr)
 
 
 def _curl_retry_after(hdr_path, fallback):
@@ -118,7 +150,7 @@ def download(url, dest_tmp):
                             "-o", str(dest_tmp), url], capture_output=True)
         code = r.stdout.decode("ascii", "replace").strip()[-3:]
         if r.returncode == 0:
-            hdr.unlink(missing_ok=True)
+            _safe_unlink(hdr)
             return
         err = r.stderr.decode("utf-8", "replace")[:200]
         if code == "429":
@@ -134,7 +166,7 @@ def download(url, dest_tmp):
                 break
             err_attempt += 1
             time.sleep(5 * err_attempt)
-    hdr.unlink(missing_ok=True)
+    _safe_unlink(hdr)
     raise RuntimeError("curl 下载失败" + (f" (HTTP {code})" if code else "") + ": " + err)
 
 
@@ -146,12 +178,12 @@ def to_ogg(src, dest):
         return True
     if not shutil.which("ffmpeg"):
         print("  ✗ 需要 ffmpeg 转码但未安装，跳过", flush=True)
-        src.unlink(missing_ok=True)
+        _safe_unlink(src)
         return False
     r = subprocess.run(["ffmpeg", "-y", "-i", str(src), "-ac", "1", "-ar", "22050",
                         "-c:a", "libvorbis", "-q:a", "3", str(dest)],
                        capture_output=True)
-    src.unlink(missing_ok=True)
+    _safe_unlink(src)
     return r.returncode == 0 and dest.exists() and dest.stat().st_size > 0
 
 
@@ -184,6 +216,8 @@ def main():
     if limit:
         items = items[:limit]
     NATIVE_DIR.mkdir(parents=True, exist_ok=True)
+    for stale in NATIVE_DIR.glob("*.tmp.*"):
+        _safe_unlink(stale)
     credits = {}
     if CREDITS.exists():
         credits = json.loads(CREDITS.read_text(encoding="utf-8"))
@@ -211,11 +245,12 @@ def main():
                 credits[wid] = {"file": filename, "speaker": artist,
                                 "license": license_, "url": page_url}
                 ok += 1
+                update_manifest_and_credits(credits)
             else:
                 miss += 1
         except Exception as e:
             print(f"  ✗ 下载失败 {wid} {filename}: {e}", flush=True)
-            tmp.unlink(missing_ok=True)
+            _safe_unlink(tmp)
             miss += 1
         if (i + 1) % 100 == 0:
             print(f"  进度 {i + 1}/{len(items)}，成功 {ok}，无资源 {miss}", flush=True)
