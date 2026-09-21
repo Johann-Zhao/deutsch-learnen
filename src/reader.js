@@ -9,8 +9,9 @@ import * as SRS from './srs.js';
 import { UI } from './ui.js';
 import { audio, stop as stopAudio } from './audio.js';
 import { TTS } from './tts.js';
-import { getReadingTexts, wordById, getWordIpa, LEVELS } from './data.js';
+import { getReadingTexts, wordById, getWordIpa, LEVELS, loadLevelData, isLevelLoaded, inferLevelFromId } from './data.js';
 import { genderTag } from './vocabulary.js';
+import { render } from './app.js';
 
 /* 纯函数：是否词 token（标点 token 只有 w） */
 export function isWordToken(t) {
@@ -125,6 +126,26 @@ function readPage(id) {
   let addedHere = 0;
   let pop = null, popTokenEl = null, playSeq = null;
 
+  /* 跨级别防御：正文 vid 涉及的未加载级别先懒加载，避免词库词被误标「库外词」
+     （参照 grammar.js reviewPage 的模式：loading 卡 → loadLevelData → render） */
+  const needed = {};
+  (text.paragraphs || []).forEach(function (p) {
+    p.forEach(function (t) {
+      if (!isWordToken(t) || !t.vid) return;
+      const lv = inferLevelFromId(t.vid);
+      if (lv && lv !== 'A1' && !isLevelLoaded(lv)) needed[lv] = true;
+    });
+  });
+  const levels = Object.keys(needed);
+  if (levels.length) {
+    const loading = UI.el('div', 'card', '<p>加载本篇词汇数据（' + levels.join(' / ') + '）...</p>');
+    Promise.all(levels.map(loadLevelData)).then(function () { render(); }).catch(function (e) {
+      console.error(e);
+      loading.innerHTML = '<p>加载失败，请检查网络后重试。</p>';
+    });
+    return loading;
+  }
+
   v.appendChild(UI.el('p', 'micro', 'LESEN · ' + (text.level || 'A1') + ' · ' + String(text.id).toUpperCase()));
   v.appendChild(UI.el('h1', 'page-title', UI.esc(text.title)));
   v.appendChild(UI.el('p', 'page-sub',
@@ -150,7 +171,7 @@ function readPage(id) {
     if (playSeq) { stopPlay(false); return; }
     playStatus.textContent = hasAudio ? '朗读中…' : '系统语音朗读中…';
     playBtn.textContent = '■ 停止朗读';
-    playSeq = { stopped: false };
+    playSeq = {};
     audio.playReading(text.id, fullText, {
       onEnd: function () {
         if (!playSeq) return;
@@ -176,6 +197,7 @@ function readPage(id) {
       }
       const cls = classifyToken(t, store.state.srs);
       const span = UI.el('span', 'rt-w rt-' + cls, UI.esc(t.w));
+      span.__rtToken = t;
       span.tabIndex = 0;
       span.setAttribute('role', 'button');
       span.setAttribute('aria-label', t.w + '：查看词卡');
@@ -191,6 +213,14 @@ function readPage(id) {
     body.appendChild(p);
   });
   v.appendChild(body);
+
+  /* srs 变化后重刷正文全部 token 的三态着色（同一 vid 在篇内可能重复出现） */
+  function refreshTokenClasses() {
+    Array.prototype.forEach.call(body.querySelectorAll('.rt-w'), function (el) {
+      const t = el.__rtToken;
+      if (t) el.className = 'rt-w rt-' + classifyToken(t, store.state.srs);
+    });
+  }
 
   /* 底部统计条 */
   const stats = UI.el('div', 'card read-stats');
@@ -291,7 +321,7 @@ function readPage(id) {
 
     const act = UI.el('div', 'read-pop-act');
     card.appendChild(act);
-    paintPopAct(act, spanEl, token, w);
+    paintPopAct(act, token, w);
 
     body.appendChild(card);
     pop = card;
@@ -304,7 +334,7 @@ function readPage(id) {
     document.addEventListener('click', onDocClick, true);
   }
 
-  function paintPopAct(act, spanEl, token, w) {
+  function paintPopAct(act, token, w) {
     act.innerHTML = '';
     if (!token.vid) {
       act.appendChild(UI.el('span', 'stat-label', '超出本课程词库，暂不支持加入。'));
@@ -323,7 +353,7 @@ function readPage(id) {
       store.touchToday('new', 1);
       store.save();
       addedHere++;
-      spanEl.className = 'rt-w rt-' + classifyToken(token, store.state.srs);
+      refreshTokenClasses();
       paintStats();
       const done = UI.el('span', 'read-added', '已加入 ✓');
       b.replaceWith(done);
