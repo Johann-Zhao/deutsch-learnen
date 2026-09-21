@@ -6,10 +6,11 @@
 - 逐行输出 audio/dialog/<dialogueId>-<lineIndex>.mp3（lineIndex 从 0 起）
   角色 A = de-DE-KatjaNeural（女声），角色 B = de-DE-ConradNeural（男声），默认语速 1.0
 - 已存在且非空的文件自动跳过（可断点续跑）；请求间隔 ≥1 秒；失败重试 2 次
-- 结束后重写 audio/manifest.js：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE
-  四行按原文件逐行保留不变，新增/更新 AUDIO_DIALOGS 行
-  （值为该组「从第 0 行起连续存在」的音频文件数；全部成功时即等于对话行数，
-   这样中途中断或个别行失败时前端仍能只播已有音频、其余回退 TTS）
+- 结束后重写 audio/manifest.js：保留所有非本脚本管理的行（通用约定：解析旧 manifest
+  全部「window.<NAME> = …」行，只丢弃并重建本脚本负责的 AUDIO_DIALOGS 键，其余行
+  ——AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE / AUDIO_READING …——原样保留），
+  AUDIO_DIALOGS 值为该组「从第 0 行起连续存在」的音频文件数；全部成功时即等于对话行数，
+  这样中途中断或个别行失败时前端仍能只播已有音频、其余回退 TTS
 """
 import asyncio
 import pathlib
@@ -22,8 +23,24 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 VOICES = {"A": "de-DE-KatjaNeural", "B": "de-DE-ConradNeural"}
 RETRIES = 2          # 首次失败后再重试 2 次（共 3 次尝试）
 DELAY = 1.0          # 每次请求之间的礼貌间隔（秒）
-KEEP_PREFIXES = ("window.AUDIO_WORDS", "window.AUDIO_SENTS",
-                 "window.AUDIO_CONJ", "window.AUDIO_NATIVE")
+MANAGED = ("window.AUDIO_DIALOGS",)
+HEADER = ("// 由 tools/generate_audio.py、tools/fetch_native_audio.py、"
+          "tools/generate_dialog_audio.py 与 tools/generate_reading_audio.py "
+          "自动维护，勿手改\n")
+
+
+def read_kept_lines(manifest_path):
+    """保留旧 manifest 中所有「window.<NAME> = …」行里不属于本脚本管理的行（原样、原顺序）。
+
+    通用约定（S7 教训的正式修复，三个音频脚本共用）：每类音频脚本只重建自己负责的键，
+    其他任何清单行——现有的与将来新增的——一律原样保留，加新音频类型不再要改旧脚本。
+    """
+    kept = []
+    if manifest_path.exists():
+        for ln in manifest_path.read_text(encoding="utf-8").splitlines():
+            if ln.startswith("window.") and not ln.startswith(MANAGED):
+                kept.append(ln)
+    return kept
 
 
 def load_dialogs():
@@ -73,25 +90,21 @@ def available_count(did, n):
     return count
 
 
-def update_manifest(dialogs):
-    """重写 audio/manifest.js：保留既有四行清单，更新 AUDIO_DIALOGS 行"""
-    path = ROOT / "audio" / "manifest.js"
-    kept = []
-    if path.exists():
-        for ln in path.read_text(encoding="utf-8").splitlines():
-            if ln.startswith(KEEP_PREFIXES):
-                kept.append(ln)
-    else:
-        print("警告：audio/manifest.js 不存在，仅写 AUDIO_DIALOGS 行")
+def build_manifest_text(items, manifest_path):
+    """items = [(dialogueId, 可用行数)]；保留所有非本脚本管理的行，重建 AUDIO_DIALOGS 行"""
+    kept = read_kept_lines(manifest_path)
+    entry = ", ".join(f'"{did}": {n}' for did, n in items)
+    return (HEADER + "".join(ln + "\n" for ln in kept)
+            + f"window.AUDIO_DIALOGS = {{{entry}}};\n")
+
+
+def update_manifest(dialogs, path=None):
+    """重写 audio/manifest.js：保留所有非本脚本管理的行，更新 AUDIO_DIALOGS 行"""
+    path = path or (ROOT / "audio" / "manifest.js")
     items = [(did, available_count(did, len(lines))) for did, _, lines in dialogs]
     items = [(did, n) for did, n in items if n > 0]
-    entry = ", ".join(f'"{did}": {n}' for did, n in items)
-    manifest = ("// 由 tools/generate_audio.py、tools/fetch_native_audio.py 与 "
-                "tools/generate_dialog_audio.py 自动维护，勿手改\n"
-                + "".join(ln + "\n" for ln in kept)
-                + f"window.AUDIO_DIALOGS = {{{entry}}};\n")
-    path.write_text(manifest, encoding="utf-8")
-    print(f"manifest：保留 {len(kept)} 行既有清单，写入 AUDIO_DIALOGS（{len(items)} 组）")
+    path.write_text(build_manifest_text(items, path), encoding="utf-8")
+    print(f"manifest：保留所有非本脚本管理的行，写入 AUDIO_DIALOGS（{len(items)} 组）")
 
 
 async def main():
