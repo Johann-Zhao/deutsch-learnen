@@ -104,7 +104,7 @@ window.LISTEN_DIALOGS = [
       { sp: 'A', de: 'Dann kommen Sie bitte heute um vier Uhr, und bringen Sie Ihre Karte mit.', zh: '那请您今天四点来，记得带上您的医保卡。' }
     ],
     questions: [
-      { type: 'choice', q: 'Was möchte der Mann?', opts: ['Ein Brötchen', 'Einen Arzttermin', 'Eine Fahrkarte'], a: 1,
+      { type: 'choice', q: 'Was möchte der Mann?', opts: ['Ein Medikament', 'Einen Arzttermin', 'Eine Fahrkarte'], a: 1,
         tip: 'Ich brauche einen Termin——他打电话是要预约看病。' },
       { type: 'choice', q: 'Was hat der Mann?', opts: ['Husten und Fieber', 'Zahnschmerzen', 'Bauchschmerzen'], a: 0,
         tip: 'Mein Hals tut weh、Husten，再加上 achtunddreißig Grad 的 Fieber——嗓子疼、咳嗽和发烧。' },
