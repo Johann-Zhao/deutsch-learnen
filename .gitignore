@@ -5,3 +5,4 @@ node_modules/
 images/candidates/
 shots/audit/
 tools/.cache/
+*.lnk
