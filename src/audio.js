@@ -3,9 +3,9 @@
    清单都没有的词回退浏览器 speechSynthesis */
 
 import { TTS } from './tts.js';
-import { getAudioWords, getAudioSents, getAudioConj, getAudioNative, getAudioDialogs } from './data.js';
+import { getAudioWords, getAudioSents, getAudioConj, getAudioNative, getAudioDialogs, getAudioReading } from './data.js';
 
-let wordSet = null, sentSet = null, conjSet = null, nativeMap = null, dialogMap = null, current = null, rate = 1;
+let wordSet = null, sentSet = null, conjSet = null, nativeMap = null, dialogMap = null, readingSet = null, current = null, rate = 1;
 
 function buildSets() {
   const words = getAudioWords();
@@ -13,11 +13,13 @@ function buildSets() {
   const conjs = getAudioConj();
   const native = getAudioNative();
   const dialogs = getAudioDialogs();
+  const reading = getAudioReading();
   if (words.length) wordSet = new Set(words);
   if (sents.length) sentSet = new Set(sents);
   if (conjs.length) conjSet = new Set(conjs);
   if (Object.keys(native).length) nativeMap = native;
   if (Object.keys(dialogs).length) dialogMap = dialogs;
+  if (reading.length) readingSet = new Set(reading);
 }
 
 /* 纯函数：决定单词音频播放来源（真人发音 > TTS 预生成 > null=交给 TTS 引擎） */
@@ -38,6 +40,12 @@ export function pickDialogSrc(dialogueId, lineIndex, dialogMap) {
   if (typeof n === 'number' && lineIndex >= 0 && lineIndex < n) {
     return 'audio/dialog/' + dialogueId + '-' + lineIndex + '.mp3';
   }
+  return null;
+}
+
+/* 纯函数：整篇朗读音频来源（清单内 → 文件路径；否则 null 交给 TTS） */
+export function pickReadingSrc(id, readingSet) {
+  if (readingSet && readingSet.has(id)) return 'audio/reading/' + id + '.mp3';
   return null;
 }
 
@@ -95,6 +103,16 @@ function playDialog(dialogueId, lineIndex, fallbackText, opts) {
   return false;
 }
 
+// 整篇朗读：清单内播预生成 mp3，缺失回退 speechSynthesis 朗读全文
+function playReading(id, fallbackText, opts) {
+  const r = resolveRate(opts && opts.rate, rate);
+  const onEnd = opts && opts.onEnd;
+  const url = pickReadingSrc(id, readingSet);
+  if (url) return playDialogUrl(url, r, fallbackText, onEnd);
+  TTS.speak(fallbackText, r, onEnd);
+  return false;
+}
+
 export function stop() {
   if (current) { try { current.pause(); } catch (e) {} current = null; }
   TTS.stop();
@@ -114,6 +132,8 @@ export const audio = {
   playConj: function (id, fallbackText, opts) { return play('conj', id, fallbackText, opts && opts.rate); },
   playDialog: playDialog,
   hasDialog: function (dialogueId) { return !!pickDialogSrc(dialogueId, 0, dialogMap); },
+  playReading: playReading,
+  hasReading: function (id) { return !!pickReadingSrc(id, readingSet); },
   setRate: function (r) { rate = r; },
   stop: stop
 };

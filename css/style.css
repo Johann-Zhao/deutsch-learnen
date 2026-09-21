@@ -432,7 +432,42 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 
 .topic-item .t-name .badge { margin-left: 8px; vertical-align: 2px; }
 
-/* 375px：tab bar 六项等分不溢出，标签收紧 */
+/* ===== 阅读（S8：整篇朗读 + 逐词三态着色 + 点词弹卡） ===== */
+.read-bar { margin-bottom: 16px; }
+.read-text { position: relative; font-size: 17px; line-height: 2; }
+.read-p { margin: 0 0 14px; }
+.read-p:last-child { margin-bottom: 0; }
+/* 三态：mastered 无色；learning 琥珀（--gold 低透明浅底+下划线）；new 蓝（--m 同族，复用 der 蓝令牌） */
+.rt-w { border-radius: 2px; cursor: pointer; }
+.rt-w.rt-learning {
+  background: rgba(168, 140, 74, 0.10);
+  text-decoration: underline; text-decoration-color: var(--gold); text-underline-offset: 3px;
+}
+.rt-w.rt-new {
+  background: rgba(74, 111, 165, 0.10);
+  text-decoration: underline; text-decoration-color: var(--m); text-underline-offset: 3px;
+}
+.rt-w:hover { background: rgba(38, 34, 27, 0.06); }
+.rt-w.rt-learning:hover { background: rgba(168, 140, 74, 0.18); }
+.rt-w.rt-new:hover { background: rgba(74, 111, 165, 0.18); }
+/* 点词弹卡：正文卡片内绝对定位的单例卡 */
+.read-pop {
+  position: absolute; z-index: 15;
+  width: min(320px, calc(100% - 16px));
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--paper-shadow); padding: 16px;
+}
+.read-pop-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.read-pop .word-de { font-size: 22px; }
+.read-pop-act { margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.read-added { font-size: 13px; color: var(--ok); }
+/* 底部统计条 */
+.read-stats-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.read-stats-row .stat-label { flex: 1 1 120px; }
+.read-hard { color: var(--bad); }
+.read-hard-note { margin-top: 10px; color: var(--bad); }
+
+/* 375px：tab bar 七项等分不溢出，标签收紧 */
 @media (max-width: 420px) {
   .tabbar a { font-size: 10px; padding: 0 2px; min-width: 0; }
   .tabbar a .tab-ic { font-size: 16px; }
