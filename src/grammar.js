@@ -11,6 +11,19 @@ import {
 import { Vocab } from './vocabulary.js';
 import { render } from './app.js';
 
+/* 变格专项（S9 M8）：dc- 题目的数据读取。DECLENSION 由 index.html 静态加载
+   （M9 加标签），缺失时按空数组处理——到期 dc- 卡因解析不到题目被过滤，不报错。 */
+function getDeclension() {
+  return (typeof window !== 'undefined' && window.DECLENSION) || [];
+}
+
+// 复习/错题共用的题目解析：g- 前缀查 GRAMMAR，dc- 前缀查 DECLENSION
+function findGrammarLikeExercise(topicId, idx) {
+  const g = getGrammar().find(function (t) { return t.id === topicId; });
+  const src = g || getDeclension().find(function (t) { return t.id === topicId; });
+  return src ? src.exercises[idx] || null : null;
+}
+
 // 渲染单道语法题（choice/fill），供专题练习与语法复习共用
 // onAnswer(ok) 在答题后被调用；nextText 为下一题按钮文案
 // 听力对话理解题（同为 choice 型）也复用本函数，保证答题版式与 a11y 一致
@@ -88,6 +101,31 @@ function listPage() {
   v.appendChild(hero);
   v.appendChild(UI.el('h1', 'page-title', '语法 · ' + lv));
   v.appendChild(UI.el('p', 'page-sub', topics.length + ' 个 ' + lv + ' 专题，每个专题 = 讲解 + 交互练习。做错的题会进入错题本。'));
+
+  // S9 M8：变格/词尾专项训练入口（置顶专项卡；数据缺失时显示建设中，仍可进入空状态页）
+  const dc = getDeclension();
+  const dcCard = UI.el('a', 'card dc-entry');
+  dcCard.href = '#/declension';
+  dcCard.appendChild(UI.el('p', 'micro', 'DEKLINATION · 变格专项'));
+  const dcHead = UI.el('h3', null, '变格训练');
+  dcHead.appendChild(UI.el('span', 'badge', dc.length ? dc.length + ' 专题' : '建设中'));
+  dcCard.appendChild(dcHead);
+  const dcDone = dc.filter(function (t) { return s.grammarDone[t.id]; }).length;
+  dcCard.appendChild(UI.el('p', 'stat-label', dc.length
+    ? '冠词、代词、形容词、名词的词尾选择专项——可训练的词尾模块。已完成 ' + dcDone + ' / ' + dc.length + ' 专题。'
+    : '冠词、代词、形容词、名词的词尾选择专项，内容建设中。'));
+  if (dc.length) {
+    const dcRow = UI.el('div', 'dc-badges');
+    dc.forEach(function (t) {
+      const done = s.grammarDone[t.id];
+      const b = UI.el('span', 'badge' + (done ? ' badge-on' : ''));
+      b.textContent = t.title + (done ? ' ' + done + '/' + t.exercises.length : '');
+      dcRow.appendChild(b);
+    });
+    dcCard.appendChild(dcRow);
+  }
+  v.appendChild(dcCard);
+
   topics.forEach(function (t) {
     const done = s.grammarDone[t.id];
     const a = UI.el('a', 'topic-item');
@@ -224,13 +262,12 @@ function reviewPage() {
     return loading;
   }
 
-  // 取 store.state.srs 中到期的语法卡（g-…#n），按 due 升序；听力卡 listen-…#n 归听力复习页
+  // 取 store.state.srs 中到期的语法卡（g-…#n 与 dc-…#n 变格卡），按 due 升序；听力卡 listen-…#n 归听力复习页
   const queue = Object.keys(s.srs).filter(function (id) {
     return isGrammarCardId(id) && SRS.isDue(s.srs[id], todayStr);
   }).map(function (id) {
     const parts = id.split('#');
-    const t = getGrammar().find(function (g) { return g.id === parts[0]; });
-    const ex = t && t.exercises[+parts[1]];
+    const ex = findGrammarLikeExercise(parts[0], +parts[1]);
     return { id: id, card: s.srs[id], ex: ex, due: s.srs[id].due };
   }).filter(function (item) { return item.ex; }).sort(function (a, b) { return a.due.localeCompare(b.due); });
 
@@ -361,10 +398,14 @@ const Mistakes = (function () {
     entries.sort(function (a, b) { return b.m.wrong - a.m.wrong; });
     const vocabN = entries.filter(function (x) { return x.m.type === 'vocab'; }).length;
     const listenN = entries.filter(function (x) { return x.m.type === 'listen'; }).length;
+    const declN = entries.filter(function (x) { return x.m.type === 'declension'; }).length;
+    const gramN = entries.length - vocabN - listenN - declN;
+    const countTxt = [['词汇', vocabN], ['语法', gramN], ['听力', listenN], ['变格', declN]]
+      .filter(function (x) { return x[1] > 0; })
+      .map(function (x) { return x[0] + ' ' + x[1]; }).join(' · ');
 
     const bar = UI.el('div', 'card');
-    bar.appendChild(UI.el('h3', null, '共 ' + entries.length + ' 条（词汇 ' + vocabN + ' · 语法 ' +
-      (entries.length - vocabN - listenN) + ' · 听力 ' + listenN + '）'));
+    bar.appendChild(UI.el('h3', null, '共 ' + entries.length + ' 条（' + countTxt + '）'));
     const row = UI.el('div', null); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;flex-wrap:wrap';
     if (vocabN) {
       const b1 = UI.el('button', 'btn btn-sm', '重练错词');
@@ -399,6 +440,12 @@ const Mistakes = (function () {
         const q = dial && dial.questions ? dial.questions[+parts[1]] : null;
         body = '<span class="badge">听力</span> ' + (dial ? UI.esc(dial.title) + '：' : '') + (q ? UI.esc(q.q) : UI.esc(x.id));
         redo = ' <a class="btn btn-ghost btn-sm" href="#/listen-review">重练</a>';
+      } else if (x.m.type === 'declension') {
+        const parts = x.id.split('#');
+        const t = getDeclension().find(function (g) { return g.id === parts[0]; });
+        const ex = t && t.exercises[+parts[1]];
+        body = '<span class="badge">变格</span> ' + (t ? UI.esc(t.title) + '：' : '') + (ex ? UI.esc(ex.q) : UI.esc(x.id));
+        redo = ' <a class="btn btn-ghost btn-sm" href="#/declension/' + parts[0] + '">重练</a>';
       } else {
         const parts = x.id.split('#');
         const t = getGrammar().find(function (g) { return g.id === parts[0]; });
