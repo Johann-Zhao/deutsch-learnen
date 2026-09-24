@@ -6,6 +6,16 @@
 
 无。
 
+## [4.5.0] - 2026-09-24
+
+### Added
+- **阅读 Tab**：20 篇分级短文（A1×8 / A2×7 / B1×5，LLM 草稿经「高级学习者 + 二语习得研究者」视角审核），正文逐词三态着色（已掌握 / 学习中 / 生词），点词弹卡（词形/lemma/词性/IPA/例句/发音），词库词一键「加入学习」直接入 FSRS（复用词汇卡 id，不新增卡类型），篇内生词率统计（>10% 提示偏难），每篇整篇 edge-tts 朗读（缺音频回退系统语音全文）。
+- 新数据文件 `data/reading.js`（index.html 静态加载；作者手写层 `data/reading_texts.src.js` 经分词管道加工）；新管道脚本 `tools/build_reading_tokens.py`（预分词 + 词形归并 + 词库匹配 + 库外词释义）与 `tools/generate_reading_audio.py`（整篇朗读，断点续跑）；`audio/manifest.js` 新增 `AUDIO_READING` 清单。
+
+### Changed
+- 桌面侧栏与移动端 tab bar 新增第 7 项「阅读」（375px 实测七项不溢出，未触发「听读」合并回退）。
+- `tools/generate_audio.py` 与 `tools/generate_dialog_audio.py` 重写 manifest 的保留逻辑通用化：解析旧 manifest 全部 `window.X = …` 行，仅重建本脚本负责的键，其余原样保留（S7 逐行枚举的教训，每加一类音频不再要改所有旧脚本）。
+
 ## [4.4.0] - 2026-09-21
 
 ### Added
