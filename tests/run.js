@@ -8,8 +8,9 @@ import { buildWordIndex, isGrammarCardId, isListenCardId } from '../src/data.js'
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
 import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
-import { pickWordSrc, pickDialogSrc, resolveRate } from '../src/audio.js';
+import { pickWordSrc, pickDialogSrc, pickReadingSrc, resolveRate } from '../src/audio.js';
 import { dialogueCardId, parseDialogueCardId, pickDictationQueue } from '../src/listen.js';
+import { classifyToken, newWordRate, isWordToken } from '../src/reader.js';
 import { getWordIpa } from '../src/data.js';
 
 let passed = 0, failed = 0;
@@ -459,6 +460,61 @@ test('听力对话：AUDIO_DIALOGS 清单与对话行数一一对应', function 
     assert.strictEqual(m[x.id], x.lines.length, x.id + ' 清单行数与 lines 不符');
   });
 });
+test('阅读短文：恰好 20 篇、id 合法唯一、级别分布 A1×8/A2×7/B1×5', function () {
+  loadDataFile('../data/reading.js');
+  const d = dataWindow.READING_TEXTS;
+  assert.strictEqual(d.length, 20, '应为 20 篇，实际 ' + d.length);
+  const ids = new Set(); const lv = { A1: 0, A2: 0, B1: 0 };
+  d.forEach(function (x) {
+    assert.ok(/^rd-(a1|a2|b1)-[\w-]+$/.test(x.id), 'id 非法: ' + x.id);
+    assert.ok(!ids.has(x.id), 'id 重复: ' + x.id); ids.add(x.id);
+    assert.ok(['A1', 'A2', 'B1'].indexOf(x.level) >= 0, x.id + ' 缺少合法 level');
+    lv[x.level]++;
+    assert.ok(x.title && x.theme, x.id + ' 缺 title/theme');
+  });
+  assert.deepStrictEqual(lv, { A1: 8, A2: 7, B1: 5 }, '级别分布应为 A1×8/A2×7/B1×5: ' + JSON.stringify(lv));
+});
+test('阅读短文：token 规则（标点仅 w；词必有 lemma 且 vid/g 必居其一）、words 与实际词数一致', function () {
+  loadDataFile('../data/reading.js');
+  dataWindow.READING_TEXTS.forEach(function (x) {
+    let n = 0;
+    x.paragraphs.forEach(function (p) {
+      assert.ok(p.length > 0, x.id + ' 存在空段落');
+      p.forEach(function (t) {
+        if (t.lemma === undefined) {
+          assert.deepStrictEqual(Object.keys(t).sort(), ['w'], x.id + ' 标点 token 应仅含 w: ' + JSON.stringify(t));
+          return;
+        }
+        n++;
+        assert.ok(t.lemma, x.id + ' 词 token 缺 lemma: ' + t.w);
+        assert.ok(!!t.vid || !!t.g, x.id + ' 词 token 须 vid 或 g 居其一: ' + t.w);
+      });
+    });
+    assert.strictEqual(x.words, n, x.id + ' words 字段与实际词 token 数不符');
+  });
+});
+test('阅读短文：词库词 vid 全部可在词汇索引解析（跨级别懒加载防御）', function () {
+  loadDataFile('../data/vocabulary.js');
+  loadDataFile('../data/vocabulary_a2.js');
+  loadDataFile('../data/vocabulary_b1.js');
+  loadDataFile('../data/reading.js');
+  const idset = new Set(buildWordIndex(dataWindow.VOCAB_THEMES).map(function (w) { return w.id; }));
+  const missing = [];
+  dataWindow.READING_TEXTS.forEach(function (x) {
+    x.paragraphs.forEach(function (p) {
+      p.forEach(function (t) {
+        if (t.vid && !idset.has(t.vid)) missing.push(x.id + ':' + t.vid);
+      });
+    });
+  });
+  assert.strictEqual(missing.length, 0, '存在未解析 vid: ' + missing.slice(0, 5).join(', '));
+});
+test('阅读短文：AUDIO_READING 清单与 20 篇 id 一一对应', function () {
+  loadDataFile('../data/reading.js');
+  loadDataFile('../audio/manifest.js');
+  const ids = dataWindow.READING_TEXTS.map(function (x) { return x.id; }).sort();
+  assert.deepStrictEqual((dataWindow.AUDIO_READING || []).slice().sort(), ids, 'AUDIO_READING 应与文本 id 一一对应');
+});
 
 console.log('\n听力模块（S7）：');
 test('听力卡 id 与词汇/语法卡互不冲突', function () {
@@ -502,6 +558,41 @@ test('对话行音频选源：清单内给路径，越界/缺失给 null', funct
   assert.strictEqual(pickDialogSrc('dl-a1-greet', 1, { 'dl-a1-greet': 4 }), 'audio/dialog/dl-a1-greet-1.mp3');
   assert.strictEqual(pickDialogSrc('dl-a1-greet', 4, { 'dl-a1-greet': 4 }), null);
   assert.strictEqual(pickDialogSrc('dl-a1-greet', 0, {}), null);
+});
+
+console.log('\n阅读模块（S8）：三态着色与生词率：');
+test('classifyToken：标点 null、库外词/无卡 new', function () {
+  assert.strictEqual(classifyToken({ w: '.' }, {}), null, '标点不是词 token');
+  assert.ok(!isWordToken({ w: '.' }));
+  assert.strictEqual(classifyToken({ w: 'ging', lemma: 'gehen', g: '去' }, {}), 'new', '库外词（无 vid）恒为 new');
+  assert.strictEqual(classifyToken({ w: 'der Tag', lemma: 'der Tag', vid: 'greet-0' }, {}), 'new', '词库词无卡为 new');
+});
+test('classifyToken：有卡未掌握 learning；mastered/sealed 归 mastered', function () {
+  const tok = { w: 'der Tag', lemma: 'der Tag', vid: 'greet-0' };
+  assert.strictEqual(classifyToken(tok, { 'greet-0': { due: '2026-09-25' } }), 'learning');
+  assert.strictEqual(classifyToken(tok, { 'greet-0': { due: '2026-09-25', mastered: true } }), 'mastered');
+  assert.strictEqual(classifyToken(tok, { 'greet-0': { due: '2026-09-25', sealed: true } }), 'mastered');
+  assert.strictEqual(classifyToken(null, {}), null);
+});
+test('newWordRate：空 → 0、全新 → 100、混合按词 token 取整', function () {
+  assert.strictEqual(newWordRate([], {}), 0);
+  assert.strictEqual(newWordRate(null, {}), 0);
+  const allNew = [[{ w: 'a', lemma: 'a', g: 'x' }, { w: 'b', lemma: 'b', g: 'y' }]];
+  assert.strictEqual(newWordRate(allNew, {}), 100, '全部无卡应 100');
+  const mixed = [[
+    { w: 'a', lemma: 'a', g: 'x' },                              // new
+    { w: 'b', lemma: 'b', vid: 'greet-0' },                      // learning
+    { w: 'c', lemma: 'c', vid: 'greet-1', mastered: true },      // mastered（卡态看 srs，不在 token）
+    { w: '.' }                                                   // 标点不计
+  ]];
+  const srs = { 'greet-0': { due: '2026-09-25' }, 'greet-1': { due: '2026-09-25', mastered: true } };
+  assert.strictEqual(newWordRate(mixed, srs), 33, '1/3 词为 new，应取整 33');
+  assert.strictEqual(newWordRate(mixed, {}), 100, '空 srs 下全部词无卡');
+});
+test('pickReadingSrc：清单内给路径，缺失/空清单给 null', function () {
+  assert.strictEqual(pickReadingSrc('rd-a1-park', new Set(['rd-a1-park'])), 'audio/reading/rd-a1-park.mp3');
+  assert.strictEqual(pickReadingSrc('rd-a1-park', new Set()), null);
+  assert.strictEqual(pickReadingSrc('rd-a1-park', null), null);
 });
 
 console.log('变位查询（conjugate.js）：');

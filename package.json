@@ -2,7 +2,7 @@
   "name": "deutsch-lernen",
   "private": true,
   "type": "module",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "纯静态德语学习站 A1–B1",
   "scripts": {
     "build": "node scripts/build.mjs",

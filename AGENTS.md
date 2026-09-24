@@ -19,15 +19,18 @@
 │   ├── grammar_a2.js       # A2 语法专题
 │   ├── grammar_b1.js       # B1 语法专题
 │   ├── listening.js        # 听力小对话 20 组（S7；index.html 静态加载，跨级别复习需全量）
+│   ├── reading_texts.src.js # 阅读短文作者手写层（S8；由 build_reading_tokens.py 加工为 reading.js）
+│   ├── reading.js          # 阅读分词短文 20 篇（S8；自动生成，勿手改）
 │   └── ipa.js              # 自动生成：WORD_IPA 音标（fetch_ipa.py）
 ├── audio/                  # 预生成音频与清单
 │   ├── word/               # 单词音频（edge-tts）
 │   ├── sent/               # 例句音频（edge-tts）
 │   ├── conj/               # 变位音频（edge-tts）
 │   ├── dialog/             # 对话行音频（分角色 edge-tts，generate_dialog_audio.py）
+│   ├── reading/            # 阅读整篇朗读（edge-tts，generate_reading_audio.py）
 │   ├── native/             # 真人发音 ogg（Wikimedia Commons，CC BY-SA/CC0）
 │   ├── credits_native.json # 自动生成：真人发音逐词署名（file/speaker/license/url）
-│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE / AUDIO_DIALOGS
+│   └── manifest.js         # 自动生成：AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE / AUDIO_DIALOGS / AUDIO_READING
 ├── images/                 # 配图与封面
 │   ├── covers/             # 38 张主题 zine 纸感封面
 │   ├── zine/               # 装饰刊头插画（hero / 空状态，zine 纸感）
@@ -40,6 +43,8 @@
 │   ├── README.md
 │   ├── generate_audio.py
 │   ├── generate_dialog_audio.py # 对话行音频：分角色 edge-tts → audio/dialog/ + AUDIO_DIALOGS 清单
+│   ├── build_reading_tokens.py # 阅读分词管道：reading_texts.src.js → 分词/词形归并/词库匹配 → data/reading.js
+│   ├── generate_reading_audio.py # 阅读整篇朗读：edge-tts → audio/reading/<id>.mp3 + AUDIO_READING 清单
 │   ├── dewikt.py           # de.wiktionary 共享访问（wikitext 缓存 tools/.cache/）
 │   ├── fetch_ipa.py        # IPA 抓取 → data/ipa.js
 │   ├── fetch_native_audio.py # 真人发音抓取 → audio/native/ + credits + manifest
@@ -166,6 +171,7 @@ docs(tools): 新增 README 与 requirements.txt
 语法错题卡 id：`{topicId}#{exerciseIndex}`（如 `g-praesens#2`），含 `#`，与词汇 id 天然区分。
 听力对话 id：`dl-` 前缀并含级别段（如 `dl-a1-greet`、`dl-b1-health`），与词汇/语法 id 天然区分。
 听力 SRS 卡 id：`listen-{dialogueId}#{qIndex}`（如 `listen-dl-a1-greet#0`），含 `#` 但非 `g-` 前缀——语法/听力到期过滤必须用 `isGrammarCardId`/`isListenCardId` 谓词按前缀区分，不得按「含 `#`」粗判，否则听力卡会被误计入语法复习。
+阅读短文 id：`rd-` 前缀并含级别段（如 `rd-a1-park`、`rd-a2-camping`、`rd-b1-umzug`），唯一；不新增 SRS 卡类型——「加入学习」直接复用词汇卡 id（vid）。
 
 ## 8. 标准操作流程（SOP）
 
@@ -186,14 +192,24 @@ docs(tools): 新增 README 与 requirements.txt
 3. 运行测试：`npm test`。
 4. 提交：`feat(data): 新增 B1 语法专题 g-b1-xxx`。
 
-### 8.3 重新生成音频 / 图片 / 音标
+### 8.3 新增阅读短文（S8 内容生产流程）
+
+1. 在 `data/reading_texts.src.js` 追加手写短文对象：`{ id: 'rd-<级别>-<slug>', title, level, theme, text }`（`\n\n` 分段），**严格检查 `rd-` 前缀与级别段**；篇幅 A1 60–90 词 / A2 80–120 / B1 120–150，超纲词 ≤10%，题材与既有短文、听力对话不雷同。
+2. 内容过审后才跑管道（沿用 S7 机制：LLM 草稿 → SLA 视角 reviewer 审级别适配/自然地道/文化准确）。
+3. 分词与归并：`python tools/build_reading_tokens.py` → 生成 `data/reading.js`；脚本打印映射报告，**逐词核对** lemma 归并与 vid 匹配（未决词补脚本头部 `LEXICON_OVERRIDES` 至零），库外词 gloss 质量优先。
+4. 朗读音频：`python tools/generate_reading_audio.py [--limit N] [--ids id1,id2]`（整篇单文件 `de-DE-KatjaNeural` 默认语速 → `audio/reading/<id>.mp3`，断点续跑；manifest 自动新增/更新 `AUDIO_READING` 行）。
+5. 运行测试：`npm test`（数据完整性：20 篇/id/级别分布/token 规则/words 计数/vid 可解析/AUDIO_READING 一一对应）。
+6. 提交：一个 `feat(data)` 提交放手写层与生成数据；一个 `assets(audio)` 提交放音频与 manifest 更新。
+
+### 8.4 重新生成音频 / 图片 / 音标
 
 - **音频**：`python tools/generate_audio.py`（不耗 API key，但调用 edge-tts 网络服务，耗时较长；已生成文件自动跳过）。重写 manifest 时自动保留 `AUDIO_NATIVE` 行。
 - **对话行音频**：`python tools/generate_dialog_audio.py [--limit N] [--ids id1,id2]`（分角色 edge-tts：A = `de-DE-KatjaNeural`、B = `de-DE-ConradNeural`，默认语速 1.0；逐行 → `audio/dialog/<id>-<行号>.mp3`，manifest 自动新增/更新 `AUDIO_DIALOGS` 行）。
+- **阅读整篇朗读**：`python tools/generate_reading_audio.py [--limit N] [--ids id1,id2]`（整篇单文件 edge-tts `de-DE-KatjaNeural` 默认语速 → `audio/reading/<id>.mp3`，断点续跑；manifest 自动新增/更新 `AUDIO_READING` 行）。
 - **真人发音**：`python tools/fetch_native_audio.py [--limit N] [--ids id1,id2]`（经 de.wiktionary 定位 Wikimedia Commons 真人录音；依赖 curl 与 ffmpeg；断点续跑）。
 - **音标**：`python tools/fetch_ipa.py [--limit N] [--force]`（de.wiktionary `{{Lautschrift}}` → `data/ipa.js`；wikitext 有磁盘缓存，重跑便宜；全量结果少于现有条目数时拒写，需 --force 强制）。
 - **主题封面**：`python tools/gen_zine_covers.py [--force]`（需 Seedream API key，zine 纸感风格）。
 - **词条配图**：`python tools/fetch_images.py [--limit N]`（无需 API key，依赖外部图库可用性）。
 - **更换问题配图**：`python tools/fetch_images.py --ids <id,...> --candidates 6` 抓候选到 `images/candidates/`（不碰正式目录），审核选择写入 `images/candidates/choices.json` 后 `python tools/finalize_images.py` 落盘；选 `"none"` 则删除该词配图。
 
-> 注意：`audio/manifest.js` 由 `generate_audio.py` 与 `fetch_native_audio.py` 自动维护，`audio/credits_native.json`、`images/manifest.js`、`data/ipa.js` 由各脚本自动生成，**请勿手改**。
+> 注意：`audio/manifest.js` 由 `generate_audio.py`、`generate_dialog_audio.py` 与 `generate_reading_audio.py` 自动维护（各脚本只重建自己负责的键，其余清单行原样保留），`audio/credits_native.json`、`images/manifest.js`、`data/ipa.js`、`data/reading.js` 由各脚本自动生成，**请勿手改**。

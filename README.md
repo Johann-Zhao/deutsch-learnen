@@ -20,6 +20,7 @@
 - **单词详情抽屉**：任意词卡可展开释义、IPA 音标、例句（含朗读），动词附现在时六人称变位小表
 - **真人发音 + 慢速朗读**：真人录音优先（Wikimedia Commons，逐词署名），合成语音兜底；词卡支持 0.5× 慢速播放
 - **听力训练**：20 组小对话（A1×8 / A2×7 / B1×5）分角色音频，盲听整组 → 看题作答 → 逐句精听三步走；答错的题进 FSRS，到期重听再答
+- **分级阅读**：20 篇短文（A1×8 / A2×7 / B1×5）逐词三态着色（已掌握/学习中/生词），点词看释义、发音与例句，词库词一键加入学习计划；篇内生词率实时统计，每篇配整篇朗读音频
 - **听写强化**：用已学词汇做听音拼写训练，到期词优先、渐进提示照旧，评分写回词卡 SRS
 - **每日节奏**：「今日新词 x/N」进度可见，设置页 5–30 词可调，今日页显示预计学完天数
 
@@ -30,7 +31,8 @@
 | 词汇 | 1945 词（A1 618 / A2 612 / B1 715），38 个主题 |
 | 语法 | 36 个专题（讲解 + 交互练习），错题纳入 FSRS |
 | 听力 | 20 组小对话（A1×8 / A2×7 / B1×5，分角色音频 100 条，三步精听），另有听写强化训练 |
-| 音频 | 1945 词 + 1945 例句 + 251 变位形式 + 100 对话行；真人发音（Wikimedia Commons）优先，edge-tts 神经语音兜底 |
+| 阅读 | 20 篇分级短文（A1×8 / A2×7 / B1×5，逐词三态着色 + 点词卡片 + 整篇朗读 20 条） |
+| 音频 | 1945 词 + 1945 例句 + 251 变位形式 + 100 对话行 + 20 篇整篇朗读；真人发音（Wikimedia Commons）优先，edge-tts 神经语音兜底 |
 | 图片 | 833 张词条配图（全部经视觉审核）+ 38 张 Seedream 生成的 zine 风主题封面 |
 | 其他 | 动词变位查询、错题本、连胜日历、成就徽章、移动端底部导航 |
 
@@ -52,6 +54,10 @@
   <img src="shots/final_listen_1280.png" alt="听力首页（桌面端）" width="49%">
   <img src="shots/final_listen_dialog_1280.png" alt="听力对话页（桌面端）" width="49%">
 </p>
+<p>
+  <img src="shots/final_read_1280.png" alt="阅读文库（桌面端）" width="49%">
+  <img src="shots/final_read_text_1280.png" alt="阅读页三态着色（桌面端）" width="49%">
+</p>
 
 ## 快速开始
 
@@ -67,16 +73,16 @@ python -m http.server 8765
 ```bash
 npm install         # 仅 esbuild 一个构建依赖
 npm run dev         # watch 模式：src/ → js/bundle.js
-npm test            # 69 项单元测试（FSRS、判分、斩机制、图片选题、发音回退链、听力对话、数据完整性）
+npm test            # 77 项单元测试（FSRS、判分、斩机制、图片选题、发音回退链、听力对话、阅读三态、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
 技术栈：原生 HTML/CSS/JS（ESM → esbuild 单文件 IIFE），Hash 路由，IndexedDB 主存 + localStorage 镜像。零框架、零运行时依赖。
 
 ```
-data/     内容数据（按级别分文件懒加载；listening.js 为 index.html 静态加载）
+data/     内容数据（按级别分文件懒加载；listening.js / reading.js 为 index.html 静态加载）
 src/      ESM 源码（构建入口 src/main.js）
-audio/    预生成音频（word/sent/conj/dialog 为 edge-tts；native/ 为 Wikimedia Commons 真人发音）
+audio/    预生成音频（word/sent/conj/dialog/reading 为 edge-tts；native/ 为 Wikimedia Commons 真人发音）
 images/   配图与封面（credits.json 记录每张图的授权信息）
 tools/    内容生产管道（音频/配图/封面生成，详见 tools/README.md）
 ```
