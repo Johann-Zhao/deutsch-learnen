@@ -5,6 +5,7 @@ import { store } from './store.js';
 import { currentLevel, loadLevelData } from './data.js';
 import { Vocab } from './vocabulary.js';
 import { Grammar, Mistakes } from './grammar.js';
+import { Declension } from './declension.js';
 import { Conjugate } from './conjugate.js';
 import { Listen } from './listen.js';
 import { Reader } from './reader.js';
@@ -35,6 +36,8 @@ export function render() {
   else if (hash === '#/grammar') view.appendChild(Grammar.listPage());
   else if (hash === '#/review-grammar') view.appendChild(Grammar.reviewPage());
   else if ((m = hash.match(/^#\/topic\/([\w-]+)$/))) view.appendChild(Grammar.topicPage(m[1]));
+  else if (hash === '#/declension') view.appendChild(Declension.listPage());
+  else if ((m = hash.match(/^#\/declension\/([\w-]+)$/))) view.appendChild(Declension.topicPage(m[1]));
   else if (hash === '#/conjugate') view.appendChild(Conjugate.page());
   else if (hash === '#/listen') view.appendChild(Listen.homePage());
   else if (hash === '#/listen/dictation') view.appendChild(Listen.dictationPage());
@@ -50,7 +53,8 @@ export function render() {
 }
 
 export function navActive(hash) {
-  if (hash === '#/review-grammar' || hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0) return '/grammar';
+  if (hash === '#/review-grammar' || hash.indexOf('#/grammar') === 0 || hash.indexOf('#/topic') === 0 ||
+    hash.indexOf('#/declension') === 0) return '/grammar';
   if (hash.indexOf('#/listen') === 0) return '/listen';
   if (hash.indexOf('#/read') === 0) return '/read';
   if (hash.indexOf('#/vocab') === 0 || hash.indexOf('#/learn') === 0 || hash.indexOf('#/review') === 0 || hash.indexOf('#/theme') === 0) return '/vocab';

@@ -289,6 +289,13 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 .topic-item .t-name { font-family: var(--serif); font-weight: 700; font-size: 16px; }
 .topic-item .t-desc { font-size: 13px; color: var(--ink-2); margin-top: 3px; }
 
+/* 变格专项入口卡（S9 M8）：语法页置顶的专项入口，金线装饰小面积使用 */
+a.card { display: block; color: inherit; }
+.dc-entry { border-left: 4px solid var(--gold); margin-bottom: 20px; }
+.dc-entry:hover { outline: 1px solid var(--ink); }
+.dc-entry h3 .badge { margin-left: 8px; vertical-align: 2px; }
+.dc-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
 /* ===== 档案表格（变位 / 错题 / 设置） ===== */
 .archive-table { border-collapse: collapse; width: 100%; font-size: 15px; }
 .archive-table th, .archive-table td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; }

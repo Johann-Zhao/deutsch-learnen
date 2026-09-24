@@ -130,7 +130,10 @@ export function dashboard() {
   ach.appendChild(UI.el('p', 'micro', 'AUSZEICHNUNGEN · 成就'));
   let totalReviewed = 0;
   Object.keys(s.daily).forEach(function (k) { totalReviewed += (s.daily[k].reviewed || 0); });
-  const topicsDone = Object.keys(s.grammarDone).length;
+  // grammarDone 同时记录 dc- 变格专题的完成度，成就统计只数真语法专题（M8 集成点）
+  const grammarIds = {};
+  getGrammar().forEach(function (g) { grammarIds[g.id] = 1; });
+  const topicsDone = Object.keys(s.grammarDone).filter(function (id) { return grammarIds[id]; }).length;
   const grammarCount = getGrammar().length;
   const ACHV = [
     ['第一个单词', learned >= 1],
