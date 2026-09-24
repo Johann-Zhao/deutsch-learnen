@@ -224,8 +224,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einem",
-     "lemma": "ein#Artikel",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，第三格）"
     },
     {
      "w": "Ball",
@@ -267,13 +267,13 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Bank",
-     "lemma": "die Bank",
-     "vid": "shop-35"
+     "lemma": "Bank",
+     "g": "长椅"
     },
     {
      "w": "."
@@ -295,8 +295,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Stock",
-     "lemma": "Stock",
-     "g": "棍；枝条"
+     "lemma": "der Stock",
+     "vid": "home-39"
     },
     {
      "w": ","
@@ -331,8 +331,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Stunde",
@@ -612,8 +612,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Schüssel",
@@ -825,7 +825,7 @@ window.READING_TEXTS = [
     {
      "w": "isst",
      "lemma": "essen",
-     "g": "（他/她）吃"
+     "vid": "food-50"
     },
     {
      "w": "den",
@@ -915,7 +915,7 @@ window.READING_TEXTS = [
     {
      "w": "fährt",
      "lemma": "fahren",
-     "g": "乘车去"
+     "vid": "traffic-40"
     },
     {
      "w": "zum",
@@ -1142,8 +1142,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Stunde",
@@ -1257,8 +1257,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "stolz",
-     "lemma": "der Stolz",
-     "vid": "a2-feelings-9"
+     "lemma": "stolz",
+     "vid": "a2-feelings-47"
     },
     {
      "w": "."
@@ -1449,8 +1449,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Sommer",
-     "lemma": "Sommer",
-     "g": "姓（Familie Sommer）"
+     "lemma": "der Sommer",
+     "vid": "weather-20"
     },
     {
      "w": "ist",
@@ -1588,8 +1588,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Winter",
-     "lemma": "Winter",
-     "g": "姓（Lena Winter）"
+     "lemma": "der Winter",
+     "vid": "weather-22"
     },
     {
      "w": "schneit",
@@ -1626,8 +1626,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Winter",
-     "lemma": "Winter",
-     "g": "姓（Lena Winter）"
+     "lemma": "der Winter",
+     "vid": "weather-22"
     },
     {
      "w": ","
@@ -1719,7 +1719,7 @@ window.READING_TEXTS = [
     {
      "w": "Schreib",
      "lemma": "schreiben",
-     "g": "写（命令式）"
+     "vid": "work-44"
     },
     {
      "w": "mir",
@@ -1770,8 +1770,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "weg",
-     "lemma": "Weg",
-     "g": "路；（口语 weg sein）不在"
+     "lemma": "weg",
+     "g": "不在；离开（weg sein）"
     },
     {
      "w": "!"
@@ -1982,7 +1982,7 @@ window.READING_TEXTS = [
     {
      "w": "Bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "rufen",
@@ -2061,7 +2061,7 @@ window.READING_TEXTS = [
     {
      "w": "Bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "helfen",
@@ -2661,8 +2661,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einem",
-     "lemma": "ein#Artikel",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，第三格）"
     },
     {
      "w": "Haus",
@@ -2719,8 +2719,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Bäckerei",
@@ -2877,7 +2877,7 @@ window.READING_TEXTS = [
     {
      "w": "essen",
      "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "vid": "food-50"
     },
     {
      "w": "wir",
@@ -2979,7 +2979,7 @@ window.READING_TEXTS = [
     {
      "w": "Schreib",
      "lemma": "schreiben",
-     "g": "写（命令式）"
+     "vid": "work-44"
     },
     {
      "w": "mir",
@@ -3246,7 +3246,7 @@ window.READING_TEXTS = [
     {
      "w": "esse",
      "lemma": "essen",
-     "g": "（我）吃"
+     "vid": "food-50"
     },
     {
      "w": "ich",
@@ -3441,7 +3441,7 @@ window.READING_TEXTS = [
     {
      "w": "voll",
      "lemma": "voll",
-     "vid": "b1-colloquial-10"
+     "g": "满的；充实的"
     },
     {
      "w": ","
@@ -3510,8 +3510,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Sommer",
-     "lemma": "Sommer",
-     "g": "姓（Familie Sommer）"
+     "lemma": "der Sommer",
+     "vid": "weather-20"
     },
     {
      "w": "bin",
@@ -3777,7 +3777,7 @@ window.READING_TEXTS = [
     {
      "w": "geschwommen",
      "lemma": "schwimmen",
-     "g": "游泳（过）"
+     "vid": "a2-sport-42"
     },
     {
      "w": "und",
@@ -3825,7 +3825,7 @@ window.READING_TEXTS = [
     {
      "w": "gegessen",
      "lemma": "essen",
-     "g": "吃过"
+     "vid": "food-50"
     },
     {
      "w": "und",
@@ -3986,8 +3986,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Sommer",
-     "lemma": "Sommer",
-     "g": "姓（Familie Sommer）"
+     "lemma": "der Sommer",
+     "vid": "weather-20"
     },
     {
      "w": "fahren",
@@ -4069,7 +4069,7 @@ window.READING_TEXTS = [
     {
      "w": "VERKAUFE",
      "lemma": "verkaufen",
-     "g": "出售（广告标题）"
+     "vid": "shop-15"
     },
     {
      "w": ":"
@@ -4105,7 +4105,7 @@ window.READING_TEXTS = [
     {
      "w": "verkaufe",
      "lemma": "verkaufen",
-     "g": "出售（广告标题）"
+     "vid": "shop-15"
     },
     {
      "w": "mein",
@@ -4214,7 +4214,7 @@ window.READING_TEXTS = [
     {
      "w": "fährt",
      "lemma": "fahren",
-     "g": "乘车去"
+     "vid": "traffic-40"
     },
     {
      "w": "noch",
@@ -4517,7 +4517,7 @@ window.READING_TEXTS = [
     {
      "w": "Bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "nur",
@@ -4709,8 +4709,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Weg",
-     "lemma": "Weg",
-     "g": "路；（口语 weg sein）不在"
+     "lemma": "der Weg",
+     "vid": "traffic-33"
     },
     {
      "w": "machen",
@@ -4739,8 +4739,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Alm",
@@ -4755,7 +4755,7 @@ window.READING_TEXTS = [
     {
      "w": "essen",
      "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "vid": "food-50"
     },
     {
      "w": "Butterbrote",
@@ -4792,8 +4792,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Weg",
-     "lemma": "Weg",
-     "g": "路；（口语 weg sein）不在"
+     "lemma": "der Weg",
+     "vid": "traffic-33"
     },
     {
      "w": "steiler",
@@ -4915,8 +4915,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Recht",
-     "lemma": "das Recht",
-     "vid": "b1-law-6"
+     "lemma": "Recht",
+     "g": "对的（recht haben）"
     },
     {
      "w": "."
@@ -5181,8 +5181,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einem",
-     "lemma": "ein#Artikel",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，第三格）"
     },
     {
      "w": "kalten",
@@ -5387,7 +5387,7 @@ window.READING_TEXTS = [
     {
      "w": "essen",
      "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "vid": "food-50"
     },
     {
      "w": "auch",
@@ -5531,8 +5531,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Weg",
-     "lemma": "Weg",
-     "g": "路；（口语 weg sein）不在"
+     "lemma": "der Weg",
+     "vid": "traffic-33"
     },
     {
      "w": "nach",
@@ -5592,8 +5592,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "weg",
-     "lemma": "Weg",
-     "g": "路；（口语 weg sein）不在"
+     "lemma": "weg",
+     "g": "不在；离开（weg sein）"
     },
     {
      "w": "“,"
@@ -6059,7 +6059,7 @@ window.READING_TEXTS = [
     {
      "w": "Bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "bring",
@@ -6278,7 +6278,7 @@ window.READING_TEXTS = [
     {
      "w": "lade",
      "lemma": "einladen",
-     "g": "（我）邀请"
+     "vid": "a2-festival-41"
     },
     {
      "w": "euch",
@@ -6441,7 +6441,7 @@ window.READING_TEXTS = [
     {
      "w": "bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "etwas",
@@ -6496,8 +6496,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Essen",
-     "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "lemma": "das Essen",
+     "vid": "food-0"
     },
     {
      "w": "machen",
@@ -6545,7 +6545,7 @@ window.READING_TEXTS = [
     {
      "w": "Bitte",
      "lemma": "bitte",
-     "g": "请；（我）请求"
+     "vid": "greet-41"
     },
     {
      "w": "schreibt",
@@ -6831,7 +6831,7 @@ window.READING_TEXTS = [
     {
      "w": "Deutsch",
      "lemma": "Deutsch",
-     "g": "德语"
+     "vid": "greet-20"
     },
     {
      "w": "."
@@ -7093,7 +7093,7 @@ window.READING_TEXTS = [
     {
      "w": "isst",
      "lemma": "essen",
-     "g": "（他/她）吃"
+     "vid": "food-50"
     },
     {
      "w": "ein",
@@ -7364,8 +7364,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einem",
-     "lemma": "ein#Artikel",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，第三格）"
     },
     {
      "w": "kleinen",
@@ -7818,7 +7818,7 @@ window.READING_TEXTS = [
     {
      "w": "frage",
      "lemma": "fragen",
-     "g": "（我）问"
+     "vid": "traffic-50"
     },
     {
      "w": "ich",
@@ -9089,7 +9089,7 @@ window.READING_TEXTS = [
     {
      "w": "junge",
      "lemma": "jung",
-     "g": "年轻的"
+     "vid": "family-40"
     },
     {
      "w": "Familien",
@@ -9330,8 +9330,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Sommer",
-     "lemma": "Sommer",
-     "g": "姓（Familie Sommer）"
+     "lemma": "der Sommer",
+     "vid": "weather-20"
     },
     {
      "w": ","
@@ -9773,8 +9773,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einem",
-     "lemma": "ein#Artikel",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，第三格）"
     },
     {
      "w": "kleinen",
@@ -9813,8 +9813,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "jungen",
@@ -10580,8 +10580,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Essen",
-     "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "lemma": "das Essen",
+     "vid": "food-0"
     },
     {
      "w": ","
@@ -10746,7 +10746,7 @@ window.READING_TEXTS = [
     {
      "w": "Interessantes",
      "lemma": "interessant",
-     "g": "有趣的事（中性）"
+     "vid": "free-36"
     },
     {
      "w": "."
@@ -10796,8 +10796,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "einer",
-     "lemma": "ein#Numerale",
-     "g": "一个"
+     "lemma": "ein",
+     "g": "一（个，阴性）"
     },
     {
      "w": "Woche",
@@ -11084,8 +11084,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Essen",
-     "lemma": "essen",
-     "g": "吃；（das Essen）饭菜"
+     "lemma": "das Essen",
+     "vid": "food-0"
     },
     {
      "w": "in",
@@ -11274,7 +11274,7 @@ window.READING_TEXTS = [
     {
      "w": "Probiert",
      "lemma": "probieren",
-     "g": "试一试（命令式）"
+     "vid": "clothes-51"
     },
     {
      "w": "es",

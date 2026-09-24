@@ -30,9 +30,12 @@ dewikt.DELAY = 4.0
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # ---------------------------------------------------------------------------
-# 人工兜底表：键 = 词形小写；值 = {"lemma": …, "vid": …}（词库词）或
-# {"lemma": …, "g": …}（库外词，g = 中文释义）。只放需要人工保证质量的条目：
-# 专有名词、不规则映射、机器释义不可靠的词。最高优先级。
+# 人工兜底表：值 = {"lemma": …, "vid": …}（词库词）或 {"lemma": …, "g": …}（库外词，
+# g = 中文释义）。键默认词形小写（大小写通用）；需要区分大小写时用精确词形作键
+# （如 "Essen"/"essen"、"Weg"/"weg"，精确键优先于小写键命中）。
+# 条目可带 "texts": [篇目 id] 按篇限定（同形异义词，如姓氏只在出现该姓的篇目生效，
+# 其余篇目走词库直命中）。只放需要人工保证质量的条目：专有名词、不规则映射、
+# 机器释义不可靠的词、词库同键不同义的消歧。最高优先级。
 # ---------------------------------------------------------------------------
 LEXICON_OVERRIDES = {
     # 专有名词：只读释义，不进 SRS（不映射 vid）
@@ -52,11 +55,11 @@ LEXICON_OVERRIDES = {
     "markus": {"lemma": "Markus", "g": "人名"},
     "ben": {"lemma": "Ben", "g": "人名"},
     "jana": {"lemma": "Jana", "g": "人名"},
-    "sommer": {"lemma": "Sommer", "g": "姓（Familie Sommer）"},
+    "sommer": {"lemma": "Sommer", "g": "姓（Familie Sommer）", "texts": ["rd-a1-aushang"]},
     "brandt": {"lemma": "Brandt", "g": "姓（Familie Brandt）"},
     "bergmann": {"lemma": "Bergmann", "g": "姓"},
     "lena": {"lemma": "Lena", "g": "人名"},
-    "winter": {"lemma": "Winter", "g": "姓（Lena Winter）"},
+    "winter": {"lemma": "Winter", "g": "姓（Lena Winter）", "texts": ["rd-b1-buch"]},
     "bayern": {"lemma": "Bayern", "g": "拜仁（德国联邦州）"},
     "berlin": {"lemma": "Berlin", "g": "柏林"},
     "brandenburg": {"lemma": "Brandenburg", "g": "勃兰登堡（德国联邦州）"},
@@ -65,7 +68,7 @@ LEXICON_OVERRIDES = {
     "bergstraße": {"lemma": "Bergstraße", "g": "街道名（虚构）"},
     "blau-weiß": {"lemma": "Blau-Weiß", "g": "蓝白（足球俱乐部名）"},
     "mathe": {"lemma": "Mathe", "g": "数学（口）"},
-    "deutsch": {"lemma": "Deutsch", "g": "德语"},
+    "deutsch": {"lemma": "Deutsch", "vid": "greet-20"},
     "englisch": {"lemma": "Englisch", "g": "英语"},
     # 功能词/语法词：词库不收，人工释义（覆盖句首大写同词形）
     "dann": {"lemma": "dann", "g": "然后；那么"},
@@ -92,9 +95,9 @@ LEXICON_OVERRIDES = {
     "wer": {"lemma": "wer", "g": "谁"},
     "diesen": {"lemma": "dies", "g": "这个（第四格）"},
     "achtung": {"lemma": "Achtung", "g": "注意！"},
-    "verkaufe": {"lemma": "verkaufen", "g": "出售（广告标题）"},
-    "schreib": {"lemma": "schreiben", "g": "写（命令式）"},
-    "probiert": {"lemma": "probieren", "g": "试一试（命令式）"},
+    "verkaufe": {"lemma": "verkaufen", "vid": "shop-15"},
+    "schreib": {"lemma": "schreiben", "vid": "work-44"},
+    "probiert": {"lemma": "probieren", "vid": "clothes-51"},
     "scrollen": {"lemma": "scrollen", "g": "刷（屏）；滚动"},
     "tagsüber": {"lemma": "tagsüber", "g": "白天"},
     "einhundertfünfzig": {"lemma": "einhundertfünfzig", "g": "一百五十"},
@@ -260,11 +263,11 @@ LEXICON_OVERRIDES = {
     "entsteht": {"lemma": "entstehen", "g": "产生；形成"},
     "erbt": {"lemma": "erben", "g": "继承"},
     "erzählt": {"lemma": "erzählen", "g": "讲述"},
-    "fährt": {"lemma": "fahren", "g": "乘车去"},
+    "fährt": {"lemma": "fahren", "vid": "traffic-40"},
     "fängt": {"lemma": "fangen", "g": "开始（es fängt an）"},
     "finden": {"lemma": "finden", "g": "找到；认为"},
     "findet": {"lemma": "finden", "g": "找到；认为"},
-    "frage": {"lemma": "fragen", "g": "（我）问"},
+    "frage": {"lemma": "fragen", "vid": "traffic-50"},
     "gärtnern": {"lemma": "gärtnern", "g": "做园艺"},
     "habe": {"lemma": "haben", "g": "（我）有"},
     "haben": {"lemma": "haben", "g": "有"},
@@ -273,12 +276,13 @@ LEXICON_OVERRIDES = {
     "hatten": {"lemma": "haben", "g": "有（过去时）"},
     "halten": {"lemma": "halten", "g": "认为；看待"},
     "herkommt": {"lemma": "herkommen", "g": "来自"},
-    "isst": {"lemma": "essen", "g": "（他/她）吃"},
-    "esse": {"lemma": "essen", "g": "（我）吃"},
-    "essen": {"lemma": "essen", "g": "吃；（das Essen）饭菜"},
-    "gegessen": {"lemma": "essen", "g": "吃过"},
+    "isst": {"lemma": "essen", "vid": "food-50"},
+    "esse": {"lemma": "essen", "vid": "food-50"},
+    "essen": {"lemma": "essen", "vid": "food-50"},
+    "Essen": {"lemma": "das Essen", "vid": "food-0"},  # 精确键：名词餐食
+    "gegessen": {"lemma": "essen", "vid": "food-50"},
     "kühlt": {"lemma": "kühlen", "g": "使凉爽"},
-    "lade": {"lemma": "einladen", "g": "（我）邀请"},
+    "lade": {"lemma": "einladen", "vid": "a2-festival-41"},
     "lauschen": {"lemma": "lauschen", "g": "倾听"},
     "leisten": {"lemma": "leisten", "g": "作出（Beitrag leisten）"},
     "leuchten": {"lemma": "leuchten", "g": "发光"},
@@ -328,7 +332,7 @@ LEXICON_OVERRIDES = {
     "gehöre": {"lemma": "gehören", "g": "（我）属于"},
     "gepolsterten": {"lemma": "gepolstert", "g": "有软垫的"},
     "handschriftlichen": {"lemma": "handschriftlich", "g": "手写的"},
-    "interessantes": {"lemma": "interessant", "g": "有趣的事（中性）"},
+    "interessantes": {"lemma": "interessant", "vid": "free-36"},
     "ernsthafte": {"lemma": "ernsthaft", "g": "认真的"},
     "erreichbar": {"lemma": "erreichbar", "g": "可联系到的"},
     "erste": {"lemma": "erst", "g": "第一的"},
@@ -447,10 +451,10 @@ LEXICON_OVERRIDES = {
     "zimt": {"lemma": "Zimt", "g": "肉桂"},
     # 自动映射的纠错（专名/词类误判/机器释义不可靠——逐词核对后的修正）
     "anfänger": {"lemma": "Anfänger", "g": "初学者"},
-    "bitte": {"lemma": "bitte", "g": "请；（我）请求"},
+    "bitte": {"lemma": "bitte", "vid": "greet-41"},
     "gelaufen": {"lemma": "laufen", "g": "跑；进行（过）"},
-    "geschwommen": {"lemma": "schwimmen", "g": "游泳（过）"},
-    "junge": {"lemma": "jung", "g": "年轻的"},
+    "geschwommen": {"lemma": "schwimmen", "vid": "a2-sport-42"},
+    "junge": {"lemma": "jung", "vid": "family-40"},
     "mandeln": {"lemma": "Mandel", "g": "杏仁"},
     "nächsten": {"lemma": "nächst", "g": "下一个的"},
     "pilze": {"lemma": "Pilz", "g": "蘑菇"},
@@ -462,7 +466,7 @@ LEXICON_OVERRIDES = {
     "seiner": {"lemma": "sein", "g": "他的"},
     "sie": {"lemma": "sie", "g": "她/他们；（尊称 Sie）您"},
     "sein": {"lemma": "sein", "g": "他的；（动词 sein）是"},
-    "stock": {"lemma": "Stock", "g": "棍；枝条"},
+    "stock": {"lemma": "der Stock", "vid": "home-39"},
     "waren": {"lemma": "sein", "g": "是（过去时）"},
     "weiter": {"lemma": "weiter", "g": "继续；进一步的"},
     "weitere": {"lemma": "weiter", "g": "更多的"},
@@ -478,7 +482,16 @@ LEXICON_OVERRIDES = {
     "kette": {"lemma": "Kette", "g": "链条"},
     "mechaniker": {"lemma": "Mechaniker", "g": "机械师"},
     "navigation": {"lemma": "Navigation", "g": "导航"},
-    "weg": {"lemma": "Weg", "g": "路；（口语 weg sein）不在"},
+    "weg": {"lemma": "weg", "g": "不在；离开（weg sein）"},
+    "Weg": {"lemma": "der Weg", "vid": "traffic-33"},  # 精确键：名词路,
+    # P2-1 错义项纠正：词库同键不同义，按语境消歧
+    "bank": {"lemma": "Bank", "g": "长椅"},  # 语境长椅，非银行（shop-35 银行）
+    "stolz": {"lemma": "stolz", "vid": "a2-feelings-47"},  # 形容词骄傲，非名词 der Stolz
+    "voll": {"lemma": "voll", "g": "满的；充实的"},  # 语境「满」，非口语「超」（b1-colloquial-10）
+    "recht": {"lemma": "Recht", "g": "对的（recht haben）"},  # 非法律（b1-law-6）
+    # P2-2：ein 的变格形式（wiktionary 锚点 ein#Artikel/ein#Numerale 已剥除）
+    "einem": {"lemma": "ein", "g": "一（个，第三格）"},
+    "einer": {"lemma": "ein", "g": "一（个，阴性）"},
     "alle": {"lemma": "alle", "g": "全部；所有人"},
     "allen": {"lemma": "alle", "g": "全部（第三格）"},
     "andere": {"lemma": "anderer", "g": "其他的"},
@@ -676,6 +689,8 @@ def dewikt_lemma(word):
                 else:
                     lemma = word
                 gloss = extract_zh(de)
+        if lemma:
+            lemma = lemma.split("#")[0].strip()  # 剥 wiktionary 锚点（ein#Artikel → ein）
         if lemma and lemma != word and gloss is None:
             wt2 = dewikt.fetch_wikitext(lemma)
             if wt2:
@@ -698,12 +713,17 @@ def extract_zh(wt):
     return m.group(1).strip() if m else None
 
 
-def resolve(form, lex):
-    """词形 → (token dict 增量, 来源)。优先级：OVERRIDES > 直接 > 规则 > dewikt。"""
+def resolve(form, text_id, lex):
+    """词形 → (token dict 增量, 来源)。优先级：OVERRIDES > 直接 > 规则 > dewikt。
+
+    OVERRIDES 键：精确词形（区分大小写，如 Essen/Weg）优先于小写词形；
+    条目可带 "texts": [篇目 id] 按篇限定（同形异义词，如姓氏 Sommer 只在
+    rd-a1-aushang 生效，其余篇目季节义走词库直命中）。
+    """
+    ov = LEXICON_OVERRIDES.get(form) or LEXICON_OVERRIDES.get(form.lower())
+    if ov and text_id in ov.get("texts", [text_id]):
+        return {k: ov[k] for k in ("lemma", "vid", "g") if k in ov}, "override"
     lower = form.lower()
-    if lower in LEXICON_OVERRIDES:
-        ov = LEXICON_OVERRIDES[lower]
-        return dict(ov), "override"
     if lower in lex:
         vid, word, _, _ = lex[lower]
         return {"lemma": word, "vid": vid}, "direct"
@@ -741,7 +761,7 @@ def main():
                     toks.append({"w": val})
                     continue
                 n_words += 1
-                info, src = resolve(val, lex)
+                info, src = resolve(val, it["id"], lex)
                 if (not info or (("vid" not in info) and ("g" not in info))
                         or not info.get("lemma")
                         or ("g" in info and not info["g"])):
