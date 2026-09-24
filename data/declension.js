@@ -87,7 +87,7 @@ window.DECLENSION = [
     { type: 'fill', q: 'Das Geschenk ist für ___ kleine Mädchen. (das)', a: 'das', tip: 'für 永远第四格，中性不变：für das kleine Mädchen。' },
     { type: 'choice', q: 'Meine Eltern kommen ___ der Schweiz. (aus/von/nach 选一个)', opts: ['aus', 'von', 'nach'], a: 0, tip: 'aus 永远第三格：aus der Schweiz（国家/地区名词前用 aus）。' },
     { type: 'fill', q: 'Ich gehe morgen ___ Arzt. (zu + dem)', a: 'zum', tip: 'zu 永远第三格；阳性/中性第三格是 dem，zu dem 缩合为 zum：zum Arzt。对比：zu der → zur（如 zur Post）。' },
-    { type: 'choice', q: 'Er wirft den Ball in ___ Korb. (der，Wohin)', opts: ['in den', 'im', 'in die'], a: 0, tip: '扔进篮筐是方向（Wohin）→第四格：in den Korb。' },
+    { type: 'choice', q: 'Er wirft den Ball ___ Korb. (der，Wohin)', opts: ['in den', 'im', 'in die'], a: 0, tip: '扔进篮筐是方向（Wohin）→第四格：in den Korb。' },
     { type: 'choice', q: 'Jetzt liegt der Ball ___ Korb. (der，Wo)', opts: ['im', 'in den', 'in die'], a: 0, tip: '躺在那里是位置（Wo）→第三格：im Korb（im = in dem）。' }
   ]
 }
