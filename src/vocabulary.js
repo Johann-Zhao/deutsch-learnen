@@ -13,6 +13,7 @@ import {
 import { render } from './app.js';
 import { hasImage, renderImageChoice } from './imgquiz.js';
 import { lookup, Conjugate } from './conjugate.js';
+import { Cloze } from './cloze.js';
 
 const GENDER_LABEL = { m: ['der', 'm'], f: ['die', 'f'], n: ['das', 'n'], pl: ['die', 'pl'] };
 // 非名词词性的中文标签（genderTag 降级为纯文本角标时使用）
@@ -752,10 +753,26 @@ function reviewSession(onlyMistakes) {
   const stage = UI.el('div');
   v.appendChild(stage);
 
+  // 语境填空句池：首次抽到该题型才构建（1945 例句 + 对话/阅读句扫描一次即可）
+  let clozePool = null;
+  function getClozePool() {
+    if (!clozePool) clozePool = Cloze.buildPool(currentLevel(), s.srs);
+    return clozePool;
+  }
+
+  // 看德语选中文（trans 题型与语境填空无句源回退共用）
+  function fillTrans(q, w) {
+    q.prompt = UI.esc(w.de) + ' 的意思是？';
+    const wrong = distractors(w, function (x) { return x.zh; });
+    q.options = shuffle([w].concat(wrong)).map(function (x) { return { word: x, text: x.zh }; });
+    q.explain = w.de + ' = ' + w.zh;
+  }
+
   // 为每个词生成一种题型
   function buildQuestion(w) {
     let type;
     if (hasImage(w, getImageWords()) && Math.random() < 0.4) type = 'image';
+    else if (Math.random() < 0.25) type = 'ctxcloze';   // 语境填空约 25%，不挤占有图词图片题
     else {
       const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
       type = types[Math.floor(Math.random() * types.length)];
@@ -771,11 +788,21 @@ function reviewSession(onlyMistakes) {
       q.opts = ['der（阳性）', 'die（阴性）', 'das（中性）'];
       q.answerIdx = { m: 0, f: 1, n: 2, pl: 1 }[w.g];
       q.explain = w.de + '（' + w.zh + '）';
+    } else if (type === 'ctxcloze') {
+      // 语境填空：句库句挖空四选一；无句源回退为看德语选中文
+      const item = Cloze.itemForWord(w, getClozePool());
+      if (!item) {
+        q.type = 'trans';
+        fillTrans(q, w);
+      } else {
+        q.prompt = UI.esc(item.blanked) + '<br><span class="stat-label">' + UI.esc(item.sentZh) + '</span>';
+        const wrong = Cloze.pickDistractors(item, getClozePool(), 3);
+        q.options = shuffle([item.target].concat(wrong)).map(function (x) { return { word: x, text: x.de }; });
+        q.explain = item.target.de + ' = ' + item.target.zh;
+        q.clozeItem = item;
+      }
     } else if (type === 'trans') {
-      q.prompt = UI.esc(w.de) + ' 的意思是？';
-      const wrong = distractors(w, function (x) { return x.zh; });
-      q.options = shuffle([w].concat(wrong)).map(function (x) { return { word: x, text: x.zh }; });
-      q.explain = w.de + ' = ' + w.zh;
+      fillTrans(q, w);
     } else if (type === 'listen') {
       q.prompt = '听音频，选出你听到的词 🔊（点喇叭可重听）';
       const wrongL = distractors(w, function (x) { return x.de; });
@@ -816,6 +843,11 @@ function reviewSession(onlyMistakes) {
     if (q.type !== 'image') {
       const p = UI.el('div', 'quiz-prompt');
       p.innerHTML = q.prompt;
+      if (q.clozeItem) {
+        const sp = Cloze.speakBtn(q.clozeItem);
+        sp.style.marginLeft = '8px';
+        p.appendChild(sp);
+      }
       card.appendChild(p);
     }
 

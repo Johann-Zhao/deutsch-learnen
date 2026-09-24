@@ -9,8 +9,9 @@ import * as SRS from './srs.js';
 import { UI } from './ui.js';
 import { audio, stop as stopAudio } from './audio.js';
 import { TTS } from './tts.js';
-import { getReadingTexts, wordById, getWordIpa, LEVELS, loadLevelData, isLevelLoaded, inferLevelFromId } from './data.js';
+import { getReadingTexts, wordById, getWordIpa, LEVELS, loadLevelData, isLevelLoaded, inferLevelFromId, currentLevel } from './data.js';
 import { genderTag } from './vocabulary.js';
+import { Cloze } from './cloze.js';
 import { render } from './app.js';
 
 /* 纯函数：是否词 token（标点 token 只有 w） */
@@ -360,6 +361,18 @@ function readPage(id) {
     };
     act.appendChild(b);
   }
+
+  /* 练一练：本篇句源出语境填空（目标限已学词，5 题封顶；可出题数为 0 时不显示入口）。
+     判分回写目标词卡 SRS，不新建卡。 */
+  const clozeItems = Cloze.pick(
+    Cloze.itemsFromText(text, currentLevel(), store.state.srs),
+    store.state.srs, todayStr, 5);
+  const practice = Cloze.practiceCard(clozeItems, {
+    micro: 'LESEN · ÜBEN',
+    desc: '用本篇学过的词做语境填空，共 ' + clozeItems.length + ' 题。',
+    scopeLabel: text.title
+  });
+  if (practice) v.appendChild(practice);
 
   return v;
 }
