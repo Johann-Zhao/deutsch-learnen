@@ -295,8 +295,8 @@ window.READING_TEXTS = [
     },
     {
      "w": "Stock",
-     "lemma": "der Stock",
-     "vid": "home-39"
+     "lemma": "Stock",
+     "g": "棍；枝条"
     },
     {
      "w": ","
@@ -6830,7 +6830,7 @@ window.READING_TEXTS = [
     },
     {
      "w": "Deutsch",
-     "lemma": "Deutsch",
+     "lemma": "das Deutsch",
      "vid": "greet-20"
     },
     {

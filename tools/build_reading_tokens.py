@@ -68,7 +68,7 @@ LEXICON_OVERRIDES = {
     "bergstraße": {"lemma": "Bergstraße", "g": "街道名（虚构）"},
     "blau-weiß": {"lemma": "Blau-Weiß", "g": "蓝白（足球俱乐部名）"},
     "mathe": {"lemma": "Mathe", "g": "数学（口）"},
-    "deutsch": {"lemma": "Deutsch", "vid": "greet-20"},
+    "deutsch": {"lemma": "das Deutsch", "vid": "greet-20"},
     "englisch": {"lemma": "Englisch", "g": "英语"},
     # 功能词/语法词：词库不收，人工释义（覆盖句首大写同词形）
     "dann": {"lemma": "dann", "g": "然后；那么"},
@@ -466,7 +466,7 @@ LEXICON_OVERRIDES = {
     "seiner": {"lemma": "sein", "g": "他的"},
     "sie": {"lemma": "sie", "g": "她/他们；（尊称 Sie）您"},
     "sein": {"lemma": "sein", "g": "他的；（动词 sein）是"},
-    "stock": {"lemma": "der Stock", "vid": "home-39"},
+    "stock": {"lemma": "Stock", "g": "棍；枝条"},
     "waren": {"lemma": "sein", "g": "是（过去时）"},
     "weiter": {"lemma": "weiter", "g": "继续；进一步的"},
     "weitere": {"lemma": "weiter", "g": "更多的"},
