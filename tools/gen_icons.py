@@ -46,10 +46,13 @@ def main() -> None:
         square.resize((size, size), Image.LANCZOS).save(OUT_DIR / f"icon-{size}.png")
 
     size = 512
+    # 取偶数边长，保证四周内边距严格相等（512 → 408，四边各 52px = 10.16% ≥ 10%）
     inner = int(size * MASKABLE_SAFE)
+    inner -= inner % 2
+    pad = (size - inner) // 2
     icon = square.resize((inner, inner), Image.LANCZOS)
     canvas = Image.new("RGB", (size, size), PAPER)
-    canvas.paste(icon, ((size - inner) // 2, (size - inner) // 2))
+    canvas.paste(icon, (pad, pad))
     canvas.save(OUT_DIR / "icon-maskable-512.png")
 
     print(f"icons -> {OUT_DIR.relative_to(ROOT)}: icon-192.png, icon-512.png, icon-maskable-512.png")

@@ -54,11 +54,14 @@ self.addEventListener('fetch', (event) => {
     caches.match(req).then((hit) => {
       if (hit) return hit;
       return fetch(req).then((res) => {
-        /* 同源 2xx 才写缓存：audio/、images/words/ 等大体积目录
-           不预缓存，按需「打开即缓存」，听过/看过即离线可用。 */
-        if (res.ok) {
+        /* 只写 200 完整响应：媒体经 Range 请求拿到 206 时 Cache API 的
+           cache.put 会抛 TypeError（音频静默不入缓存）。audio/、images/words/
+           等大体积目录不预缓存，按需「打开即缓存」，听过/看过即离线可用。 */
+        if (res.status === 200) {
           const clone = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, clone));
+          caches.open(CACHE)
+            .then((cache) => cache.put(req, clone))
+            .catch(function () { /* 缓存写入失败静默，不影响响应返回 */ });
         }
         return res;
       });
