@@ -6,7 +6,7 @@ import * as SRS from './srs.js';
 import { UI } from './ui.js';
 import {
   getGrammar, grammarLevels, themeLevels, getListenDialogs,
-  loadLevelData, isLevelLoaded, inferLevelFromId, grammarOfLevel, wordById, isGrammarCardId
+  loadLevelData, isLevelLoaded, inferLevelFromId, grammarOfLevel, wordById, isGrammarCardId, isListenCardId
 } from './data.js';
 import { Vocab } from './vocabulary.js';
 import { render } from './app.js';
@@ -22,6 +22,13 @@ function findGrammarLikeExercise(topicId, idx) {
   const g = getGrammar().find(function (t) { return t.id === topicId; });
   const src = g || getDeclension().find(function (t) { return t.id === topicId; });
   return src ? src.exercises[idx] || null : null;
+}
+
+// 复习答错回写错题本的类型按卡 id 前缀定：dc- 变格 / listen- 听力 / 其余语法
+function mistakeTypeForCard(id) {
+  if (isListenCardId(id)) return 'listen';
+  if (id.indexOf('dc-') === 0) return 'declension';
+  return 'grammar';
 }
 
 // 渲染单道语法题（choice/fill），供专题练习与语法复习共用
@@ -301,7 +308,7 @@ function reviewPage() {
         right++;
         store.removeMistake(item.id);
       } else {
-        store.addMistake('grammar', item.id);
+        store.addMistake(mistakeTypeForCard(item.id), item.id);
       }
       store.touchToday('reviewed', 1);
       if (ok) store.touchToday('correct', 1);
