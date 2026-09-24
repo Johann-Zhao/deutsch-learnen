@@ -9,7 +9,7 @@ window.DECLENSION = [
   id: 'dc-article', title: '定冠词四格变化', level: 'A1', topic: 'article',
   summary: 'der/die/das 在四个格里的变化：关键只有一处——阳性第四格 der→den。',
   exercises: [
-    { type: 'choice', q: 'Ich sehe ___ Mann dort drüben. (der Mann)', opts: ['der', 'den', 'dem'], a: 1, tip: 'sehen 接第四格，阳性 der→den：den Mann。' },
+    { type: 'choice', q: 'Mein Vater kauft ___ Wagen. (der Wagen)', opts: ['den', 'der', 'dem'], a: 0, tip: 'kaufen 接第四格，阳性 der→den：den Wagen。' },
     { type: 'choice', q: '___ Frau am Fenster ist meine Lehrerin. (die)', opts: ['Der', 'Die', 'Den'], a: 1, tip: '句首的 Frau 是主语，用第一格 die；阴性第四格也一样是 die，先判断格再选词。' },
     { type: 'fill', q: 'Kannst du ___ Kind helfen? (das Kind)', a: 'dem', tip: 'helfen 接第三格，das→dem：dem Kind。' },
     { type: 'choice', q: 'Wir machen ___ Kindern ein Geschenk. (die Kinder)', opts: ['die', 'den', 'der'], a: 1, tip: '复数第三格 die→den，而且名词本身要加 -n：den Kindern。' },
@@ -27,7 +27,7 @@ window.DECLENSION = [
     { type: 'choice', q: 'Ich trinke lieber Tee, ich trinke ___ Kaffee. (否定 ein Kaffee)', opts: ['keinen', 'keinem', 'kein'], a: 0, tip: '否定带冠词的名词用 kein-：四格阳性 keinen Kaffee。' },
     { type: 'fill', q: 'Sie wohnt bei ___ Freundin. (eine Freundin)', a: 'einer', tip: 'bei 接第三格，eine→einer。' },
     { type: 'choice', q: 'Heute habe ich leider ___ Zeit. (kein, die Zeit)', opts: ['keine', 'keiner', 'keinen'], a: 0, tip: 'Zeit 是阴性：keine Zeit，第四格也还是 keine。' },
-    { type: 'fill', q: 'Das Geschenk ist für ___ Mädchen. (das Mädchen)', a: 'das', tip: 'für 接第四格，中性不变：für das Mädchen。别写成 den/dem。' },
+    { type: 'choice', q: 'Sie hat ___ Geschwister. (kein，复数)', opts: ['keine', 'keinen', 'keiner'], a: 0, tip: 'Geschwister 是复数：keine Geschwister。复数否定一律 keine（第三格才变 keinen）。' },
     { type: 'choice', q: 'In diesem Dorf gibt es ___ Supermarkt. (否定)', opts: ['keinen', 'keinem', 'kein'], a: 0, tip: 'es gibt 接第四格：keinen Supermarkt。' },
     { type: 'fill', q: 'Wir helfen ___ kleinen Kind. (ein kleines Kind)', a: 'einem', tip: 'helfen 接第三格；ein→einem，形容词词尾也跟着是 -en：einem kleinen Kind。' },
     { type: 'choice', q: 'Er liest gerade ___ Buch. (否定 ein Buch)', opts: ['kein', 'keine', 'keinen'], a: 0, tip: 'Buch 是中性，第一格/第四格都是 kein Buch。' }
@@ -39,7 +39,7 @@ window.DECLENSION = [
   exercises: [
     { type: 'choice', q: '___ Wein schmeckt mir sehr gut. (der + gut)', opts: ['Der gute', 'Der guter', 'Den guten'], a: 0, tip: '定冠词后弱变化：第一格一律 -e（der gute Wein）。' },
     { type: 'choice', q: 'Das ist ein ___ Auto. (gut，中性第一格)', opts: ['gutes', 'gute', 'guten'], a: 0, tip: '不定冠词后混合变化：中性第一格 -es（ein gutes Auto）。' },
-    { type: 'choice', q: 'Ich sehe den ___ Mann. (alt)', opts: ['alten', 'alte', 'alter'], a: 0, tip: '定冠词第四格阳性 -en：den alten Mann。弱变化只有 -e 和 -en 两种形式。' },
+    { type: 'choice', q: 'Wir besuchen den ___ Kollegen. (krank)', opts: ['kranken', 'kranke', 'kranker'], a: 0, tip: '定冠词第四格阳性 -en：den kranken Kollegen。弱变化形容词只有 -e 和 -en 两种形式。' },
     { type: 'fill', q: 'Sie kauft einen ___ Rock. (neu)', a: 'neuen', tip: '不定冠词第四格阳性同弱变化：einen neuen Rock。' },
     { type: 'choice', q: '___ Wetter ist heute wirklich schön. (gut，无冠词)', opts: ['Gutes', 'Gute', 'Guter'], a: 0, tip: '无冠词强变化：形容词自己带定冠词词尾，das 的位置用 -es：Gutes Wetter。' },
     { type: 'fill', q: 'Wir fahren mit dem ___ Wagen in den Urlaub. (neu)', a: 'neuen', tip: '第三格定冠词后全部 -en：mit dem neuen Wagen。' },
@@ -52,8 +52,8 @@ window.DECLENSION = [
   summary: 'mich/mir、ihn/ihm……动词和介词说了算：für mich， aber mit mir。',
   exercises: [
     { type: 'choice', q: 'Kannst du ___ gut hören? (ich)', opts: ['mich', 'mir', 'ich'], a: 0, tip: 'hören 接第四格：mich。' },
-    { type: 'choice', q: 'Er gibt ___ das neue Buch. (ich)', opts: ['mir', 'mich', 'ich'], a: 0, tip: 'geben 双宾语：直接宾语是 das Buch，"人"用第三格（mir）。' },
-    { type: 'fill', q: 'Ich verstehe ___ nicht. (er)', a: 'ihn', tip: 'er 的第四格是 ihn：Ich verstehe ihn nicht. ' },
+    { type: 'choice', q: 'Meine Mutter backt ___ einen Kuchen. (ich)', opts: ['mir', 'mich', 'ich'], a: 0, tip: 'backen 双宾语：直接宾语是 einen Kuchen，"人"用第三格（mir）。' },
+    { type: 'fill', q: 'Ich verstehe ___ nicht. (er)', a: 'ihn', tip: 'er 的第四格是 ihn：Ich verstehe ihn nicht.' },
     { type: 'choice', q: 'Wir danken ___ herzlich. (du)', opts: ['dir', 'dich', 'du'], a: 0, tip: 'danken 接第三格：dir。' },
     { type: 'choice', q: 'Das Geschenk ist für ___. (ich)', opts: ['mich', 'mir', 'ich'], a: 0, tip: 'für 永远第四格——mir/mich 的经典陷阱：für mich。' },
     { type: 'fill', q: 'Der Lehrer erklärt ___ die Regel. (wir)', a: 'uns', tip: 'erklären 双宾语，人三物四：erklärt uns die Regel。' },
@@ -80,15 +80,15 @@ window.DECLENSION = [
   id: 'dc-prep', title: '介词配格', level: 'A1', topic: 'preposition',
   summary: 'mit/für/in…… 介词决定后面的格；in/an/auf 等双向介词看「在哪」还是「去哪」。',
   exercises: [
-    { type: 'choice', q: 'Wohin gehst du? — Ich gehe ___ Schule. (in)', opts: ['in die', 'in der', 'in dem'], a: 0, tip: '问 Wohin（去哪）→第四格：in die Schule。' },
+    { type: 'choice', q: 'Wohin gehst du am Nachmittag? — Ich gehe ___ Park. (in)', opts: ['in den', 'im', 'in die'], a: 0, tip: '问 Wohin（去哪）→第四格：in den Park。im 来自 in dem，是「在哪」的答案。' },
     { type: 'choice', q: 'Wo bist du? — Ich bin ___ Schule. (in)', opts: ['in der', 'in die', 'in dem'], a: 0, tip: '问 Wo（在哪）→第三格：in der Schule。' },
-    { type: 'fill', q: 'Der Bus kommt gleich. Wir warten schon auf ___ Bus. (der)', a: 'den', tip: 'warten auf 问的是 Wohin（等的是车来这个方向）→第四格：auf den Bus。' },
+    { type: 'fill', q: 'Der Bus kommt gleich. Wir warten schon auf ___ Bus. (der)', a: 'den', tip: 'warten auf 是固定动介搭配，永远第四格：auf den Bus。动介搭配的格要整体记。' },
     { type: 'choice', q: 'Wir fahren lieber mit ___ Zug. (der)', opts: ['dem', 'den', 'der'], a: 0, tip: 'mit 永远第三格：mit dem Zug。' },
     { type: 'fill', q: 'Das Geschenk ist für ___ kleine Mädchen. (das)', a: 'das', tip: 'für 永远第四格，中性不变：für das kleine Mädchen。' },
     { type: 'choice', q: 'Meine Eltern kommen ___ der Schweiz. (aus/von/nach 选一个)', opts: ['aus', 'von', 'nach'], a: 0, tip: 'aus 永远第三格：aus der Schweiz（国家/地区名词前用 aus）。' },
-    { type: 'fill', q: 'Ich gehe morgen ___ Arzt. (zu + der)', a: 'zum', tip: 'zu 第三格，zu der 缩合为 zum：zum Arzt。' },
-    { type: 'choice', q: 'Stell bitte den Stuhl hinter ___ Tisch. (der)', opts: ['den', 'dem', 'der'], a: 0, tip: 'stellen 是动作（Wohin）→第四格：hinter den Tisch。' },
-    { type: 'choice', q: 'Der Stuhl steht jetzt hinter ___ Tisch. (der)', opts: ['dem', 'den', 'der'], a: 0, tip: 'stehen 是状态（Wo）→第三格：hinter dem Tisch。同一位置、两个格。' }
+    { type: 'fill', q: 'Ich gehe morgen ___ Arzt. (zu + dem)', a: 'zum', tip: 'zu 永远第三格；阳性/中性第三格是 dem，zu dem 缩合为 zum：zum Arzt。对比：zu der → zur（如 zur Post）。' },
+    { type: 'choice', q: 'Er wirft den Ball in ___ Korb. (der，Wohin)', opts: ['in den', 'im', 'in die'], a: 0, tip: '扔进篮筐是方向（Wohin）→第四格：in den Korb。' },
+    { type: 'choice', q: 'Jetzt liegt der Ball ___ Korb. (der，Wo)', opts: ['im', 'in den', 'in die'], a: 0, tip: '躺在那里是位置（Wo）→第三格：im Korb（im = in dem）。' }
   ]
 }
 ];
