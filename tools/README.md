@@ -117,9 +117,38 @@ cp .env.example .env
 - **产物**：
   - `audio/dialog/<dialogueId>-<lineIndex>.mp3`（lineIndex 从 0 起，逐行一个文件；不做整组拼接）
   - 更新 `audio/manifest.js` 的 `window.AUDIO_DIALOGS`（`{ 对话 id: 从第 0 行起连续可用的音频文件数 }`；全部生成成功时即等于对话行数）
-- **注意**：`audio/manifest.js` 中 `AUDIO_WORDS / AUDIO_SENTS / AUDIO_CONJ / AUDIO_NATIVE` 四行按原文件逐行保留不变，`AUDIO_DIALOGS` 由本脚本维护，**请勿手改**。
+- **注意**：`audio/manifest.js` 由本脚本自动维护，**请勿手改**；manifest 保留逻辑已通用化——本脚本只重建 `AUDIO_DIALOGS` 键，其余清单行（含将来新增类型）原样保留。
 - **断点续跑**：已存在且非空的 mp3 自动跳过；请求间隔 ≥1 秒；单行失败自动重试 2 次，结束时打印失败行清单与逐组抽查清单（`[ok] 级别 id: 可用行数/总行数`）。
-- **与其他脚本的关系**：`tools/generate_audio.py` 重写 manifest 时会同时保留 `AUDIO_NATIVE` 与 `AUDIO_DIALOGS` 行，本脚本与它可任意顺序重复运行、互不覆盖。
+- **与其他脚本的关系**：manifest 保留逻辑通用化后，三个音频脚本（`generate_audio.py` / `generate_dialog_audio.py` / `generate_reading_audio.py`）各只重建自己负责的键、原样保留其余行，可任意顺序重复运行、互不覆盖。
+
+### `build_reading_tokens.py`
+
+- **用途**：阅读短文分词与词形归并管道——读作者手写层 `data/reading_texts.src.js`，分词（标点独立成 token）、lemma 归并（`LEXICON_OVERRIDES` 人工兜底 > 词库直接命中 > 规则还原 > `dewikt.py` 查 de.wiktionary），匹配 1945 词词库得 `vid`；库外词给中文 `g`。
+- **依赖**：`tools/dewikt.py`（de.wiktionary 访问，磁盘缓存 `tools/.cache/wikitext/`）
+- **用法**：
+  ```bash
+  python tools/build_reading_tokens.py
+  ```
+- **产物**：
+  - `data/reading.js`（含 tokens 的最终数据；头注释「自动生成，勿手改」——改内容只改 `data/reading_texts.src.js` 后重跑本脚本）
+  - stdout 映射报告（逐词形：lemma / vid / g / 来源；**worker 须逐词核对后补 `LEXICON_OVERRIDES` 至未决为 0**，未决 > 0 退出码 1）
+- **token 规则**：标点仅 `{w}`；词必有 `lemma`；`vid`（词库词）与 `g`（库外词）必居其一。
+
+### `generate_reading_audio.py`
+
+- **用途**：为阅读短文生成整篇朗读音频（edge-tts，`de-DE-KatjaNeural` 单声部叙述，与听力模块音色体系一致，默认语速）。
+- **依赖**：`edge-tts`
+- **用法**：
+  ```bash
+  python tools/generate_reading_audio.py                # 全量 20 篇
+  python tools/generate_reading_audio.py --limit 1      # 只跑前 1 篇（小样本验证）
+  python tools/generate_reading_audio.py --ids rd-a1-park,rd-b1-handy  # 定向重跑指定篇
+  ```
+- **产物**：
+  - `audio/reading/<id>.mp3`（每篇整篇一个文件）
+  - 更新 `audio/manifest.js` 的 `window.AUDIO_READING`（实际已生成 mp3 的篇目 id 数组，按文本顺序）
+- **注意**：`audio/manifest.js` 由本脚本自动维护，**请勿手改**；manifest 保留逻辑通用化（只重建 `AUDIO_READING` 键，其余行原样保留）。
+- **断点续跑**：已存在且非空的 mp3 自动跳过；请求间隔 ≥1 秒；单篇失败自动重试 2 次，结束时打印失败清单。
 
 ### `dump_conj.js`
 
@@ -134,14 +163,20 @@ cp .env.example .env
 
 ## 标准运行顺序
 
-在内容数据（`data/vocabulary*.js`、`data/grammar*.js`）更新后，按以下顺序重新生成资源：
+在内容数据（`data/vocabulary*.js`、`data/grammar*.js`、`data/reading_texts.src.js`）更新后，按以下顺序重新生成资源：
 
-1. **音频**（无需 API key）：
+1. **阅读分词**（无网络依赖最小时；查 de.wiktionary 有磁盘缓存）：
    ```bash
-   python tools/generate_audio.py          # 词汇 / 例句 / 变位
-   python tools/generate_dialog_audio.py   # 听力小对话逐行音频（分角色）
+   python tools/build_reading_tokens.py      # src 手写层 → data/reading.js（含映射报告）
    ```
-   > 两个音频脚本互不覆盖对方写在 `audio/manifest.js` 里的清单行，顺序不限。
+
+2. **音频**（无需 API key）：
+   ```bash
+   python tools/generate_audio.py            # 词汇 / 例句 / 变位
+   python tools/generate_dialog_audio.py     # 听力小对话逐行音频（分角色）
+   python tools/generate_reading_audio.py    # 阅读 20 篇整篇朗读
+   ```
+   > 三个音频脚本各只重建自己负责的 manifest 键、原样保留其余清单行，顺序不限。
 
 2. **主题封面**（需要 Seedream API key）：
    ```bash
@@ -153,4 +188,4 @@ cp .env.example .env
    python tools/fetch_images.py
    ```
 
-第 2、3 步相互独立，可交换顺序；第 1 步也可单独执行。
+第 3、4 步相互独立，可交换顺序；第 1、2 步也可单独执行。
