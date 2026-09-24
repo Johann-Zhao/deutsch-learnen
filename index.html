@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#F2EDE3">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="format-detection" content="telephone=no">
@@ -46,9 +47,16 @@
 <script src="data/grammar.js"></script>
 <script src="data/listening.js"></script>
 <script src="data/reading.js"></script>
+<script src="data/declension.js"></script>
 <script src="data/ipa.js"></script>
 <script src="audio/manifest.js"></script>
 <script src="images/manifest.js"></script>
 <script src="js/bundle.js" defer></script>
+<script>
+/* PWA：file:// 双击与不支持环境不注册，失败静默降级 */
+if (location.protocol !== 'file:' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW 注册失败：', err));
+}
+</script>
 </body>
 </html>
