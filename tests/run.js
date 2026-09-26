@@ -1196,7 +1196,11 @@ function withReviewEnv(fn) {
 function reviewFirstQuestion(word) {
   store.state.srs = {};
   store.state.mistakes = {};
-  store.state.srs[word.id] = { due: today(), stability: 2, last: today() };
+  // 必须是完整的「已学卡」：缺 reps/difficulty 会让 SRS.review 走非首次分支却算出 NaN 稳定度，
+  // due 变成 'NaN-NaN-NaN'——而 'NaN-…' > '2026-…' 字符串比较恒真，断言会静默空转
+  store.state.srs[word.id] = Object.assign(SRS.newCard(today()), {
+    stability: 2, difficulty: 5, reps: 3, last: today()
+  });
   return Vocab.reviewSession();
 }
 
@@ -1218,7 +1222,10 @@ test('行为级：非名词词条不出词性题（生产路径 Vocab.reviewSess
       opts.map(function (o) { return o.innerHTML; }).join(' | '));
     right[0].onclick(); // 真点一次：必须判对并 review(2)
     assert.ok(feedbackHtml(v).indexOf('正确') >= 0, '点击正确答案应给正确反馈：' + feedbackHtml(v));
-    assert.ok(store.state.srs[verb.id].due > today(), '答对后应推后到期日：' + store.state.srs[verb.id].due);
+    const after = store.state.srs[verb.id];
+    // 先钉住日期合法：坏掉的日期（如 'NaN-NaN-NaN'）在字符串比较里反而「大于」今天，会让下一条断言空转
+    assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(after.due), '答对后到期日必须是合法日期：' + after.due);
+    assert.ok(after.due > today(), '答对后应推后到期日：' + after.due);
   });
 });
 test('行为级：名词词条仍出词性三选一，且阳性名词点 der 判对（GENDER_IDX.m === 0）', function () {
