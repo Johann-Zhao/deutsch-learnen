@@ -202,7 +202,7 @@ window.GRAMMAR = [
     { type: 'fill', q: 'Ich ___ dich später ___. (anrufen)', a: 'rufe an', tip: 'Ich rufe dich später an.' },
     { type: 'choice', q: '哪句语序正确？', opts: ['Ich will heute ins Kino gehen.', 'Ich will gehen heute ins Kino.', 'Ich heute will ins Kino gehen.'], a: 0, tip: '情态动词第二位，不定式扔到句尾。' },
     { type: 'fill', q: '___ du mit? (mitkommen，命令式疑问只需填一个词)', a: 'kommst', tip: 'Kommst du mit? —— kommst 第二位，mit 甩尾。' },
-    { type: 'choice', q: '"Morgen ___ ich Fußball ___."（spielen 不是可分动词，这句话该怎么填？）', opts: ['spielen / —', 'spiele / —', '— / spiele'], a: 1, tip: 'spielen 不可分：Morgen spiele ich Fußball. 第二位填 spiele。' },
+    { type: 'choice', q: '"Morgen ___ ich Fußball ___."（spielen 不是可分动词）', opts: ['spielen / —', 'spiele / —', '— / spiele'], a: 1, tip: 'spielen 不可分：Morgen spiele ich Fußball. 第二位填 spiele。' },
     { type: 'choice', q: '下面哪个动词是可分动词？', opts: ['studieren', 'einkaufen', 'verstehen'], a: 1, tip: '重音在前缀 ein- 上，可分；ver-、be- 等前缀不可分。' }
   ]
 },

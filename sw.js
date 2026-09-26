@@ -16,6 +16,7 @@ const CORE = [
   'data/grammar_b1.js',
   'data/listening.js',
   'data/reading.js',
+  'data/declension.js',
   'data/ipa.js',
   'audio/manifest.js',
   'images/manifest.js'

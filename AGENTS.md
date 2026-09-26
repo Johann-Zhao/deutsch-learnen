@@ -6,11 +6,15 @@
 
 ```
 德语学习项目/
-├── index.html              # 应用入口（引用 js/bundle.js）
+├── index.html              # 应用入口（引用 js/bundle.js；静态加载 data/*.js 与两份 manifest）
 ├── css/style.css           # 全站样式
+├── sw.js                   # Service Worker 离线壳（核心壳预缓存 + 媒体运行时 CacheFirst；CACHE 版本号随发布递增）
+├── manifest.webmanifest    # PWA 清单（standalone、theme/background #F2EDE3、start_url/scope ./）
 ├── js/                     # 浏览器可直接运行的脚本 + 构建产物
 │   └── bundle.js           # esbuild 输出（IIFE，单文件）
 ├── src/                    # ESM 源码（构建入口 src/main.js）
+│   ├── cloze.js            # 语境填空（S9/M7）：句库挖空四选一 + 阅读/听力「练一练」入口
+│   └── declension.js       # 变格词尾专项（S9/M8）：专题列表与练习页（#/declension）
 ├── data/                   # 内容数据（按级别分文件）
 │   ├── vocabulary.js       # A1 词汇主题
 │   ├── vocabulary_a2.js    # A2 词汇主题
@@ -21,6 +25,7 @@
 │   ├── listening.js        # 听力小对话 20 组（S7；index.html 静态加载，跨级别复习需全量）
 │   ├── reading_texts.src.js # 阅读短文作者手写层（S8；由 build_reading_tokens.py 加工为 reading.js）
 │   ├── reading.js          # 阅读分词短文 20 篇（S8；自动生成，勿手改）
+│   ├── declension.js       # 变格/词尾专项 6 专题 50 题（S9/M8；window.DECLENSION，index.html 静态加载）
 │   └── ipa.js              # 自动生成：WORD_IPA 音标（fetch_ipa.py）
 ├── audio/                  # 预生成音频与清单
 │   ├── word/               # 单词音频（edge-tts）
@@ -36,6 +41,7 @@
 │   ├── zine/               # 装饰刊头插画（hero / 空状态，zine 纸感）
 │   ├── ornaments/          # Cove 提取的装饰素材（哥特花窗等章头装饰）
 │   ├── words/              # 词条配图
+│   ├── icons/              # PWA 安装图标 192 / 512 / maskable-512（gen_icons.py 派生，勿手改）
 │   ├── credits.json        # 图片来源与授权信息
 │   └── manifest.js         # 自动生成：IMAGE_WORDS / IMAGE_COVERS
 ├── tools/                  # 内容生产管道（Python / Node）
@@ -52,6 +58,7 @@
 │   ├── finalize_images.py
 │   ├── gen_zine_covers.py
 │   ├── extract_ornaments.py
+│   ├── gen_icons.py        # 从 images/zine/hero.png 派生 PWA 图标 → images/icons/（PIL，不调 API）
 │   ├── shot.mjs            # Playwright 双端截图验收（node tools/shot.mjs <route> <outfile> <width> [height]）
 │   ├── seedream_client.py
 │   └── dump_conj.js
@@ -102,6 +109,24 @@
     { type: 'choice', q: 'ie 组合发什么音？',
       opts: ['…', '长音"衣"', '…'], a: 1, tip: 'ie 是长 i 音。' },
     { type: 'fill', q: 'ich ___ (lernen) Deutsch.', a: 'lerne', tip: 'ich 加 -e。' }
+  ]
+}
+```
+
+### 变格/词尾专项（`window.DECLENSION`）
+
+```javascript
+{
+  id: 'dc-article',               // dc- 前缀，见下文命名约定
+  title: '定冠词四格变化',
+  level: 'A1',                    // A1 / A2 / B1
+  topic: 'article',               // 分组标签：article / adjective / pronoun / noun / preposition
+  summary: '一句话说明本专题训练哪种词尾。',
+  exercises: [
+    // choice 与语法专题同构：a 为正确项下标；fill 的 a 为字符串答案
+    { type: 'choice', q: 'Mein Vater kauft ___ Wagen. (der Wagen)',
+      opts: ['den', 'der', 'dem'], a: 0, tip: 'kaufen 接第四格：den Wagen。' },
+    { type: 'fill', q: 'Kannst du ___ Kind helfen? (das Kind)', a: 'dem', tip: 'helfen 接第三格。' }
   ]
 }
 ```
@@ -166,9 +191,11 @@ docs(tools): 新增 README 与 requirements.txt
 - **A1 语法专题 id**：`g-` 前缀，如 `g-praesens`、`g-kasus`。
 - **A2 语法专题 id**：`g-a2-` 前缀，如 `g-a2-verben`。
 - **B1 语法专题 id**：`g-b1-` 前缀，如 `g-b1-passiv`。
+- **变格/词尾专项专题 id**：`dc-` 前缀，如 `dc-article`、`dc-prep`（`window.DECLENSION`，与语法 `g-` 并列但不计入语法专题统计）。
 
 词汇卡全局 id：`{themeId}-{index}`（如 `greet-0`、`a2-travel-5`）。
 语法错题卡 id：`{topicId}#{exerciseIndex}`（如 `g-praesens#2`），含 `#`，与词汇 id 天然区分。
+变格错题卡 id：`dc-{topicId}#{exerciseIndex}`（如 `dc-article#3`），**复用语法 SRS 队列**——以 `dc-` 开头且含 `#`，被 `isGrammarCardId` 命中（到期过滤与语法复习页共用），错题本类型按前缀记为 `declension`（渲染为「变格」分支）。
 听力对话 id：`dl-` 前缀并含级别段（如 `dl-a1-greet`、`dl-b1-health`），与词汇/语法 id 天然区分。
 听力 SRS 卡 id：`listen-{dialogueId}#{qIndex}`（如 `listen-dl-a1-greet#0`），含 `#` 但非 `g-` 前缀——语法/听力到期过滤必须用 `isGrammarCardId`/`isListenCardId` 谓词按前缀区分，不得按「含 `#`」粗判，否则听力卡会被误计入语法复习。
 阅读短文 id：`rd-` 前缀并含级别段（如 `rd-a1-park`、`rd-a2-camping`、`rd-b1-umzug`），唯一；不新增 SRS 卡类型——「加入学习」直接复用词汇卡 id（vid）。
@@ -212,4 +239,16 @@ docs(tools): 新增 README 与 requirements.txt
 - **词条配图**：`python tools/fetch_images.py [--limit N]`（无需 API key，依赖外部图库可用性）。
 - **更换问题配图**：`python tools/fetch_images.py --ids <id,...> --candidates 6` 抓候选到 `images/candidates/`（不碰正式目录），审核选择写入 `images/candidates/choices.json` 后 `python tools/finalize_images.py` 落盘；选 `"none"` 则删除该词配图。
 
-> 注意：`audio/manifest.js` 由 `generate_audio.py`、`generate_dialog_audio.py` 与 `generate_reading_audio.py` 自动维护（各脚本只重建自己负责的键，其余清单行原样保留），`audio/credits_native.json`、`images/manifest.js`、`data/ipa.js`、`data/reading.js` 由各脚本自动生成，**请勿手改**。
+### 8.5 发布时更新 PWA 离线壳
+
+1. **`sw.js` 的 `CACHE` 版本号随发布递增**：形如 `deutsch-zine-vX.Y.Z`，与 `package.json` 的 `version` 保持一致。`activate` 只按 `deutsch-zine-` 前缀删旧缓存——版本号不递增，老用户拿到的仍是旧壳。
+2. **同步 `CORE` 预缓存清单**：`index.html` 静态加载的每个文件都必须在 `CORE` 里（`js/bundle.js`、`data/*.js`、`audio/manifest.js`、`images/manifest.js` 等）。漏加不会报错（`Promise.allSettled` 逐个容错 + 运行时 CacheFirst 兜底），但该文件在首次离线访问时会缺失。
+3. **图标与清单改动后核对**：图标重新生成用 `python tools/gen_icons.py`（源图 `images/zine/hero.png` → `images/icons/` 的 192 / 512 / maskable-512，产物勿手改）；改 `manifest.webmanifest` 的 `icons` 后确认条目与实际文件一一对应。
+
+### 8.6 变格专项与语境填空（内容是从既有数据派生的）
+
+- **语境填空（`src/cloze.js`）零新内容**：句源全部来自既有数据——`data/vocabulary*.js` 的词条例句、`data/listening.js` 的对话行、`data/reading.js` 的阅读句；挖空目标就是句中命中的词库词。新增内容时不需要为它写任何东西，但也因此**不要**指望改文案就能出题：目标词级别受当前级别限制，对话/阅读句只挖「已学」（`srs` 里有卡）的词，一句都没有命中就跳过该句。
+- **变格专项（`data/declension.js`）是这一层唯一手写的内容**：新专题必须 `dc-` 前缀，`choice` 的 `opts`/`a` 索引与 `fill` 的字符串 `a` 都要合法，`tip` 不可空；错题卡 id 用 `dc-{topicId}#{index}`，**不要**新增卡类型或改 `isGrammarCardId`（`dc-` 且含 `#` 天然命中语法队列）。
+- **判分都写回既有卡**：变格题写 `dc-` 卡（复用语法 SRS 队列 + 错题本「变格」分支）；阅读/听力页「练一练」写目标词卡（对 `review 2` / 错 `review 0`），不新建卡、不写错题本；复习池里的语境填空与其他题型一样计入词卡的错题与再练队列。
+
+> 注意：`audio/manifest.js` 由 `generate_audio.py`、`generate_dialog_audio.py` 与 `generate_reading_audio.py` 自动维护（各脚本只重建自己负责的键，其余清单行原样保留），`audio/credits_native.json`、`images/manifest.js`、`images/icons/`、`data/ipa.js`、`data/reading.js` 由各脚本自动生成，**请勿手改**。

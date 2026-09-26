@@ -4,10 +4,13 @@ import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import * as SRS from '../src/srs.js';
 import { Storage, today, KEY } from '../src/storage.js';
-import { buildWordIndex, isGrammarCardId, isListenCardId } from '../src/data.js';
+import { buildWordIndex, isGrammarCardId, isListenCardId, rebuildWordIndex, allWords } from '../src/data.js';
+import { store } from '../src/store.js';
 import { lookup } from '../src/conjugate.js';
 import { pickImageDistractors, hasImage, orderImageChoices } from '../src/imgquiz.js';
-import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag } from '../src/vocabulary.js';
+import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, genderTag, canAskGender, Vocab } from '../src/vocabulary.js';
+import { buildClozePool, pickCloze, pickClozeDistractors, blankSentence, itemsFromDialogue } from '../src/cloze.js';
+import { esc as escHtml } from '../src/ui.js';
 import { pickWordSrc, pickDialogSrc, pickReadingSrc, resolveRate } from '../src/audio.js';
 import { dialogueCardId, parseDialogueCardId, pickDictationQueue } from '../src/listen.js';
 import { classifyToken, newWordRate, isWordToken } from '../src/reader.js';
@@ -595,6 +598,338 @@ test('pickReadingSrc：清单内给路径，缺失/空清单给 null', function 
   assert.strictEqual(pickReadingSrc('rd-a1-park', null), null);
 });
 
+/* ---------- 语境填空（M7/S9）纯函数 ----------
+   cloze 的句源汇集读的是 src/data.js 的模块级索引 allWords，而 data/*.js 是 window.X=… 形态。
+   这里按既有 dataWindow 手法注入全局 window 后 rebuildWordIndex()（不改源码）；
+   用 try/finally 还原，避免影响其它分组。数据只加载一次。 */
+const browserWindow = {};
+let browserDataLoaded = false;
+function ensureBrowserData() {
+  if (browserDataLoaded) return;
+  ['../data/vocabulary.js', '../data/vocabulary_a2.js', '../data/vocabulary_b1.js',
+    '../data/listening.js', '../data/reading.js'].forEach(function (f) {
+    new Function('window', readFileSync(new URL(f, import.meta.url), 'utf8'))(browserWindow);
+  });
+  browserDataLoaded = true;
+}
+function withBrowserData(fn) {
+  ensureBrowserData();
+  const prev = globalThis.window;
+  globalThis.window = browserWindow;
+  rebuildWordIndex();
+  try { return fn(); }
+  finally {
+    if (prev === undefined) delete globalThis.window; else globalThis.window = prev;
+    rebuildWordIndex();
+  }
+}
+// 独立 oracle：按 cloze 注释里写明的形态规则（精确 / 词形+派生尾 / 词干）复算「句中是否出现该词」
+function clozeFold(s) {
+  return String(s || '').toLowerCase()
+    .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
+}
+const CLOZE_SUFFIX = ['e', 'st', 't', 'en', 'er', 'es', 'em', 'n', 's', 'te', 'ten', 'test', 'tet', 'ern'];
+function clozeTokenTier(sent, form) {
+  const f = clozeFold(form);
+  // 连字符复合词（T-Shirt）在 cloze 里是整词 token，这里两种切法都认
+  const toks = String(sent || '').split(/[^A-Za-zÄÖÜäöüß-]+/).filter(Boolean)
+    .concat(String(sent || '').split(/[^A-Za-zÄÖÜäöüß]+/).filter(Boolean))
+    .map(clozeFold);
+  if (toks.indexOf(f) >= 0) return 'exact';
+  const flex = toks.some(function (t) {
+    if (f.length >= 3 && t.indexOf(f) === 0 && CLOZE_SUFFIX.indexOf(t.slice(f.length)) >= 0) return true;
+    return t.length >= 3 && (f === t + 'en' || f === t + 'ern');
+  });
+  return flex ? 'flex' : null;
+}
+
+console.log('\n语境填空（cloze）纯函数：');
+test('blankSentence：整词边界精确挖空，名词句中无冠词时只挖名词部分', function () {
+  assert.strictEqual(blankSentence('Der Tag war lang.', { de: 'der Tag' }), '___ war lang.');
+  assert.strictEqual(blankSentence('Guten Tag!', { de: 'der Tag' }), 'Guten ___!');
+  // 派生尾（复数/变格）命中：Tag→Tage，句中冠词保留作格提示
+  assert.strictEqual(blankSentence('Die Tage sind kurz.', { de: 'der Tag' }), 'Die ___ sind kurz.');
+  // 目标词不在句中 → null（该句不出题）
+  assert.strictEqual(blankSentence('Der Tag war lang.', { de: 'die Nacht' }), null);
+  assert.strictEqual(blankSentence('', { de: 'der Tag' }), null);
+  assert.strictEqual(blankSentence('Der Tag war lang.', null), null);
+  assert.strictEqual(blankSentence('Der Tag war lang.', {}), null);
+});
+test('blankSentence：动词 -en 变位不覆盖（评审 r1 P2-2 已知边界，wohne→wohnen 返回 null）', function () {
+  // 本断言锁定的是「当前已知边界」而非期望行为：将来改进 isInflection 覆盖 -e/-t/-st 变位后本断言会变红，
+  // 届时请连同 src/cloze.js 顶部注释与评审 r1 P2-2 结论一起更新，不要默默放宽或删掉。
+  assert.strictEqual(blankSentence('Ich wohne im ersten Stock.', { de: 'wohnen' }), null);
+  assert.strictEqual(blankSentence('Ich wohne in Berlin.', { de: 'wohnen' }), null);
+  // 句中是真·精确形时仍能挖空：证明不是整体失效，只是变位不覆盖
+  assert.strictEqual(blankSentence('Wo willst du wohnen?', { de: 'wohnen' }), 'Wo willst du ___?');
+});
+test('buildClozePool：词例句 target=卡词本身；无 SRS 时不产生对话/阅读句源', function () {
+  withBrowserData(function () {
+    const pool = buildClozePool('A1', {});
+    assert.ok(pool.length > 300, 'A1 词例句池应足够大，实际 ' + pool.length);
+    const idx = {};
+    allWords.forEach(function (w) { idx[w.id] = w; });
+    pool.forEach(function (it) {
+      assert.strictEqual(it.source, 'word', '无 SRS 时不应有对话/阅读句源，实际 ' + it.source);
+      assert.strictEqual(it.target.id, it.vid, '词例句 target 必须是卡词本身');
+      assert.strictEqual(idx[it.vid], it.target, 'vid 必须解析回同一词条：' + it.vid);
+      assert.strictEqual(it.sent, it.target.ex);
+      assert.ok(it.sentZh);
+      assert.ok(it.blanked.indexOf('___') >= 0, '挖空句必须含 ___：' + it.blanked);
+      assert.strictEqual(it.ref, null);
+      assert.strictEqual(it.target.level, 'A1');
+    });
+  });
+});
+test('itemsFromDialogue：对话句 target 是句中「已学且最长」的词库词（受控句）', function () {
+  withBrowserData(function () {
+    const nacht = allWords.find(function (w) { return w.level === 'A1' && w.de === 'die Nacht'; });
+    const haus = allWords.find(function (w) { return w.level === 'A1' && w.de === 'das Haus'; });
+    assert.ok(nacht && haus, '测试数据依赖：A1 词库应含 die Nacht / das Haus');
+    const dial = { id: 'dl-a1-m10', lines: [{ de: 'Die Nacht war kalt und das Haus alt.', zh: '夜里很冷，房子很旧。' }] };
+    const both = itemsFromDialogue(dial, 'A1',
+      { [nacht.id]: { due: '2026-09-27' }, [haus.id]: { due: '2026-09-27' } });
+    assert.strictEqual(both.length, 1);
+    assert.strictEqual(both[0].target.id, nacht.id, '应取已学且最长的词（Nacht 5 > Haus 4）');
+    assert.strictEqual(both[0].blanked, '___ war kalt und das Haus alt.');
+    assert.strictEqual(both[0].vid, nacht.id);
+    assert.strictEqual(both[0].source, 'dialog');
+    assert.strictEqual(both[0].sentZh, '夜里很冷，房子很旧。');
+    assert.deepStrictEqual(both[0].ref, { dialogueId: 'dl-a1-m10', lineIndex: 0 });
+    // 只学 Haus：未学（无卡）的 Nacht 不进候选
+    const onlyHaus = itemsFromDialogue(dial, 'A1', { [haus.id]: { due: '2026-09-27' } });
+    assert.strictEqual(onlyHaus.length, 1);
+    assert.strictEqual(onlyHaus[0].target.id, haus.id);
+    assert.strictEqual(onlyHaus[0].blanked, 'Die Nacht war kalt und ___ alt.');
+    // 全无卡：该行不出题
+    assert.strictEqual(itemsFromDialogue(dial, 'A1', {}).length, 0);
+    assert.strictEqual(itemsFromDialogue(dial, 'A1', null).length, 0);
+  });
+});
+test('buildClozePool：全 A1 有卡时并入对话/阅读句源，vid 均为已学且可解析的 A1 词', function () {
+  withBrowserData(function () {
+    const srs = {};
+    allWords.filter(function (w) { return w.level === 'A1'; }).forEach(function (w) { srs[w.id] = { due: today() }; });
+    const pool = buildClozePool('A1', srs);
+    const by = { word: 0, dialog: 0, reading: 0 };
+    pool.forEach(function (it) { by[it.source] = (by[it.source] || 0) + 1; });
+    assert.ok(by.dialog > 0 && by.reading > 0, '应有对话/阅读句源：' + JSON.stringify(by));
+    const idx = {};
+    allWords.forEach(function (w) { idx[w.id] = w; });
+    pool.forEach(function (it) {
+      assert.ok(idx[it.vid], 'vid 必须能解析：' + it.vid);
+      assert.strictEqual(it.target.id, it.vid);
+      assert.ok(it.blanked.indexOf('___') >= 0, '挖空句必须含 ___：' + it.blanked);
+      if (it.source === 'word') return;
+      assert.ok(srs[it.vid], it.source + ' 句源的 target 必须是已学（有卡）词：' + it.vid);
+      assert.strictEqual(idx[it.vid].level, 'A1');
+      assert.ok(it.sentZh, it.source + ' 句源应有中文：' + it.sent);
+      assert.ok(clozeTokenTier(it.sent, it.target.de.replace(/^(der|die|das) /, '')),
+        'target 必须真的出现在句中：' + it.target.de + ' || ' + it.sent);
+    });
+  });
+});
+test('buildClozePool：对话句 target 是句中「已学最长」词（20 组对话全量 + 独立 oracle 复算）', function () {
+  withBrowserData(function () {
+    const srs = {};
+    const forms = [];
+    allWords.filter(function (w) { return w.level === 'A1'; }).forEach(function (w) {
+      srs[w.id] = { due: today() };
+      forms.push(w.de.replace(/^(der|die|das) /, ''));
+    });
+    const items = buildClozePool('A1', srs).filter(function (it) { return it.source === 'dialog'; });
+    assert.ok(items.length > 20, '对话句源应足够多，实际 ' + items.length);
+    items.forEach(function (it) {
+      const exact = forms.filter(function (f) { return clozeTokenTier(it.sent, f) === 'exact'; });
+      const flex = forms.filter(function (f) { return clozeTokenTier(it.sent, f) === 'flex'; });
+      const inTier = exact.length ? exact : flex; // 与 cloze 同款分层：先精确类，无精确命中才用形态变体类
+      const maxLen = Math.max.apply(null, inTier.map(function (f) { return clozeFold(f).length; }));
+      const len = clozeFold(it.target.de.replace(/^(der|die|das) /, '')).length;
+      assert.strictEqual(len, maxLen, '应选中句中已学最长的词（实际 ' + it.target.de + '，上界 ' + maxLen + '）：' + it.sent);
+    });
+  });
+});
+test('buildClozePool：级别过滤——A1 池不出现 a2-/b1- vid；A2 池含 a2- 且不混入 b1-', function () {
+  withBrowserData(function () {
+    const srs = {};
+    allWords.forEach(function (w) { srs[w.id] = { due: today() }; }); // 全库有卡，最严苛
+    const a1 = buildClozePool('A1', srs);
+    const leak = a1.filter(function (it) { return /^(a2-|b1-)/.test(it.vid); });
+    assert.strictEqual(leak.length, 0, 'A1 池混入高级别词：' + leak.slice(0, 3).map(function (x) { return x.vid; }).join(','));
+    assert.ok(a1.every(function (it) { return it.target.level === 'A1'; }));
+    const a2 = buildClozePool('A2', srs);
+    assert.ok(a2.some(function (it) { return /^a2-/.test(it.vid); }), 'A2 池应含 a2- 词');
+    assert.strictEqual(a2.filter(function (it) { return /^b1-/.test(it.vid); }).length, 0, 'A2 池不应混入 b1- 词');
+    assert.ok(a2.every(function (it) { return it.target.level === 'A1' || it.target.level === 'A2'; }));
+  });
+});
+test('pickCloze：到期 → 学习中 → 新词，vid 去重、上限 n 生效', function () {
+  const mk = function (vid) { return { vid: vid, sent: 'x', sentZh: 'x', blanked: '___', target: { id: vid }, source: 'word', ref: null }; };
+  const srs = {
+    'due-1': { due: '2026-09-27' },
+    'due-2': { due: '2026-09-20' },
+    'learn-1': { due: '2099-01-01' },
+    'sealed-1': { due: '2026-09-27', sealed: true }, // 已斩：不算到期，落到「学习中」
+    'verify-1': { due: '2099-01-01', verify: true }
+  };
+  const pool = [mk('new-1'), mk('due-1'), mk('learn-1'), mk('new-2'), mk('due-1'), mk('sealed-1'), mk('verify-1'), mk('due-2')];
+  const idsOf = function (arr) { return arr.map(function (x) { return x.vid; }); };
+  const all = idsOf(pickCloze(pool, srs, '2026-09-27', 99));
+  assert.deepStrictEqual(all, ['due-1', 'due-2', 'learn-1', 'sealed-1', 'verify-1', 'new-1', 'new-2']);
+  assert.strictEqual(all.filter(function (x) { return x === 'due-1'; }).length, 1, 'vid 必须去重');
+  assert.deepStrictEqual(idsOf(pickCloze(pool, srs, '2026-09-27', 2)), ['due-1', 'due-2'], '上限 n 生效');
+  assert.deepStrictEqual(idsOf(pickCloze(pool, srs, '2026-09-27')), ['due-1'], 'n 缺省为 1');
+  assert.deepStrictEqual(idsOf(pickCloze(pool, {}, '2026-09-27', 99)),
+    ['new-1', 'due-1', 'learn-1', 'new-2', 'sealed-1', 'verify-1', 'due-2'], '无卡全为新词且保持池内顺序');
+  assert.deepStrictEqual(idsOf(pickCloze(null, srs, '2026-09-27', 5)), []);
+});
+test('pickClozeDistractors：不含答案（id/释义双向去重）、同主题同词性优先、样本不足时全库补足', function () {
+  const target = { id: 'g-0', zh: '苹果', g: 'n', theme: 'a' };
+  const words = [
+    { id: 'a-1', zh: '香蕉', g: 'n', theme: 'a' },
+    { id: 'a-2', zh: '橙子', g: 'n', theme: 'a' },
+    { id: 'b-1', zh: '梨', g: 'n', theme: 'b' },
+    { id: 'a-3', zh: '跑步', g: 'v', theme: 'a' },
+    { id: 'c-1', zh: '桌子', g: 'm', theme: 'c' },
+    { id: 'd-1', zh: '苹果', g: 'n', theme: 'd' }, // 与答案同释义：必须排除
+    { id: 'g-0', zh: '苹果', g: 'n', theme: 'a' }   // 与答案同 id：必须排除
+  ];
+  const pool = words.map(function (x) { return { vid: x.id, target: x }; });
+  const item = { vid: target.id, target: target };
+  const ds = pickClozeDistractors(item, pool, 3);
+  assert.deepStrictEqual(ds.map(function (x) { return x.id; }), ['a-1', 'a-2', 'b-1'],
+    '分层应为 同主题同词性 → 同词性 → 同主题 → 其余');
+  assert.ok(ds.every(function (x) { return x.id !== target.id && x.zh !== target.zh; }), '干扰项不得含答案或同释义');
+  assert.strictEqual(pickClozeDistractors(item, pool, 1).length, 1);
+  withBrowserData(function () {
+    const real = allWords.find(function (w) { return w.level === 'A1' && w.g === 'm' && w.de === 'der Tag'; }) ||
+      allWords.find(function (w) { return w.level === 'A1' && w.g === 'm'; });
+    assert.ok(real, '测试数据依赖：A1 词库应有阳性名词');
+    const full = pickClozeDistractors({ vid: real.id, target: real }, [], 3);
+    assert.strictEqual(full.length, 3, '池内样本不足时应由全词库补足 n 个');
+    assert.strictEqual(new Set(full.map(function (x) { return x.id; })).size, 3);
+    assert.ok(full.every(function (x) { return x.id !== real.id && x.zh !== real.zh; }));
+  });
+});
+
+/* ---------- 变格专项（M8/S9）数据完整性 + dc- 卡 id ---------- */
+
+console.log('\n变格专项（M8）数据完整性：');
+test('变格专项：恰好 6 专题、id 为 dc- 前缀且唯一、每专题 ≥6 题、总数 50', function () {
+  loadDataFile('../data/declension.js');
+  const d = dataWindow.DECLENSION;
+  assert.ok(Array.isArray(d), 'window.DECLENSION 应为数组');
+  assert.strictEqual(d.length, 6, '应为恰好 6 个专题，实际 ' + d.length);
+  const ids = d.map(function (t) { return t.id; });
+  assert.strictEqual(new Set(ids).size, ids.length, '专题 id 必须唯一');
+  ids.forEach(function (id) {
+    assert.ok(/^dc-[\w-]+$/.test(id), 'id 必须以 dc- 开头且不含 #：' + id);
+  });
+  let total = 0;
+  d.forEach(function (t) {
+    assert.ok(t.id && t.title && t.level, t.id + ' 缺 id/title/level');
+    assert.ok(['A1', 'A2', 'B1'].indexOf(t.level) >= 0, t.id + ' level 非法：' + t.level);
+    assert.ok(t.exercises.length >= 6, t.id + ' 题目不足 6 题：' + t.exercises.length);
+    total += t.exercises.length;
+  });
+  assert.strictEqual(total, 50, '题目总数应为 50，实际 ' + total);
+});
+test('变格专项：choice 的 opts/a 合法、fill 的 a 非空、题干与 tip 非空、选项不重复', function () {
+  loadDataFile('../data/declension.js');
+  dataWindow.DECLENSION.forEach(function (t) {
+    t.exercises.forEach(function (e, i) {
+      const at = t.id + '#' + i;
+      assert.ok(['choice', 'fill'].indexOf(e.type) >= 0, at + ' 题型非法：' + e.type);
+      assert.ok(e.q && String(e.q).trim(), at + ' 题干为空');
+      assert.ok(e.tip && String(e.tip).trim(), at + ' 解析（tip）为空');
+      if (e.type === 'choice') {
+        assert.ok(Array.isArray(e.opts) && e.opts.length >= 2, at + ' choice 缺 opts');
+        assert.ok(Number.isInteger(e.a) && e.a >= 0 && e.a < e.opts.length, at + ' a 索引非法：' + e.a);
+        assert.strictEqual(new Set(e.opts).size, e.opts.length, at + ' 选项重复');
+        assert.ok(e.opts.every(function (o) { return o && String(o).trim(); }), at + ' 存在空选项');
+      } else {
+        assert.ok(typeof e.a === 'string' && e.a.trim(), at + ' fill 缺非空答案');
+      }
+    });
+  });
+});
+
+console.log('\n卡 id 谓词（变格卡 dc-…#n）：');
+test('dc-<topicId>#<i> 命中语法卡谓词、不被听力卡谓词命中（与 g-/listen- 互斥不回归）', function () {
+  loadDataFile('../data/declension.js');
+  const d = dataWindow.DECLENSION;
+  const ids = [];
+  d.forEach(function (t) {
+    t.exercises.forEach(function (e, i) { ids.push(t.id + '#' + i); });
+  });
+  assert.strictEqual(ids.length, 50);
+  assert.strictEqual(new Set(ids).size, 50, '变格卡 id 必须全局唯一');
+  ids.forEach(function (id) {
+    assert.ok(isGrammarCardId(id), id + ' 必须进语法复习队列（到期过滤与语法复习页共用）');
+    assert.ok(!isListenCardId(id), id + ' 不得被误判为听力卡');
+  });
+  // 反例：听力卡仍只被听力谓词命中；语法卡仍只被语法谓词命中；词汇卡两类都不是
+  assert.ok(isListenCardId('listen-dl-a1-greet#0') && !isGrammarCardId('listen-dl-a1-greet#0'));
+  assert.ok(isGrammarCardId('g-praesens#2') && !isListenCardId('g-praesens#2'));
+  assert.ok(!isGrammarCardId('greet-0') && !isListenCardId('greet-0'));
+  // 专题 id 本身不含 #，不是卡
+  assert.ok(!isGrammarCardId(d[0].id) && !isListenCardId(d[0].id));
+});
+
+/* ---------- 内容残留黑名单（4.6.0 发布防回归） ----------
+   本次发布修掉了两处「编辑残留渲染给学习者」的缺陷（grammar_a2.js 的 der Neighbor→Nachbar、
+   grammar_b1.js 题干里作者起草时的自问批注）。既有测试只校验语法专题的结构与题量，不校验文本，
+   所以这里补有限黑名单：用具体残留词，不做「禁止长串 ASCII 字母」这类激进规则（会误伤德语词与 HTML）。 */
+function forEachContentField(fn) {
+  loadDataFile('../data/grammar.js');
+  loadDataFile('../data/grammar_a2.js');
+  loadDataFile('../data/grammar_b1.js');
+  loadDataFile('../data/declension.js');
+  const topics = (dataWindow.GRAMMAR || []).concat(dataWindow.DECLENSION || []);
+  topics.forEach(function (t) {
+    ['id', 'title', 'summary', 'lesson'].forEach(function (k) {
+      if (t[k] !== undefined && t[k] !== null) fn(t.id + '.' + k, t[k]);
+    });
+    (t.exercises || []).forEach(function (e, i) {
+      const at = t.id + '#' + i;
+      ['q', 'tip'].forEach(function (k) {
+        if (e[k] !== undefined && e[k] !== null) fn(at + '.' + k, e[k]);
+      });
+      if (e.type === 'choice') {
+        (e.opts || []).forEach(function (o, j) { fn(at + '.opts[' + j + ']', o); });
+      } else if (e.a !== undefined && e.a !== null) {
+        fn(at + '.a', e.a);
+      }
+    });
+  });
+}
+
+console.log('\n内容残留黑名单（发布防回归）：');
+test('语法/变格专题文本不得含编辑残留词（Neighbor/TODO/FIXME/TBD/WIP/placeholder）', function () {
+  const RX = /Neighbor|Neighbour|TODO|FIXME|TBD|WIP|placeholder/i;
+  const hits = [];
+  let checked = 0;
+  forEachContentField(function (at, text) {
+    checked++;
+    if (RX.test(String(text))) hits.push(at);
+  });
+  assert.ok(checked > 500, '应扫描到足够多的文本字段，实际 ' + checked);
+  assert.strictEqual(hits.length, 0, '发现编辑残留词：' + hits.slice(0, 5).join(', '));
+});
+test('语法/变格题干不得含括号内自问批注（作者起草残留）', function () {
+  const RX = /（[^）]*[？?][^）]*）/;
+  const hits = [];
+  let checked = 0;
+  // 只查题干 q：lesson 里「Wie schreibt man das?（这个怎么写？）」是德语句 + 中文译文的正常教学内容
+  forEachContentField(function (at, text) {
+    if (!/#\d+\.q$/.test(at)) return;
+    checked++;
+    if (RX.test(String(text))) hits.push(at + ' :: ' + String(text).slice(0, 60));
+  });
+  assert.ok(checked > 200, '应扫描到足够多的题干，实际 ' + checked);
+  assert.strictEqual(hits.length, 0, '题干含括号内自问批注（起草残留）：' + hits.join(' | '));
+});
+
 console.log('变位查询（conjugate.js）：');
 test('不规则动词 fahren', function () {
   const d = lookup('fahren');
@@ -711,6 +1046,203 @@ test('genderTag：名词保留三色角标，非名词降级纯文本 pos-tag，
   assert.ok(v.indexOf('gender-tag') === -1, '动词不应使用 gender-tag 类');
   assert.ok(genderTag('adv').indexOf('副词') > 0);
   assert.strictEqual(genderTag('xyz'), '<span class="pos-tag">xyz</span>', '未知标记原样返回');
+});
+
+console.log('\n词性题守卫（canAskGender / gender 题型）：');
+test('canAskGender：仅名词类（m/f/n/pl）为真，非名词为假；m 的答案下标是 0，不能用真值判断', function () {
+  ['m', 'f', 'n', 'pl'].forEach(function (g) {
+    assert.strictEqual(canAskGender({ g: g }), true, g + ' 可以出词性题');
+  });
+  ['v', 'adj', 'adv', 'num', 'pron', 'phrase', 'part', 'conj'].forEach(function (g) {
+    assert.strictEqual(canAskGender({ g: g }), false, g + ' 没有词性题正确答案');
+  });
+  // GENDER_IDX.m === 0：若把谓词写成 if (GENDER_IDX[w.g]) / 真值判断，阳性名词会被误判为「不能出题」
+  assert.strictEqual(canAskGender({ g: 'm' }), true, 'm 映射下标 0，谓词必须用 !== undefined 判断');
+  assert.strictEqual(canAskGender(null), false);
+  assert.strictEqual(canAskGender(undefined), false);
+  assert.strictEqual(canAskGender({}), false);
+  assert.strictEqual(canAskGender({ g: 'xyz' }), false);
+  assert.strictEqual(canAskGender({ g: '' }), false);
+});
+test('数据不变量：凡 canAskGender 为真的词条，词性题答案下标均存在（全库逐词核对）', function () {
+  loadDataFile('../data/vocabulary.js');
+  loadDataFile('../data/vocabulary_a2.js');
+  loadDataFile('../data/vocabulary_b1.js');
+  const GENDER_IDX = { m: 0, f: 1, n: 2, pl: 1 };
+  const seen = {};
+  let askable = 0, nonNoun = 0;
+  dataWindow.VOCAB_THEMES.forEach(function (th) {
+    th.words.forEach(function (w) {
+      seen[w[1]] = (seen[w[1]] || 0) + 1;
+      if (!canAskGender({ g: w[1] })) { nonNoun++; return; }
+      askable++;
+      assert.notStrictEqual(GENDER_IDX[w[1]], undefined, w[0] + '（' + w[1] + '）会出词性题但没有正确答案');
+      assert.ok(GENDER_IDX[w[1]] >= 0 && GENDER_IDX[w[1]] < 3, w[0] + ' 答案下标越界');
+    });
+  });
+  ['m', 'f', 'n', 'pl'].forEach(function (g) {
+    assert.ok(seen[g] > 0, '词库应含 ' + g + ' 词条（否则该分支没被真实数据覆盖）');
+  });
+  assert.ok(askable >= 1000 && nonNoun >= 400, '词库构成异常：名词类 ' + askable + ' / 非名词 ' + nonNoun);
+});
+
+/* 最小 DOM stub：只覆盖 Vocab.reviewSession 渲染路径用到的 API（不引第三方依赖）。
+   仅在这些行为级测试内挂到 globalThis.document 上，测试结束还原。 */
+function makeFakeDom() {
+  function El(tag) {
+    this.tagName = String(tag).toUpperCase();
+    this.children = [];
+    this.parentNode = null;
+    this.className = '';
+    this._html = '';
+    this.style = {};
+    this.attrs = {};
+    this.disabled = false;
+    this.title = '';
+    this.value = '';
+    this.onclick = null;
+    const self = this;
+    this.classList = {
+      add: function (c) { const s = self._cls(); if (s.indexOf(c) < 0) { s.push(c); self.className = s.join(' '); } },
+      remove: function (c) { self.className = self._cls().filter(function (x) { return x !== c; }).join(' '); },
+      contains: function (c) { return self._cls().indexOf(c) >= 0; },
+      toggle: function (c, on) {
+        const want = on === undefined ? self._cls().indexOf(c) < 0 : !!on;
+        if (want) self.classList.add(c); else self.classList.remove(c);
+        return want;
+      }
+    };
+  }
+  El.prototype._cls = function () { return String(this.className || '').split(/\s+/).filter(Boolean); };
+  El.prototype.appendChild = function (c) { this.children.push(c); if (c) c.parentNode = this; return c; };
+  El.prototype.insertBefore = function (c, ref) {
+    const i = ref ? this.children.indexOf(ref) : -1;
+    if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
+    if (c) c.parentNode = this;
+    return c;
+  };
+  El.prototype.setAttribute = function (k, v) { this.attrs[k] = v; };
+  El.prototype.getAttribute = function (k) { return this.attrs[k] === undefined ? null : this.attrs[k]; };
+  El.prototype.focus = function () { this.focused = true; };
+  El.prototype.querySelectorAll = function (sel) {
+    const cls = String(sel).replace(/^\./, '');
+    const out = [];
+    (function walk(n) {
+      (n.children || []).forEach(function (c) {
+        if (c._cls().indexOf(cls) >= 0) out.push(c);
+        walk(c);
+      });
+    })(this);
+    return out;
+  };
+  Object.defineProperty(El.prototype, 'innerHTML', {
+    get: function () { return this._html; },
+    set: function (v) { this._html = String(v); this.children = []; }
+  });
+  Object.defineProperty(El.prototype, 'firstChild', { get: function () { return this.children[0] || null; } });
+  Object.defineProperty(El.prototype, 'textContent', {
+    get: function () { return this._html.replace(/<[^>]*>/g, ''); },
+    set: function (v) { this._html = String(v); }
+  });
+  return {
+    createElement: function (t) { return new El(t); },
+    getElementById: function () { return null; },
+    querySelectorAll: function () { return []; },
+    addEventListener: function () {}
+  };
+}
+function domDescendants(root) {
+  const out = [];
+  (function walk(n) { (n.children || []).forEach(function (c) { out.push(c); walk(c); }); })(root);
+  return out;
+}
+function domHasClass(e, c) { return String(e.className || '').split(/\s+/).indexOf(c) >= 0; }
+function promptText(root) {
+  const p = domDescendants(root).filter(function (e) { return domHasClass(e, 'quiz-prompt'); })[0];
+  return p ? p.innerHTML : '';
+}
+function optionEls(root) {
+  return domDescendants(root).filter(function (e) { return domHasClass(e, 'opt'); });
+}
+function feedbackHtml(root) {
+  const list = domDescendants(root).filter(function (e) { return String(e._html).indexOf('class="feedback') >= 0; });
+  return list.length ? list[list.length - 1]._html : '';
+}
+/* 驱动生产路径 Vocab.reviewSession：
+   - 注入真实词库数据（rebuildWordIndex）；
+   - 注入最小 DOM；
+   - 打桩 Math.random 成 [0.9, 0.0] 循环：① 0.9 ≥ 0.25 跳过 ctxcloze ② floor(0.0*5)=0 → 'gender'。
+     （不注入 IMAGE_WORDS，图片题分支 hasImage(...) 为假短路、不消耗随机数，故每道题恰好消耗 2 个随机数） */
+function withReviewEnv(fn) {
+  ensureBrowserData();
+  const prevWin = globalThis.window, prevDoc = globalThis.document, prevRandom = Math.random;
+  const prevSrs = store.state.srs, prevMistakes = store.state.mistakes;
+  globalThis.window = browserWindow;
+  globalThis.document = makeFakeDom();
+  const seq = [0.9, 0.0];
+  let i = 0;
+  Math.random = function () { const v = seq[i % seq.length]; i++; return v; };
+  rebuildWordIndex();
+  try { return fn(); }
+  finally {
+    Math.random = prevRandom;
+    store.state.srs = prevSrs;
+    store.state.mistakes = prevMistakes;
+    if (prevWin === undefined) delete globalThis.window; else globalThis.window = prevWin;
+    if (prevDoc === undefined) delete globalThis.document; else globalThis.document = prevDoc;
+    rebuildWordIndex();
+  }
+}
+function reviewFirstQuestion(word) {
+  store.state.srs = {};
+  store.state.mistakes = {};
+  // 必须是完整的「已学卡」：缺 reps/difficulty 会让 SRS.review 走非首次分支却算出 NaN 稳定度，
+  // due 变成 'NaN-NaN-NaN'——而 'NaN-…' > '2026-…' 字符串比较恒真，断言会静默空转
+  store.state.srs[word.id] = Object.assign(SRS.newCard(today()), {
+    stability: 2, difficulty: 5, reps: 3, last: today()
+  });
+  return Vocab.reviewSession();
+}
+
+test('行为级：非名词词条不出词性题（生产路径 Vocab.reviewSession + DOM stub + Math.random 打桩）', function () {
+  withReviewEnv(function () {
+    const verb = allWords.find(function (w) { return w.level === 'A1' && w.g === 'v' && w.de === 'wohnen'; }) ||
+      allWords.find(function (w) { return w.level === 'A1' && w.g === 'v'; });
+    assert.ok(verb, '测试数据依赖：A1 词库应有动词');
+    assert.strictEqual(canAskGender(verb), false);
+    const v = reviewFirstQuestion(verb);
+    const prompt = promptText(v);
+    assert.strictEqual(prompt.indexOf('这个词的词性是？'), -1,
+      '非名词不得出词性题（answerIdx 会是 undefined，三个选项全错）：' + prompt);
+    const opts = optionEls(v);
+    assert.strictEqual(opts.length, 4, '应回退为四选一（看德语选中文），实际 ' + opts.length + ' 个：' +
+      opts.map(function (o) { return o.innerHTML; }).join(' | '));
+    const right = opts.filter(function (o) { return o.innerHTML === escHtml(verb.zh); });
+    assert.strictEqual(right.length, 1, '选项里必须恰好有一个正确答案（' + verb.zh + '）：' +
+      opts.map(function (o) { return o.innerHTML; }).join(' | '));
+    right[0].onclick(); // 真点一次：必须判对并 review(2)
+    assert.ok(feedbackHtml(v).indexOf('正确') >= 0, '点击正确答案应给正确反馈：' + feedbackHtml(v));
+    const after = store.state.srs[verb.id];
+    // 先钉住日期合法：坏掉的日期（如 'NaN-NaN-NaN'）在字符串比较里反而「大于」今天，会让下一条断言空转
+    assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(after.due), '答对后到期日必须是合法日期：' + after.due);
+    assert.ok(after.due > today(), '答对后应推后到期日：' + after.due);
+  });
+});
+test('行为级：名词词条仍出词性三选一，且阳性名词点 der 判对（GENDER_IDX.m === 0）', function () {
+  withReviewEnv(function () {
+    const noun = allWords.find(function (w) { return w.level === 'A1' && w.g === 'm' && w.de === 'der Tag'; }) ||
+      allWords.find(function (w) { return w.level === 'A1' && w.g === 'm'; });
+    assert.ok(noun, '测试数据依赖：A1 词库应有阳性名词');
+    assert.strictEqual(canAskGender(noun), true);
+    const v = reviewFirstQuestion(noun);
+    assert.ok(promptText(v).indexOf('这个词的词性是？') >= 0, '名词应出词性题：' + promptText(v));
+    const opts = optionEls(v);
+    assert.deepStrictEqual(opts.map(function (o) { return o.innerHTML; }), ['der（阳性）', 'die（阴性）', 'das（中性）']);
+    assert.ok(opts[0].innerHTML.indexOf('der') >= 0);
+    opts[0].onclick(); // m → 下标 0 = der
+    assert.ok(feedbackHtml(v).indexOf('正确') >= 0,
+      '阳性名词点「der（阳性）」必须判对（m 的答案下标是 0）：' + feedbackHtml(v));
+  });
 });
 
 console.log('\n再练队列（百词斩式错词复现）：');
