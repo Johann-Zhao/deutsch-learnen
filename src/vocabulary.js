@@ -16,6 +16,8 @@ import { lookup, Conjugate } from './conjugate.js';
 import { Cloze } from './cloze.js';
 
 const GENDER_LABEL = { m: ['der', 'm'], f: ['die', 'f'], n: ['das', 'n'], pl: ['die', 'pl'] };
+// 词性题三个选项的下标：只有名词类（m/f/n/pl）有词性，其余词性没有条目（undefined）
+const GENDER_IDX = { m: 0, f: 1, n: 2, pl: 1 };
 // 非名词词性的中文标签（genderTag 降级为纯文本角标时使用）
 const POS_LABEL = { v: '动词', adj: '形容词', adv: '副词', num: '数词', pron: '代词', phrase: '短语', conj: '连词', part: '小品词' };
 
@@ -30,6 +32,14 @@ export function genderTag(g) {
     return '<span class="gender-tag ' + g + '">' + GENDER_LABEL[g][0] + '</span>';
   }
   return '<span class="pos-tag">' + UI.esc(posLabel(g)) + '</span>';
+}
+
+/* 该词条能否出「der/die/das？」词性题：只有名词类（m/f/n/pl）有词性。
+   非名词（动词/形容词/副词…）若出成词性题，answerIdx 为 undefined，
+   三个选项都不是正确答案——题必错、还平白写一次 lapses 进错题本。
+   词库 1945 词中 509 词（26.2%）属此类，生成题型时据此回退。 */
+export function canAskGender(word) {
+  return !!word && GENDER_IDX[word.g] !== undefined;
 }
 
 // 例句中高亮目标词（按词性染色）
@@ -776,6 +786,8 @@ function reviewSession(onlyMistakes) {
     else {
       const types = ['gender', 'trans', 'listen', 'cloze', 'dict'];
       type = types[Math.floor(Math.random() * types.length)];
+      // 非名词不出词性题（无正确答案），回退为看德语选中文
+      if (type === 'gender' && !canAskGender(w)) type = 'trans';
       if (type === 'cloze' && !w.ex) type = 'trans';
     }
     const q = { w: w, type: type, answered: false };
@@ -786,7 +798,7 @@ function reviewSession(onlyMistakes) {
     } else if (type === 'gender') {
       q.prompt = UI.esc(w.de.replace(/^(der|die|das) /, '')) + ' —— ' + UI.esc(w.zh) + '<br>这个词的词性是？';
       q.opts = ['der（阳性）', 'die（阴性）', 'das（中性）'];
-      q.answerIdx = { m: 0, f: 1, n: 2, pl: 1 }[w.g];
+      q.answerIdx = GENDER_IDX[w.g];
       q.explain = w.de + '（' + w.zh + '）';
     } else if (type === 'ctxcloze') {
       // 语境填空：句库句挖空四选一；无句源回退为看德语选中文
