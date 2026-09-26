@@ -924,18 +924,21 @@ function reviewSession(onlyMistakes) {
             b.classList.add('correct');
             box.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
             if (!missedG) correct();
-            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+            else {
+              // 首错后答对：仍按「首错即错」计 q=0，但反馈如实说明结果
+              wrongFn();
+              fb.innerHTML = '<div class="feedback">答对了，但首次答错，仍记作需要复习 · ' + UI.esc(q.explain) + '</div>';
+            }
           } else if (!missedG) {
-            // 第 1 次错：计分并给提示，允许重选
+            // 第 1 次错：只提示不计分，允许继续选（计分推迟到二错或首错后答对）
             missedG = true;
             b.classList.add('wrong'); b.disabled = true;
-            wrongFn();
             fb.innerHTML = '<div class="feedback">提示：' + UI.esc(w.zh) + '（再选一次）</div>';
           } else {
-            // 第 2 次错：揭示答案
+            // 第 2 次错：揭示答案并计分（q=0，进错题本与再练队列，出「下一个」）
             b.classList.add('wrong'); b.disabled = true;
             box.querySelectorAll('.opt').forEach(function (x, j) { x.disabled = true; if (j === q.answerIdx) x.classList.add('correct'); });
-            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+            wrongFn();
           }
         };
         box.appendChild(b);
@@ -952,21 +955,24 @@ function reviewSession(onlyMistakes) {
             b.classList.add('correct');
             box2.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
             if (!missed) correct();
-            else fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(q.explain) + '</div>';
+            else {
+              // 首错后答对：仍按「首错即错」计 q=0，但反馈如实说明结果
+              wrongFn();
+              fb.innerHTML = '<div class="feedback">答对了，但首次答错，仍记作需要复习 · ' + UI.esc(q.explain) + '</div>';
+            }
           } else if (!missed) {
-            // 第 1 次错：计分并给提示，允许重选
+            // 第 1 次错：只提示不计分，允许继续选（计分推迟到二错或首错后答对）
             missed = true;
             b.classList.add('wrong'); b.disabled = true;
-            wrongFn();
             fb.innerHTML = '<div class="feedback">提示：' + choiceHint(q) + '（再选一次）</div>';
           } else {
-            // 第 2 次错：揭示答案
+            // 第 2 次错：揭示答案并计分（q=0，进错题本与再练队列，出「下一个」）
             b.classList.add('wrong'); b.disabled = true;
             box2.querySelectorAll('.opt').forEach(function (x, i) {
               x.disabled = true;
               if (q.options[i].word.id === w.id) x.classList.add('correct');
             });
-            fb.innerHTML = '<div class="feedback bad">再记一次：' + UI.esc(q.explain) + '</div>';
+            wrongFn();
           }
         };
         box2.appendChild(b);

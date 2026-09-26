@@ -26,9 +26,19 @@ function fold(s) {
     .replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
 }
 
-// token 是否为词形的形态变体：精确、加派生尾（-e/-st/-t/-en/-er/-es/-em/-n/-s/-te…）、
-// 或去动词尾（wohne→wohnen、geht→gehen）；短词（<3 字母）只认精确，
-// 防 in→innen、ab→aber 误配；去尾不含裸 -n，防 neu→neun 误配
+// token 是否为词形的形态变体（fold 后比较，äöüß 已折叠）：
+//   精确相等；
+//   派生尾：token = 词形 + 尾（词形 ≥3 字母）——覆盖名词复数/变格（Tag→Tage/Tags、
+//     Kind→Kinder、Haus→Häuser）与形容词变尾（rot→rote）；
+//   词干：token = 词形去 en/ern（Trink→trinken、Probier→probieren，多为祈使句省 -en）。
+// 全量 1945 条例句实测命中：精确 1581 / 派生尾 116 / 词干 4，其余 244 条（12.5%）无匹配。
+// 不覆盖动词 -en 的 e/es/t/st 变位：wohne/wohnt/arbeite→wohnen、arbeiten 均不命中，
+// blankSentence 返回 null → 该例句不出题（复习池该词回退为看德语选中文）。
+// 短词（<3 字母）只认精确，防 in→innen、ab→aber 误配。
+// 已知误配（本次未修，形态引擎增强另立项）：派生尾含裸 -n，token=neu+n=neun 会命中，
+// 实测 'Es kostet neun Euro.' + {de:'neu'} → 'Es kostet ___ Euro.'（误挖 neun 标答 neu）；
+// 变体轮只在全句无精确命中时才启用，句含 arbeite 而词库有 die Arbeit 时会挖掉 arbeite
+// 标答 die Arbeit（形近异义，见评审 r1 P2-2）
 const INFLECT_SUFFIX = ['e', 'st', 't', 'en', 'er', 'es', 'em', 'n', 's', 'te', 'ten', 'test', 'tet', 'ern'];
 const INFLECT_PREFIX = ['en', 'ern'];
 function isInflection(tok, form) {
@@ -52,7 +62,9 @@ function wordMatch(sent, form) {
 }
 
 /* 挖空：目标词首个匹配形替换为 ___；名词优先整词组（der Tag→___），句中无冠词时
-   只挖名词部分（冠词留在句中作格提示）；允许形态变体（wohne→wohnen、Grüße→Gruß）。
+   只挖名词部分（冠词留在句中作格提示）；形态变体按上方 isInflection 的实际边界
+   （精确、词形+派生尾，如 Grüße→Gruß），不覆盖动词 -en 的 e/es/t/st 变位
+   （wohne→wohnen、geht→gehen 均返回 null）。
    找不到匹配返回 null（该句不出题） */
 export function blankSentence(sent, target) {
   if (!sent || !target || !target.de) return null;
@@ -65,7 +77,9 @@ export function blankSentence(sent, target) {
     const hit = wordMatch(sent, forms[i]);
     if (hit) return sent.slice(0, hit.index) + '___' + sent.slice(hit.index + hit.text.length);
   }
-  // 两轮扫描：先精确匹配（句中真出现该词），再形态变体；防 neu 被误当 neun 挖掉
+  // 两轮扫描：先精确匹配（句中真出现该词），再形态变体。
+  // 精确轮只在该词真出现在句中时才拦得住（neu→neun 这类误配只在句中无精确形时发生，
+  // 裸 -n 派生尾实测会误挖 neun，见上方 isInflection 注释）
   const segs = sent.split(/([A-Za-zÄÖÜäöüß]+)/);
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 0; i < segs.length; i++) {
@@ -328,7 +342,8 @@ export function sentenceSpeakBtn(item) {
 }
 
 /* 一道语境填空四选一：挖空句 + 中文 + 四选项；渐进提示对齐现有选择题规范
-  （错 1：词性+首字母遮罩，可重选；错 2：揭示答案）；判毕回调 onAnswer(ok 首答对, vid) */
+  （错 1：词性+首字母遮罩，可重选；错 2：揭示答案）；判毕回调 onAnswer(首答对, vid)
+  ——首答对 true（review 2），先错后对/连错两次 false（review 0），与复习池「首错即错」口径一致 */
 export function quizCard(item, onAnswer, pool) {
   const card = UI.el('div');
   let resolved = false, wrongs = 0;
@@ -366,7 +381,8 @@ export function quizCard(item, onAnswer, pool) {
         box.querySelectorAll('.opt').forEach(function (x) { x.disabled = true; });
         fb.innerHTML = '<div class="feedback ok">正确 · ' + UI.esc(item.target.de) + ' = ' + UI.esc(item.target.zh) + '</div>';
         audio.playWord(item.vid, item.target.de);
-        resolve(true);
+        // 首答对才计分（review 2）；先错后对按「首错即错」计（review 0），与复习池口径一致
+        resolve(wrongs === 0);
       } else if (wrongs === 0) {
         wrongs++;
         b.classList.add('wrong'); b.disabled = true;
@@ -445,7 +461,7 @@ export function practiceCard(items, opts) {
     card.appendChild(UI.el('div', 'result-num', right + ' / ' + items.length));
     card.appendChild(UI.el('p', 'stat-label', right === items.length
       ? '全对！这些词在句子里活起来了。'
-      : '答错 ' + wrong.length + ' 题，相关词卡已安排今天再复习。'));
+      : '答错 ' + wrong.length + ' 题，相关词卡已按答错重新安排复习。'));
     if (wrong.length) {
       const list = UI.el('div');
       list.style.margin = '12px 0';
