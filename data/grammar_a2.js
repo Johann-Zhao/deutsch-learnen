@@ -272,7 +272,7 @@ window.GRAMMAR.push(
 <tr><td>Akk.</td><td>den Jung<b>en</b></td><td>den Student<b>en</b></td><td>den Nam<b>en</b></td></tr>
 <tr><td>Dat.</td><td>dem Jung<b>en</b></td><td>dem Student<b>en</b></td><td>dem Nam<b>en</b></td></tr></table>
 <h3>常见 N-变格名词</h3>
-<p>der Junge, der Kollege, der Kunde, der Neighbor→Nachbar（加 -n：Nachbarn）, der Herr（den Herrn）, der Student, der Mensch, der Löwe, der Affe, der Name, der Gedanke</p>
+<p>der Junge, der Kollege, der Kunde, der Nachbar（加 -n：Nachbarn）, der Herr（den Herrn）, der Student, der Mensch, der Löwe, der Affe, der Name, der Gedanke</p>
 <h3>例句</h3>
 <ul>
 <li>Ich sehe den Jung<b>en</b>.</li>

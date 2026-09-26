@@ -95,7 +95,7 @@ window.GRAMMAR.push(
     { type: 'choice', q: '___ es regnet, bleiben wir zu Hause.（如果）', opts: ['Obwohl', 'Wenn', 'Damit'], a: 1, tip: '条件用 wenn。' },
     { type: 'choice', q: '___ ich dich nicht erreiche, schreibe ich eine Mail.（万一）', opts: ['Falls', 'Obwohl', 'Bevor'], a: 0, tip: '可能性低的"万一"用 falls。' },
     { type: 'choice', q: '___ es kalt war, sind wir schwimmen gegangen.', opts: ['Obwohl', 'Wenn', 'Damit'], a: 0, tip: '让步"尽管"用 obwohl。' },
-    { type: 'choice', q: 'Ich lerne Deutsch, ___ ich in Berlin studieren will.（新主语 ich→ich 相同？"ich lerne"与"ich studieren"同主语）', opts: ['damit', 'um … zu', 'obwohl'], a: 1, tip: '同主语用 um … zu：um in Berlin zu studieren。' },
+    { type: 'choice', q: 'Ich lerne Deutsch, ___ ich in Berlin studieren will.', opts: ['damit', 'um … zu', 'obwohl'], a: 1, tip: '同主语用 um … zu：um in Berlin zu studieren。' },
     { type: 'choice', q: 'Wasche die Hände, ___ du isst.', opts: ['nachdem', 'bevor', 'seitdem'], a: 1, tip: '吃饭前洗手：bevor。' },
     { type: 'choice', q: '___ er gegessen hatte, ging er spazieren.', opts: ['Bevor', 'Nachdem', 'Bis'], a: 1, tip: '饭后散步：nachdem + 过去完成时。' },
     { type: 'fill', q: 'Seitdem ich Sport ___ (machen), fühle ich mich besser.', a: 'mache', tip: 'seitdem 从句动词尾：mache。' },
