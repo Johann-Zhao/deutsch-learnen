@@ -11,6 +11,7 @@ import { audio, stop as stopAudio } from './audio.js';
 import { getListenDialogs, getAudioDialogs, wordsOfLevel, currentLevel, LEVELS } from './data.js';
 import { maskWord, maskWordHalf, makeRequeue } from './vocabulary.js';
 import { renderExerciseItem } from './grammar.js';
+import { Cloze } from './cloze.js';
 import { render } from './app.js';
 
 const LINE_GAP_MS = 600;      // 整组连播的行间停顿
@@ -380,6 +381,18 @@ function dialogPage(id) {
     card.appendChild(row);
     return card;
   }
+
+  /* 练一练：本组对话句源出语境填空（目标限已学词，5 题封顶；可出题数为 0 时不显示入口）。
+     判分回写目标词卡 SRS，不新建卡。 */
+  const clozeItems = Cloze.pick(
+    Cloze.itemsFromDialogue(dial, currentLevel(), store.state.srs),
+    store.state.srs, todayStr, 5);
+  const practice = Cloze.practiceCard(clozeItems, {
+    micro: 'HÖREN · ÜBEN',
+    desc: '用本组对话里学过的词做语境填空，共 ' + clozeItems.length + ' 题。',
+    scopeLabel: dial.title
+  });
+  if (practice) v.appendChild(practice);
 
   show();
   return v;
