@@ -45,6 +45,7 @@ function silentSrc() {
 let pool = [];
 let poolIdx = 0;
 let unlocked = false;
+let unlocking = false;
 let lastBlocked = null;
 const blockHandlers = [];
 
@@ -62,8 +63,16 @@ function els() {
 function nextEl() {
   const p = els();
   if (!p.length) return null;
+  /* 优先取**已预热成功**的元素：池里可能有元素预热失败（被门控），
+     轮转到它就会再被拒一次。只有确实没有已预热元素时才退回轮转。 */
+  if (unlocked) {
+    for (let i = 0; i < p.length; i++) {
+      const el = p[(poolIdx + i) % p.length];
+      if (el.__primed) { poolIdx = (poolIdx + i + 1) % p.length; return el; }
+    }
+  }
   const el = p[poolIdx % p.length];
-  poolIdx++;
+  poolIdx = (poolIdx + 1) % p.length;
   return el;
 }
 
@@ -75,24 +84,35 @@ export function unlock() {
   const p = els();
   if (!p.length) return false;
   if (unlocked) return true;
+  /* 上一次预热尚未落定就别再来一次：监听在手势失败时会一直挂着，
+     用户在 iOS 上可能每次点击都触发一次解锁——那会把**正在播**的元素 src 换成静音并重播。 */
+  if (unlocking) return false;
   const src = silentSrc();
   if (!src) return false;
+  unlocking = true;
   let attempted = false;
   p.forEach(function (a) {
     try {
+      if (!a.paused) return;          // 正在播的元素不要动，否则会掐掉当前音频
       a.src = src;
       const pr = a.play();
       attempted = true;
       if (pr && pr.then) {
         pr.then(function () {
+          a.__primed = true;   // 记下「这个元素确实预热成功」，供 nextEl() 优先选用
           markUnlocked();
           try { a.pause(); a.currentTime = 0; } catch (e) {}
         }).catch(function (err) {
           notifyBlocked(err, 'unlock');
+        }).then(function () {
+          unlocking = false;   // 无论成败都复位，下次手势可再试
         });
+      } else {
+        unlocking = false;
       }
-    } catch (e) { attempted = true; /* 单个元素失败不影响其它元素 */ }
+    } catch (e) { attempted = true; unlocking = false; /* 单个元素失败不影响其它元素 */ }
   });
+  if (!attempted) unlocking = false;
   return attempted;
 }
 
@@ -105,6 +125,10 @@ function notifyBlocked(err, url) {
     at: Date.now()
   };
   if (typeof document !== 'undefined' && document.body) document.body.classList.add('audio-blocked');
+  // 控制台留痕：否则桌面端排查时一无所获（error.name 只在内存里）
+  if (typeof console !== 'undefined' && console.warn) {
+    console.warn('[audio] 播放被拒：' + lastBlocked.name + ' ' + (url || ''));
+  }
   blockHandlers.forEach(function (fn) { try { fn(lastBlocked); } catch (e) {} });
 }
 
@@ -116,6 +140,15 @@ export function onBlocked(fn) {
     if (i >= 0) blockHandlers.splice(i, 1);
   };
 }
+
+/* TTS 侧的静默失败（被手势门控/引擎未起播）接进同一套「失败可见」机制——
+   speechSynthesis 若不这样接，失败是完全无声无息的。 */
+TTS.onSilent(function (text) {
+  notifyBlocked(
+    { name: 'TTSSilent', message: 'speechSynthesis 未起播（可能被手势门控）' },
+    String(text || '').slice(0, 60)
+  );
+});
 
 export function lastBlockError() { return lastBlocked; }
 
@@ -143,7 +176,9 @@ export function _resetPool() {
   pool = [];
   poolIdx = 0;
   unlocked = false;
+  unlocking = false;
   lastBlocked = null;
+  silentSrcCache = null;   // 静音源是模块级缓存，测试复位时必须一并清掉
   blockHandlers.length = 0;
   if (typeof document !== 'undefined' && document.body) document.body.classList.remove('audio-blocked');
   if (typeof document !== 'undefined' && unlockHandler) {
@@ -210,13 +245,19 @@ function playUrlWith(url, r, fallbackText, onEnd) {
     });
   }
   const pr = a.play();
-  if (pr && pr.catch) {
-    pr.catch(function (err) {
+  if (pr && pr.then) {
+    pr.then(function () {
+      /* 播放成功就清掉「被拦截」状态：否则只要历史上失败过一次，
+         此后每张卡都会弹假提示、全站喇叭永久描金边，即使声音其实是好的。 */
+      if (lastBlocked) clearBlockError();
+    }).catch(function (err) {
       // 播放被拒：先上报（UI 据此给可见提示），再回退系统朗读
       notifyBlocked(err, url);
       if (current === a) current = null;
       TTS.speak(fallbackText, r, onEnd);
     });
+  } else if (lastBlocked) {
+    clearBlockError();
   }
   return true;
 }

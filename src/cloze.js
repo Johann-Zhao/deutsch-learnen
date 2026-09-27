@@ -406,9 +406,16 @@ export function quizCard(item, onAnswer, pool) {
      若浏览器仍然拦截（例如卡片是路由切换渲染的、根本没有手势），给**可见**提示而不是静默。 */
   playSentenceAudio(item);
   setTimeout(function () {
-    if (!audio.lastBlockError()) return;
+    const err = audio.lastBlockError();
+    if (!err) return;
     if (card.querySelector('.speak-hint')) return;
-    const hint = UI.el('div', 'speak-hint stat-label', '自动朗读被浏览器拦截了，点上面的 🔊 播放');
+    /* 区分失败种类：只有「被手势门控」才说拦截；404/解码失败等说清是文件问题，
+       否则会把一个加载故障误报成浏览器拦截，用户按提示点了也没用。 */
+    const gated = err.name === 'NotAllowedError' || err.name === 'TTSSilent';
+    const text = gated
+      ? '自动朗读被浏览器拦截了，点上面的 🔊 播放'
+      : '句子音频没能播放（' + err.name + '），点上面的 🔊 重试';
+    const hint = UI.el('div', 'speak-hint stat-label', text);
     hint.style.marginTop = '4px';
     card.insertBefore(hint, fb);
   }, 150);

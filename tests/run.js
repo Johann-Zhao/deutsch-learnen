@@ -1853,18 +1853,21 @@ function withAudioEnv(state, fn) {
   const created = [];
   const listeners = {};
   const bodyClasses = [];
+  const blobs = [];
   function FakeAudio() {
     created.push(this);
-    this.paused = true; this.currentTime = 0; this.playbackRate = 1; this.src = ''; this.handlers = {};
+    this.paused = true; this.currentTime = 0; this.playbackRate = 1; this.src = '';
+    this.handlers = {}; this.playCalls = 0;
   }
-  FakeAudio.prototype.play = function () { this.paused = false; return state.impl(this); };
+  FakeAudio.prototype.play = function () { this.playCalls++; this.paused = false; return state.impl(this); };
   FakeAudio.prototype.pause = function () { this.paused = true; };
   FakeAudio.prototype.addEventListener = function (t, h) { (this.handlers[t] = this.handlers[t] || []).push(h); };
   FakeAudio.prototype.removeEventListener = function (t, h) {
     const a = this.handlers[t] || []; const i = a.indexOf(h); if (i >= 0) a.splice(i, 1);
   };
   globalThis.Audio = FakeAudio;
-  globalThis.Blob = function () {};
+  // 记录 Blob 的原始字节，供「静音 WAV 是不是合法 RIFF」的断言取回校验
+  globalThis.Blob = function (parts) { blobs.push(parts); };
   globalThis.URL = { createObjectURL: function () { return 'blob:silent'; }, revokeObjectURL: function () {} };
   globalThis.document = {
     body: { classList: { add: function (c) { bodyClasses.push(c); }, remove: function () {} } },
@@ -1876,7 +1879,7 @@ function withAudioEnv(state, fn) {
   AudioLayer._resetPool();
 
   const env = {
-    created: created, listeners: listeners, bodyClasses: bodyClasses,
+    created: created, listeners: listeners, bodyClasses: bodyClasses, blobs: blobs,
     fire: function (type) { (listeners[type] || []).slice().forEach(function (h) { h({ type: type }); }); }
   };
   const cleanup = function () {
@@ -1921,7 +1924,7 @@ test('手势监听：用 WebKit 认定的四种手势，不含 pointerdown', fun
 
 /* 解锁/失败上报涉及时序，必须**顺序执行**：本测试框架同步跑完所有 test 体、
    异步断言稍后才执行，若拆成多个测试，模块级状态会被后面的测试改掉（第一版就栽在这）。 */
-test('解锁与播放失败上报（顺序断言：拒绝 / 成功 / 手势重试 / 失败可见）', async function () {
+test('解锁与播放失败上报（顺序断言：拒绝 / 成功 / 手势重试 / 失败可见 / 清除 / 静音素材 / 选元素）', async function () {
   // ① play() 被拒 → 不得谎报已解锁，且失败必须可见可查
   await withAudioEnv({ impl: rejectNotAllowed }, function (env) {
     AudioLayer.init();
@@ -1999,6 +2002,76 @@ test('解锁与播放失败上报（顺序断言：拒绝 / 成功 / 手势重�
       }, 20);
     });
   });
+
+  // ⑥ 失败后一旦播放**成功**，必须自动清掉「被拦截」状态
+  //    （否则：历史上失败过一次 → 此后每张卡都弹假提示、全站喇叭永久描金边）
+  {
+    let mode = 'reject';
+    await withAudioEnv({
+      impl: function () { return mode === 'reject' ? rejectNotAllowed() : Promise.resolve(); }
+    }, function (env) {
+      AudioLayer.init();
+      AudioLayer.audio.playWord('greet-0', 'der Tag');
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          assert.ok(AudioLayer.lastBlockError(), '先制造一次失败');
+          assert.ok(env.bodyClasses.indexOf('audio-blocked') >= 0, '失败时应有可见标记');
+          mode = 'resolve';
+          AudioLayer.audio.playWord('greet-0', 'der Tag');
+          setTimeout(function () {
+            assert.strictEqual(AudioLayer.lastBlockError(), null,
+              '播放成功后必须自动清掉失败状态，否则历史上失败过一次就会永久弹假提示、喇叭永久描金边');
+            resolve();
+          }, 20);
+        }, 20);
+      });
+    });
+  }
+
+  // ⑦ 解锁素材：运行时生成的静音 WAV 必须是合法 RIFF（iOS 上非法音频换不来播放许可）
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    AudioLayer.unlock();
+    assert.strictEqual(env.blobs.length >= 1, true, '解锁应构造了静音 Blob');
+    const bytes = new Uint8Array(env.blobs[0][0]);
+    const tag = function (o) { return String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]); };
+    assert.strictEqual(bytes.length, 844, '静音 WAV 应为 44 字节头 + 800 采样 = 844 字节');
+    assert.strictEqual(tag(0), 'RIFF', '应以 RIFF 开头');
+    assert.strictEqual(tag(8), 'WAVE', '应为 WAVE');
+    assert.strictEqual(tag(12), 'fmt ', '应含 fmt 块');
+    assert.strictEqual(tag(36), 'data', '应含 data 块');
+    assert.strictEqual(bytes[44], 0x80, '8-bit PCM 的静音电平应为 0x80');
+    assert.strictEqual(bytes[843], 0x80, '末尾采样也应是静音');
+    assert.strictEqual(env.created.length, 2, '池应为 2 个元素');
+    env.created.forEach(function (a, i) {
+      assert.strictEqual(a.src, 'blob:silent', '第 ' + i + ' 个元素应被指向静音源');
+    });
+  });
+
+  // ⑧ 播放选元素：优先复用**已预热成功**的元素，不轮转到预热失败的（否则又被拒一次）
+  {
+    let n = 0;
+    await withAudioEnv({
+      impl: function () { n++; return n === 1 ? Promise.resolve() : rejectNotAllowed(); }
+    }, function (env) {
+      AudioLayer.init();
+      AudioLayer.unlock();
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          AudioLayer.audio.playWord('greet-0', 'der Tag');
+          AudioLayer.audio.playWord('greet-1', 'die Nacht');
+          setTimeout(function () {
+            // 元素 0：1 次预热 + 2 次业务播放；元素 1：只有 1 次（失败的）预热
+            assert.strictEqual(env.created[0].playCalls, 3,
+              '业务播放应都落在已预热的元素 0 上，实际 playCalls=' + env.created[0].playCalls);
+            assert.strictEqual(env.created[1].playCalls, 1,
+              '预热失败的元素 1 不应再被业务播放选中（否则又被拒一次），实际 playCalls=' + env.created[1].playCalls);
+            resolve();
+          }, 20);
+        }, 20);
+      });
+    });
+  }
 });
 
 Promise.all(asyncQueue).then(function () {

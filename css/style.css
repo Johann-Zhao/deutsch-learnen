@@ -144,7 +144,10 @@ body.audio-blocked .speak-btn {
   box-shadow: inset 0 0 0 1px var(--gold);
   color: var(--ink);
 }
-.speak-hint { color: var(--gold); }
+/* 必须用「双类」选择器：`.speak-hint` 与下方 `.stat-label` 同为单类 (0,1,0)，
+   而 .stat-label 在本文件更靠后 → 会胜出，提示文字就与普通小字同色（已实测：
+   rgb(110,103,90) 而非金色）。.speak-hint.stat-label (0,2,0) 压过它，且不依赖声明顺序。 */
+.speak-hint.stat-label { color: var(--gold); }
 
 /* ===== 词性色系统（低饱和，仅功能性小面积） ===== */
 .g-m { color: var(--m); }

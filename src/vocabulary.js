@@ -842,6 +842,25 @@ function reviewSession(onlyMistakes) {
     return q;
   }
 
+  /* 自动朗读被拒时给一行**可见**提示（iOS 需要手势，见 src/audio.js 头部注释）。
+     与 src/cloze.js 的做法一致：失败必须可见，不静默。此前复习池里的自动朗读只有
+     「喇叭描金边」这一个信号，文字提示只在 cloze 练一练卡片上有，主线路径够不着。 */
+  function hintBlockedAudio(card) {
+    setTimeout(function () {
+      const err = audio.lastBlockError();
+      if (!err) return;
+      if (card.querySelector('.speak-hint')) return;
+      const gated = err.name === 'NotAllowedError' || err.name === 'TTSSilent';
+      const hint = UI.el('div', 'speak-hint stat-label',
+        gated ? '自动朗读被浏览器拦截了，点上面的 🔊 播放'
+              : '读音没能播放（' + err.name + '），点上面的 🔊 重试');
+      hint.style.marginTop = '4px';
+      const anchor = card.querySelector('.quiz-prompt');
+      if (anchor && anchor.parentNode === card) card.insertBefore(hint, anchor.nextSibling);
+      else card.insertBefore(hint, card.firstChild);
+    }, 150);
+  }
+
   function show(w, isRetry) {
     stage.innerHTML = '';
     dots.querySelectorAll('.dot').forEach(function (d, i) { d.classList.toggle('done', i < idx); });
@@ -857,6 +876,7 @@ function reviewSession(onlyMistakes) {
       const slowR = slowBtn(w.de, w.id); slowR.style.marginLeft = '6px';
       card.appendChild(slowR);
       audio.playWord(w.id, w.de);
+      hintBlockedAudio(card);
     }
     if (q.type !== 'image') {
       const p = UI.el('div', 'quiz-prompt');
