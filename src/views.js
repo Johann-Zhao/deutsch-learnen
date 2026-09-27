@@ -331,6 +331,12 @@ export function settingsPage() {
         '设置（每天新词数 / 语速 / 级别）保持现在的，不会被备份改掉。',
         '当前进度不会被清空。'
       ];
+      /* 被跳过的内容必须写在脸上：清洗器会丢弃无法识别的条目，
+         如果这里不说，用户就只看到「导入完成」，而部分数据已经悄悄没进来。 */
+      if (res.dropped && res.dropped.length) {
+        lines.splice(lines.indexOf(''), 0,
+          '⚠ 文件里有 ' + res.dropped.length + ' 处无法识别的内容会被跳过：' + res.dropped.join('；'));
+      }
       if (!confirm(lines.join('\n'))) {
         say('ok', '已取消导入，当前进度没有任何改动。');
         return;
@@ -338,7 +344,10 @@ export function settingsPage() {
       const out = applyImport(store.state, res.state);
       const sum = out.summary;
       store._pendingNotice = '导入完成：现有 ' + sum.srs + ' 张学习卡片、' + sum.daily +
-        ' 天打卡记录、' + sum.mistakes + ' 条错题。';
+        ' 天打卡记录、' + sum.mistakes + ' 条错题。' +
+        (res.dropped && res.dropped.length
+          ? '另有 ' + res.dropped.length + ' 处无法识别的记录已跳过（' + res.dropped.join('；') + '）。'
+          : '');
       render();
     }).catch(function () {
       say('bad', '读取文件失败，已取消导入，当前进度没有任何改动。');

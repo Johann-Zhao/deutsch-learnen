@@ -650,6 +650,9 @@ test('导入校验：坏值被清洗掉，绝不写进存档（P1 回归）', fu
       srs: { ok: { reps: 1, last: '2026-09-20', stability: 3 }, 'zz-0': null, 'zz-1': 'oops', 'zz-2': [] },
       daily: { '2026-09-22': { new: 1 }, '2026-09-24': null },
       mistakes: { ok: { wrong: 1, type: 'vocab' }, 'zz-0': null },
+      // grammarDone 的值是**数字**（最佳正确率），不是对象——这里必须带上它，
+      // 否则这个用例对 grammarDone 一无所知，清洗器把它整个丢掉也测不出来（r2 复审的 P1）
+      grammarDone: { 'g-praesens': 5, 'g-kasus': 4, 'dc-article': 6, bad: 'x', bad2: null, bad3: [] },
       streak: { last: '2026-09-20', count: 2, protected: 'oops' }
     }
   };
@@ -662,18 +665,69 @@ test('导入校验：坏值被清洗掉，绝不写进存档（P1 回归）', fu
   assert.ok(v.state.srs.ok, '良构的卡必须保留');
   assert.strictEqual(v.state.daily['2026-09-24'], undefined, 'null 日条目必须被丢弃');
   assert.ok(Array.isArray(v.state.streak.protected), 'protected 必须是数组（views 会对它 forEach）');
+  /* protected 的**元素**也必须是日期字符串——只判「是不是数组」不够：
+     `['2026-09-23', null, 42, {a:1}]` 不会崩，但坏值不该进存档。 */
+  const v3 = validateBackup({
+    format: 'deutsch-lernen-progress', version: 1,
+    state: {
+      settings: {}, srs: {},
+      streak: { last: '2026-09-20', count: 1, protected: ['2026-09-23', null, 42, { a: 1 }, 'not-a-date', ''] }
+    }
+  });
+  assert.strictEqual(v3.ok, true, '有可用内容时应接受');
+  assert.deepStrictEqual(v3.state.streak.protected, ['2026-09-23'],
+    'protected 只保留合法的日期字符串，实际 ' + JSON.stringify(v3.state.streak.protected));
+  assert.ok(v3.dropped.some(function (s) { return /protected/.test(s); }), '丢弃 protected 坏元素必须上报');
+  // grammarDone 是数字 map：良构的必须**原样保留**（这是 r2 复审的 P1——清洗器曾把它整片丢掉）
+  assert.strictEqual(v.state.grammarDone['g-praesens'], 5, '语法完成数必须保留');
+  assert.strictEqual(v.state.grammarDone['g-kasus'], 4);
+  assert.strictEqual(v.state.grammarDone['dc-article'], 6, '变格专题也走同一个 map');
+  assert.strictEqual(v.state.grammarDone.bad, undefined, '字符串值必须被丢弃');
+  assert.strictEqual(v.state.grammarDone.bad2, undefined, 'null 值必须被丢弃');
+  assert.strictEqual(v.state.grammarDone.bad3, undefined, '数组值必须被丢弃');
   // 合并进当前存档后，也不能出现任何非对象值
   const m = mergeStates({ settings: { dailyNew: 10 }, srs: {} }, v.state);
   Object.keys(m.srs).forEach(function (id) {
     assert.ok(m.srs[id] && typeof m.srs[id] === 'object' && !Array.isArray(m.srs[id]),
       '合并结果里 srs.' + id + ' 必须是对象，实际 ' + JSON.stringify(m.srs[id]));
   });
-  ['daily', 'mistakes', 'grammarDone', 'listen', 'reading'].forEach(function (k) {
+  // 注意：grammarDone 不在这个循环里——它的值是数字，把它当对象断言会把错误的契约固化进测试
+  ['daily', 'mistakes', 'listen', 'reading'].forEach(function (k) {
     Object.keys(m[k] || {}).forEach(function (id) {
       assert.ok(m[k][id] && typeof m[k][id] === 'object' && !Array.isArray(m[k][id]),
         '合并结果里 ' + k + '.' + id + ' 必须是对象');
     });
   });
+});
+test('导入校验：本应用自己导出的备份必须原样往返（尤其 grammarDone 的数字）', function () {  const state = {
+    settings: { dailyNew: 10, ttsRate: 1, level: 'A1' },
+    srs: {
+      'greet-0': { stability: 3.7, difficulty: 5.1, reps: 2, lapses: 1, due: '2026-09-30', last: '2026-09-26', sealed: true, sealedAt: '2026-09-26' },
+      'greet-1': { stability: 1.2, difficulty: 6, reps: 1, lapses: 0, due: '2026-09-29', last: '2026-09-28' }
+    },
+    daily: { '2026-09-26': { new: 3, reviewed: 5, correct: 7 } },
+    mistakes: { 'greet-1': { wrong: 1, type: 'vocab', last: '2026-09-28' } },
+    grammarDone: { 'g-praesens': 5, 'g-kasus': 4, 'dc-article': 6 },
+    listen: { 'dl-a1-greet': { right: 3, total: 4, finished: '2026-09-26' } },
+    reading: { 'rd-a1-park': { right: 2, total: 3, at: '2026-09-26' } },
+    streak: { last: '2026-09-28', count: 3, freezes: 1, protected: ['2026-09-23'] }
+  };
+  const res = parseBackup(serializeBackupText(state, new Date('2026-09-28T10:00:00')));
+  assert.strictEqual(res.ok, true, '应用自己导出的备份必须能导入：' + (res.error || ''));
+  assert.strictEqual(res.dropped.length, 0, '自己导出的备份不该有任何条目被丢弃：' + JSON.stringify(res.dropped));
+  assert.deepStrictEqual(res.state.grammarDone, state.grammarDone,
+    'grammarDone（数字 map）必须原样往返，不能被清洗器当对象 map 丢掉');
+  assert.strictEqual(res.summary.grammarDone, 3, '统计里语法完成数应仍是 3');
+  Object.keys(state.srs).forEach(function (id) {
+    assert.deepStrictEqual(res.state.srs[id], state.srs[id], 'SRS 卡 ' + id + ' 应原样往返');
+  });
+  assert.deepStrictEqual(res.state.streak.protected, state.streak.protected);
+  // 合并回一份空存档：所有进度都必须救回来（这是「存档被清后用备份救回」的核心场景）
+  const m = mergeStates({ settings: { dailyNew: 10, ttsRate: 1, level: 'A1' } }, res.state);
+  assert.strictEqual(Object.keys(m.grammarDone).length, 3, '导入空存档后语法完成数不应丢失');
+  assert.strictEqual(m.grammarDone['g-praesens'], 5);
+  assert.strictEqual(m.srs['greet-0'].sealed, true);
+  assert.strictEqual(Object.keys(m.srs).length, 2);
 });
 test('导入校验：绝不抛异常（违反契约的值形状也不能抛）', function () {
   // P2-1：原实现对 {toString:1} 调 String() 抛 TypeError，被上层吞成「读取文件失败」，原因误导

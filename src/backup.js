@@ -108,21 +108,30 @@ function describe(v) {
   try { return JSON.stringify(v); } catch (e) { return typeName(v); }
 }
 
-const MAP_KEYS = ['srs', 'daily', 'mistakes', 'grammarDone', 'listen', 'reading'];
+/* **各字段的值形状不一样**：`grammarDone` 的值是**数字**（该专题的最佳正确率，
+   见 grammar.js:230 / declension.js:132 的 `Math.max(prev, right)`），其余是对象。
+   这里必须分开处理——把 grammarDone 也当成「值必须是对象」的 map，会让清洗器
+   每次都把**全部语法/变格进度静默丢掉**（最多 42 条：A1 10 + A2 12 + B1 14 + 变格 6），
+   影响首页成就与语法页徽标。这个错误极难发现，因为它是「丢弃」而不是「崩溃」。 */
+const OBJECT_MAPS = ['srs', 'daily', 'mistakes', 'listen', 'reading'];
+const NUM_MAPS = ['grammarDone'];
 
-/* 值形状清洗：只保留「容器里每个值都是 plain object」的条目。
-   **这是 P1 修复**。只校验容器层（`srs` 是对象）远远不够——实测
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/* 值形状清洗：**只让良构的值进入写存档那一步**。
+   这是 P1 修复。只校验容器层（`srs` 是对象）远远不够——实测
    `"srs":{"zz-0":null}` 会被原样并入并**持久化**，随后设置页在 `null.sealed` 上抛错白屏，
    而导出/导入/重置三个自救入口**全在那一屏**（用户把自己唯一的出路打掉了），重载依旧崩。
 
    策略选择：**丢弃坏条目 + 计数上报**，而不是整份拒绝。备份模块存在的意义就是救回进度，
    因为一条坏记录拒绝整份文件，等于让用户丢掉其余几百条好数据。
-   清洗保证「进入写存档那一步的每一个值都是良构的」。 */
+   `dropped` 必须透传到 UI（views.js 会显示），否则「静默丢数据」比原来的崩溃更隐蔽。 */
 export function sanitizeState(state) {
   const src = isPlainObject(state) ? state : {};
   const out = Object.assign({}, src);
   const dropped = [];
-  MAP_KEYS.forEach(function (k) {
+
+  OBJECT_MAPS.forEach(function (k) {
     if (src[k] === undefined) { delete out[k]; return; }
     if (!isPlainObject(src[k])) {
       delete out[k];
@@ -138,16 +147,44 @@ export function sanitizeState(state) {
     if (bad) dropped.push(k + '（' + bad + ' 条值不是对象）');
     out[k] = clean;
   });
+
+  // 值是**有限数字**的 map：grammarDone（最佳正确率）
+  NUM_MAPS.forEach(function (k) {
+    if (src[k] === undefined) { delete out[k]; return; }
+    if (!isPlainObject(src[k])) {
+      delete out[k];
+      dropped.push(k + '（整体不是对象）');
+      return;
+    }
+    const clean = {};
+    let bad = 0;
+    Object.keys(src[k]).forEach(function (id) {
+      const v = src[k][id];
+      if (typeof v === 'number' && isFinite(v)) clean[id] = v;
+      else bad++;
+    });
+    if (bad) dropped.push(k + '（' + bad + ' 条值不是有限数字）');
+    out[k] = clean;
+  });
+
   if (src.streak !== undefined) {
     if (!isPlainObject(src.streak)) {
       delete out.streak;
       dropped.push('streak（不是对象）');
-    } else if (src.streak.protected !== undefined && !Array.isArray(src.streak.protected)) {
-      // protected 必须是数组（views 里对它 forEach），坏值换成空数组而不是丢掉整份 streak
-      out.streak = Object.assign({}, src.streak, { protected: [] });
-      dropped.push('streak.protected（不是数组）');
+    } else {
+      const p = src.streak.protected;
+      if (p !== undefined) {
+        const arr = Array.isArray(p) ? p : null;
+        // 元素也必须是日期字符串：views 拿它当对象键虽不会崩，但坏值不该进存档
+        const clean = (arr || []).filter(function (d) { return typeof d === 'string' && DATE_RE.test(d); });
+        if (!arr || clean.length !== arr.length) {
+          out.streak = Object.assign({}, src.streak, { protected: clean });
+          dropped.push('streak.protected（' + (arr ? (arr.length - clean.length) + ' 条不是日期' : '不是数组') + '）');
+        }
+      }
     }
   }
+
   if (out.settings !== undefined && !isPlainObject(out.settings)) {
     delete out.settings;
     dropped.push('settings（不是对象）');
@@ -267,7 +304,9 @@ function keepAdvancedCard(cur, inc) {
   const out = Object.assign({}, pick);
   if (sealed) {
     out.sealed = true;
-    out.sealedAt = pick.sealedAt || cur.sealedAt || inc.sealedAt || null;
+    // sealedAt 取两侧**最晚**的那个（而不是「被选中侧优先」），否则合并后已斩日期会倒退
+    const at = [cur.sealedAt, inc.sealedAt].filter(function (d) { return typeof d === 'string' && d; }).sort();
+    out.sealedAt = at.length ? at[at.length - 1] : null;
   }
   if (mastered) out.mastered = true;
   return out;
