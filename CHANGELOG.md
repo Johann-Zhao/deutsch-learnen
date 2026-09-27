@@ -6,6 +6,30 @@
 
 无。
 
+## [4.7.0] - 2026-09-28
+
+本版把重心移到**手机端**，优先适配 iOS 与 HarmonyOS。两处关键结论来自一手依据而非猜测，写在这里供以后维护者复查：iOS Safari **只允许在事件处理函数的同步作用域里调用 `play()`**（[WebKit Bug 259925](https://bugs.webkit.org/show_bug.cgi?id=259925)），且 `speechSynthesis` **同受手势门控**（WebKit 源码 `RequireUserGestureForSpeechStartRestriction`）；iOS 不装到主屏时**7 天不访问会清除 IndexedDB 与 localStorage**（[WebKit Bug 232302](https://bugs.webkit.org/show_bug.cgi?id=232302)，WONTFIX，Apple 明确「在 Safari 里无法豁免」）。
+
+### Added
+- **学习进度导出 / 导入**（`src/backup.js` 纯逻辑 + 设置页 UI）：导出整份存档为带日期的 JSON（`deutsch-progress-YYYY-MM-DD.json`）；导入前校验格式、**二次确认写明合并结果**，坏文件只报可读原因且**存档字节级不变**。策略是**合并不是覆盖**——这条路径的使用场景是「系统把存档清了、用户拿备份救回来」，此时两边都有进度，**并集才不丢数据**：同 id 卡取复习更晚的一方（同一天再比 `reps`）、`daily` 同日取最大、错题只增不减、`streak` 取更晚的整份（**不把两段不连续的打卡史拼成假连胜**）、`settings` 完全保留当前设备的偏好；合并**幂等**且不改入参。这是 iOS/鸿蒙上数据被清后**唯一**的真兜底。
+- **存储持久化与配额可视化**：启动时先 `persisted()` 再决定是否 `persist()`，结果**如实**呈现（被拒写成中性的「未授予」而非失败）；`estimate()` 可用时显示「已用 / 配额」；IndexedDB 与 localStorage 镜像两条落盘路径都捕获 `QuotaExceededError` 并通过 `store.onWriteError()` 给出可见提示，不再静默失败。
+- **备份提醒**：今日页一行提示（从未导出或距上次 ≥5 天时出现），可「5 天后再提醒」。
+- **设备能力自检页 `device-check.html`**：逐项报告 Service Worker 能否注册（决定能否离线）、是否以主屏应用打开、存储配额与持久化、**同步与异步两种播放方式的结果**、系统德语语音、安全区与视口。换机/换浏览器时先跑它。
+- **iOS / 移动端元数据**：补 `apple-touch-icon`、`apple-mobile-web-app-title`、标准的 `mobile-web-app-capable`；`manifest.webmanifest` 的 `display: standalone` **保持不变**（它是 iOS 存储豁免的前提，不可退回）。
+- 6 处输入框补齐 `autocapitalize="off" autocorrect="off" spellcheck="false" lang="de"`（变位 / 语法 / 词汇 3 处 / 听力听写）。
+
+### Fixed
+- **iOS 上整条音频链静默哑掉**（本版最严重缺陷）：原先每次播放都 `new Audio()`、且出题卡靠 `setTimeout(80ms)` 自动朗读——在 iOS 上这两点都必然被拒；被拒后回退 `speechSynthesis`，而它同受手势门控，于是**第二次也失败且完全没有错误信号**，表现为「点了没声音、也不知道为什么」。现改为：`src/audio.js` 用**复用的音频元素池** + 首次用户手势时用**运行时生成的 0.1 秒静音 WAV** 预热解锁（官方报告里点名的绕法）；解锁监听用 WebKit 认定的 `touchend / click / doubleclick / keydown`（**不含 `pointerdown`**），且**只在真正解锁成功后才摘除**，失败则保留以等下一次手势重试；播放优先复用**预热成功**的元素，并跳过正在播放的元素。`src/cloze.js` 的自动朗读移出 `setTimeout`、放回手势的同步作用域。
+- **音频失败不再无声无息**：`play()` 被拒时上报 `error.name`、写控制台、给 `body` 加 `audio-blocked` 类（喇叭按钮描金色边）；出题卡与复习卡的自动朗读被拦时补一行文字提示（并按「被手势拦截」与「音频文件问题」区分文案）；**播放成功后自动清除**失败标记，避免历史上失败过一次就永久弹假提示。`src/tts.js` 另加起播看门狗——`speechSynthesis` 被门控时既不抛错也不触发 `error`，只能靠看门狗把它变成可上报的信号。
+- **`synth.cancel()` 后立刻 `speak()` 会被 iOS 吞掉**：改为仅在确实有内容在播时才 `cancel()` + 延迟，本来就空闲时保持同步调用（同步才落在手势窗口内）；`getVoices()` 首次常为空、`voiceschanged` 在 iOS 上可能等到用户交互才触发，改为阶梯退避重试。
+- 设置页的持久化/配额结果原先在首次渲染**之后**才返回，导致永远显示「当前环境不支持查询」；结果回来后若仍停在设置页会重渲染。
+- `sw.js` 的 `CORE` 补入 `manifest.webmanifest`。
+
+### 已知限制（如实记录，未解决）
+- **iOS 上每个自动朗读入口的第一张卡可能没有声音**：该次 `play()` 发生在路由渲染时（没有手势），首次点击解锁后从第 2 张卡起恢复。相对修复前的「整条链永久哑」是严格改善，但**尚未消除**。
+- 「静音预热元素后、在手势之外换 `src` 播放是否真的被 iOS 允许」是整套修复成立的**唯一支点**，**无法在本机浏览器验证**（本机 Chromium 不实行手势门控，`--autoplay-policy` 开关实测无效）——需要真机用 `device-check.html` 确认。
+- iOS/鸿蒙上的 `persist()` 是否授予、`autocorrect="off"` 是否真的关掉自动更正、鸿蒙浏览器的 Service Worker 可靠性，均**无真机证据**；鸿蒙侧另有「SW 缓存清不掉」的开发者报告，本版未做版本化文件名 + 导航 network-first 的逃生通道。
+
 ## [4.6.1] - 2026-09-27
 
 ### Fixed
