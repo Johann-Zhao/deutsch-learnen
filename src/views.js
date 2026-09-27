@@ -3,6 +3,10 @@
 import { UI } from './ui.js';
 import { store } from './store.js';
 import { today } from './storage.js';
+import {
+  backupFilename, exportProgress, parseBackup, readFileText, applyImport, mergePreview,
+  summarizeState, shouldRemindBackup, daysSinceExport, snoozeUntil, formatBytes
+} from './backup.js';
 import * as SRS from './srs.js';
 import { currentLevel, wordsOfLevel, getGrammar, isGrammarCardId, isListenCardId } from './data.js';
 import { TTS } from './tts.js';
@@ -76,6 +80,38 @@ export function dashboard() {
     ? '本级词已全部学过了'
     : '按每天 ' + s.settings.dailyNew + ' 个新词，预计 ' + Math.ceil(remain / s.settings.dailyNew) + ' 天学完本级剩余 ' + remain + ' 个词'));
   v.appendChild(card);
+
+  // 备份提醒：一行克制提示 + 两个按钮（导出 / 推迟）。不弹窗、不阻塞，可关。
+  const remind = shouldRemindBackup(s, s.settings && s.settings.lastExport);
+  if (remind) {
+    const rRow = UI.el('div', 'notice');
+    rRow.appendChild(UI.el('span', null, remind.never
+      ? '还没有导出过学习进度。换设备、清缓存或系统自动清理都会丢掉它。'
+      : '距上次导出已经 ' + remind.days + ' 天。浏览器长期不访问可能清掉学习记录。'));
+    const rBtns = UI.el('span');
+    rBtns.style.cssText = 'display:flex;gap:8px;flex-shrink:0';
+    const bGo = UI.el('button', 'btn btn-sm', '导出学习进度');
+    bGo.onclick = function () {
+      const r = exportProgress(store.state);
+      // 无论成功失败都跳到设置页并给出可读结果（导出按钮在那里有完整文案）
+      store._pendingNotice = r.ok
+        ? '已导出 ' + r.filename + '。请把这个文件保存到浏览器之外（网盘 / 发给自己）。'
+        : '导出失败：' + r.error;
+      store._pendingNoticeKind = r.ok ? 'ok' : 'bad';
+      location.hash = '#/settings';
+      render();
+    };
+    rBtns.appendChild(bGo);
+    const bLater = UI.el('button', 'btn btn-ghost btn-sm', '5 天后再提醒');
+    bLater.onclick = function () {
+      s.settings.backupSnoozeUntil = snoozeUntil(null, 5);
+      store.save();
+      render();
+    };
+    rBtns.appendChild(bLater);
+    rRow.appendChild(rBtns);
+    v.appendChild(rRow);
+  }
 
   // 档案式统计栏
   const stats = UI.el('div', 'grid grid-3');
@@ -221,35 +257,126 @@ export function settingsPage() {
 
   const c2 = UI.el('div', 'card');
   c2.appendChild(UI.el('h3', null, '数据备份'));
-  c2.appendChild(UI.el('p', 'stat-label', '学习进度保存在本浏览器中。换电脑或清缓存前，请先导出备份。'));
+  c2.appendChild(UI.el('p', 'stat-label',
+    '学习进度只存在这台设备的浏览器里。iOS 与鸿蒙都会在长期不访问时清理站点数据，' +
+    '导出 JSON 是唯一能把进度带走的办法。导出后请把文件存到网盘或发给自己。'));
+
+  // 上次导出时间（如实呈现，未导出就直说）
+  const lastExp = s.settings && s.settings.lastExport;
+  const dSince = daysSinceExport(lastExp);
+  const rExp = UI.el('div', 'setting-row');
+  rExp.appendChild(UI.el('label', null, '上次导出'));
+  rExp.appendChild(UI.el('span', null, lastExp
+    ? lastExp + (dSince === null ? '' : '（' + dSince + ' 天前）')
+    : '从未导出'));
+  c2.appendChild(rExp);
+
   const row = UI.el('div', null); row.style.cssText = 'display:flex;gap:10px;margin-top:12px;flex-wrap:wrap';
-  const bExp = UI.el('button', 'btn btn-ghost btn-sm', '导出进度（JSON）');
-  bExp.onclick = function () {
-    const blob = new Blob([JSON.stringify(store.state, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'de-learn-backup-' + today() + '.json';
-    a.click(); URL.revokeObjectURL(a.href);
-  };
+  const bExp = UI.el('button', 'btn btn-sm', '导出学习进度（下载 JSON）');
   row.appendChild(bExp);
-  const bImp = UI.el('button', 'btn btn-ghost btn-sm', '导入进度');
-  const file = UI.el('input'); file.type = 'file'; file.accept = '.json'; file.style.display = 'none';
-  bImp.onclick = function () { file.click(); };
-  file.onchange = function () {
-    const f = file.files[0]; if (!f) return;
-    const fr = new FileReader();
-    fr.onload = function () {
-      try {
-        store.replaceState(JSON.parse(fr.result));
-        alert('导入成功。');
-        render();
-      } catch (e) { alert('导入失败：文件不是有效的备份 JSON。'); }
-    };
-    fr.readAsText(f);
-  };
+
+  const bImp = UI.el('button', 'btn btn-ghost btn-sm', '选择备份文件并导入');
+  const file = UI.el('input'); file.type = 'file'; file.accept = '.json,application/json'; file.style.display = 'none';
   row.appendChild(bImp); row.appendChild(file);
   c2.appendChild(row);
+
+  const msg = UI.el('div'); msg.style.cssText = 'margin-top:12px'; msg.hidden = true;
+  c2.appendChild(msg);
+
+  function say(kind, text) {
+    msg.hidden = false;
+    msg.className = kind === 'bad' ? 'notice bad' : 'notice';
+    msg.textContent = text;
+  }
+  function clearSay() { msg.hidden = true; msg.textContent = ''; }
+  // 跨重渲染保留一句提示（导出后要刷新「上次导出」这一行，重渲染会清空 DOM）
+  if (store._pendingNotice) {
+    say(store._pendingNoticeKind === 'bad' ? 'bad' : 'ok', store._pendingNotice);
+    store._pendingNotice = null;
+    store._pendingNoticeKind = null;
+  }
+
+  bExp.onclick = function () {
+    const r = exportProgress(store.state);
+    if (!r.ok) { say('bad', r.error); return; }
+    // 重新渲染以刷新「上次导出」这一行，并把成功提示带过去
+    store._pendingNotice = '已导出 ' + r.filename + '。请把这个文件保存到浏览器之外（网盘 / 发给自己）。';
+    render();
+  };
+
+  bImp.onclick = function () { clearSay(); file.click(); };
+
+  // 导入：读文件 → 校验 → **二次确认** → 合并写入。
+  // 任何一步失败都只显示可读原因，不碰存档。
+  file.onchange = function () {
+    const f = file.files && file.files[0];
+    if (!f) return;
+    file.value = ''; // 允许重复选同一个文件
+    readFileText(f).then(function (text) {
+      const res = parseBackup(text);
+      if (!res.ok) {
+        say('bad', '导入失败：' + res.error + ' 已取消导入，当前进度没有任何改动。');
+        return;
+      }
+      const pv = mergePreview(store.state, res.state);
+      const inc = pv.incoming;
+      const lines = [
+        '把「' + f.name + '」并入当前进度。确认后会发生：',
+        '· 学习卡片：备份 ' + inc.srs + ' 张，现有 ' + pv.before.srs + ' 张 → 合并后 ' + pv.after.srs + ' 张（新增 ' + pv.addedCards + ' 张）',
+        '· 打卡记录：备份 ' + inc.daily + ' 天，现有 ' + pv.before.daily + ' 天 → 合并后 ' + pv.after.daily + ' 天',
+        '· 错题本：备份 ' + inc.mistakes + ' 条，现有 ' + pv.before.mistakes + ' 条 → 合并后 ' + pv.after.mistakes + ' 条',
+        '· 语法完成 ' + inc.grammarDone + ' 个 · 听力 ' + inc.listen + ' 个 · 阅读 ' + inc.reading + ' 篇',
+        '',
+        '两边都有的卡片按「复习时间更晚」的一方保留；当天记录与错题次数取两边的较大值。',
+        '设置（每天新词数 / 语速 / 级别）保持现在的，不会被备份改掉。',
+        '当前进度不会被清空。'
+      ];
+      if (!confirm(lines.join('\n'))) {
+        say('ok', '已取消导入，当前进度没有任何改动。');
+        return;
+      }
+      const out = applyImport(store.state, res.state);
+      const sum = out.summary;
+      store._pendingNotice = '导入完成：现有 ' + sum.srs + ' 张学习卡片、' + sum.daily +
+        ' 天打卡记录、' + sum.mistakes + ' 条错题。';
+      render();
+    }).catch(function () {
+      say('bad', '读取文件失败，已取消导入，当前进度没有任何改动。');
+    });
+  };
   v.appendChild(c2);
+
+  const cStore = UI.el('div', 'card');
+  cStore.appendChild(UI.el('h3', null, '存储状态'));
+  const werr = store.writeError && store.writeError();
+  if (werr) {
+    cStore.appendChild(UI.el('p', 'stat-label',
+      werr.kind === 'quota'
+        ? '保存失败：浏览器存储配额已满，新的学习记录可能没有落盘。请先在上一张卡片导出备份，再清除本站数据或删除不用的离线缓存后重试。'
+        : '保存失败：浏览器拒绝了写入。请先在上一张卡片导出备份，避免进度丢失。'));
+  }
+  const rPersist = UI.el('div', 'setting-row');
+  rPersist.appendChild(UI.el('label', null, '持久化存储'));
+  rPersist.appendChild(UI.el('span', null,
+    store.persistGranted === null
+      ? '当前环境不支持查询（不影响使用，但请定期导出备份）'
+      : (store.persistGranted
+        ? '已授予：浏览器不会因空间不足自动清理本站数据'
+        : '未授予：系统仍可能在空间紧张或长期不访问时清理本站数据，请定期导出备份')));
+  cStore.appendChild(rPersist);
+  if (store.persistInfo) {
+    const rQuota = UI.el('div', 'setting-row');
+    rQuota.appendChild(UI.el('label', null, '已用 / 配额'));
+    rQuota.appendChild(UI.el('span', null,
+      formatBytes(store.persistInfo.usage) + ' / ' + formatBytes(store.persistInfo.quota)));
+    cStore.appendChild(rQuota);
+  }
+  if (store.persistGranted !== true) {
+    cStore.appendChild(UI.el('p', 'stat-label',
+      'iPhone / iPad：只有通过「分享 → 添加到主屏幕」并以独立窗口打开（iOS 26 起保持「Open as Web App」打开），' +
+      '存储才会免于 7 天自动清理。仅加书签不生效。'));
+  }
+  v.appendChild(cStore);
 
   const c3 = UI.el('div', 'card');
   c3.appendChild(UI.el('h3', null, '重置'));
@@ -257,7 +384,7 @@ export function settingsPage() {
   const bReset = UI.el('button', 'btn btn-sm', '重置全部进度');
   bReset.style.background = 'var(--f)'; bReset.style.borderColor = 'var(--f)';
   bReset.onclick = function () {
-    if (confirm('确定要清空全部学习进度吗？此操作不可恢复。')) {
+    if (confirm('确定要清空全部学习进度吗？此操作不可恢复。\n建议先「导出学习进度」留一份备份。')) {
       store.reset(); render();
     }
   };

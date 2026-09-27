@@ -343,6 +343,17 @@ a.card { display: block; color: inherit; }
   min-height: 44px;
 }
 
+/* 备份提醒 / 导入导出结果：纸底 + 金色左线，一行克制提示（不弹窗、不用彩色大色块） */
+.notice {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin: 0 auto 16px; max-width: 680px;
+  padding: 12px 14px; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-left: 3px solid var(--gold);
+  border-radius: var(--radius); font-size: 14px; line-height: 1.6;
+}
+.notice.bad { border-left-color: var(--bad); }
+@media (max-width: 480px) { .notice { padding: 10px 12px; font-size: 13px; } }
+
 /* 级别切换 */
 .level-switch { display: flex; gap: 2px; margin-left: auto; background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
 .level-switch button {

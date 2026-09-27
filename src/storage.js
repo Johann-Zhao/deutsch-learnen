@@ -4,6 +4,24 @@ export const KEY = 'deA1.progress.v1';
 const DEFAULT_SETTINGS = { dailyNew: 10, ttsRate: 1.0, level: 'A1' };
 const DEBOUNCE_MS = 300;
 
+/* QuotaExceededError 判定：Chrome 用 name，旧 Firefox 用 code 22，
+   WebKit 明确要求「必须处理」这个错误（见 findings A2/A7）。
+   配额写满时**不能让保存静默失败**——上层据此提示用户导出后清理。 */
+export function isQuotaError(e) {
+  if (!e) return false;
+  if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') return true;
+  const code = e.code;
+  return code === 22 || code === 1014;
+}
+
+/* 可用时返回 navigator.storage，否则 null（Node / 老内核 / 隐私模式）。
+   第三个参数 storageMgr 供测试注入；传入 null 表示「显式没有」，undefined 表示「自己去查」。 */
+function storageManager(storageMgr) {
+  if (storageMgr !== undefined) return storageMgr;
+  if (typeof navigator === 'undefined' || !navigator || !navigator.storage) return null;
+  return navigator.storage;
+}
+
 export function emptyState() {
   return {
     settings: Object.assign({}, DEFAULT_SETTINGS),
@@ -41,7 +59,8 @@ function makeMemoryBackend() {
 function makeLocalStorageBackend(ls) {
   return {
     getItem: function (k) { try { return ls.getItem(k); } catch (e) { return null; } },
-    setItem: function (k, v) { try { ls.setItem(k, v); } catch (e) { /* QuotaExceeded 等吞掉 */ } },
+    // 写入失败**不再吞掉**：_persist 需要拿到 QuotaExceededError 才能提示用户
+    setItem: function (k, v) { ls.setItem(k, v); },
     removeItem: function (k) { try { ls.removeItem(k); } catch (e) { } }
   };
 }
@@ -89,13 +108,21 @@ function idbBackend() {
   };
 }
 
-export function Storage(syncBackend, asyncBackend) {
+export function Storage(syncBackend, asyncBackend, storageMgr) {
   this._saveTimer = null;
   this._readyPromise = null;
   this._readyResolve = null;
   this._readyDone = false;
   this._pendingSave = false; // ready 完成前调用 save() 会先标记，就绪后统一触发
   this._async = asyncBackend || null;
+  this.lastError = null;     // 最近一次落盘失败（QuotaExceededError 等），供 UI 提示
+  // 存储持久化状态（运行时字段，不写进 state，避免污染导出/导入的存档格式）
+  this.persistGranted = null;   // null=未查询 true/false=查询结果
+  this.persistInfo = null;      // { usage, quota } 或 null
+  // Storage API 句柄：构造时能取到就取（可测、可注入）；取不到时延迟到首次查询再取，
+  // 避免「脚本比 navigator.storage 更早就绪」的环境永远显示「不支持」
+  this._storageManager = storageManager(storageMgr);
+  this._storageManagerChecked = storageMgr !== undefined;
 
   if (syncBackend) {
     this.backend = syncBackend;
@@ -196,12 +223,110 @@ Storage.prototype._persist = function () {
   // 一旦真正开始落盘，清除待落盘标记，避免 ready 后重复触发。
   this._pendingSave = false;
   const data = JSON.stringify(this.state);
+  let failed = null;
   if (this.backend) {
-    try { this.backend.setItem(KEY, data); } catch (e) { /* 镜像写入失败忽略 */ }
+    try { this.backend.setItem(KEY, data); } catch (e) { failed = e; }
   }
+  // localStorage 镜像先写：主存（IDB）成功不代表镜像成功。镜像写失败也要如实记下来，
+  // 否则配额写满（镜像被拒、主存仍可写）时用户看不到任何提示。
+  if (failed) this._noteWriteError(failed);
   if (this._async) {
-    this._async.set(this.state).catch(function () {});
+    const self = this;
+    this._async.set(this.state).then(function () {
+      // 主存成功：镜像的错误保留，成功则清掉
+      if (!failed) self.lastError = null;
+    }, function (e) {
+      self._noteWriteError(e);
+    });
   }
+};
+
+Storage.prototype._noteWriteError = function (e) {
+  const kind = isQuotaError(e) ? 'quota' : 'write';
+  // 已经因为配额报过警就不再降级成普通写错误
+  if (this.lastError && this.lastError.kind === 'quota' && kind !== 'quota') return;
+  const changed = !this.lastError || this.lastError.kind !== kind;
+  this.lastError = { kind: kind, error: e };
+  // 首次进入失败态时通知一次（UI 据此重渲染，保证「保存失败」对用户可见）
+  if (changed) this._emitWriteError();
+};
+
+/* 写入状态变化订阅：返回取消订阅函数。UI 层用它把「保存失败」刷到界面上，
+   否则用户设置完就直接离开，永远不会看到提示。 */
+Storage.prototype.onWriteError = function (fn) {
+  if (!this._writeErrorSubs) this._writeErrorSubs = [];
+  this._writeErrorSubs.push(fn);
+  const self = this;
+  return function () {
+    const i = self._writeErrorSubs.indexOf(fn);
+    if (i >= 0) self._writeErrorSubs.splice(i, 1);
+  };
+};
+
+Storage.prototype._emitWriteError = function () {
+  if (!this._writeErrorSubs) return;
+  const self = this;
+  this._writeErrorSubs.slice().forEach(function (fn) {
+    try { fn(self.lastError); } catch (e) { /* 订阅者自己出错不影响落盘 */ }
+  });
+};
+
+/* 落盘是否处于失败状态（配额写满 / 后端不可写）。UI 据此显示提示，避免静默失败。 */
+Storage.prototype.writeError = function () { return this.lastError; };
+
+Storage.prototype.clearWriteError = function () { this.lastError = null; };
+
+/* 惰性取一次 Storage API 句柄（构造时没取到才走这里） */
+Storage.prototype._sm = function () {
+  if (!this._storageManagerChecked) {
+    this._storageManager = storageManager(undefined);
+    this._storageManagerChecked = true;
+  }
+  return this._storageManager;
+};
+
+/* 启动时查一次持久化状态：已持久化就不重复申请。
+   iOS 通常**拒绝** persist()（授予与否是 WebKit 的启发式，与是否以主屏幕
+   Web App 打开强相关）——这是正常结果，不是错误，调用方文案要如实呈现。 */
+Storage.prototype.initPersistence = function () {
+  const self = this;
+  const sm = this._sm();
+  if (!sm || typeof sm.persisted !== 'function') {
+    self.persistGranted = null;
+    return Promise.resolve(null);
+  }
+  return Promise.resolve()
+    .then(function () { return sm.persisted(); })
+    .then(function (granted) {
+      self.persistGranted = !!granted;
+      if (granted || typeof sm.persist !== 'function') return self.persistGranted;
+      return Promise.resolve(sm.persist()).then(function (ok) {
+        self.persistGranted = !!ok;
+        return self.persistGranted;
+      }, function () { return self.persistGranted; });
+    })
+    .catch(function () { return self.persistGranted; });
+};
+
+/* 存储用量/配额。API 不存在（老内核/隐私模式）时返回 null，调用方就不显示这一行。 */
+Storage.prototype.refreshQuota = function () {
+  const self = this;
+  const sm = this._sm();
+  if (!sm || typeof sm.estimate !== 'function') {
+    self.persistInfo = null;
+    return Promise.resolve(null);
+  }
+  return Promise.resolve()
+    .then(function () { return sm.estimate(); })
+    .then(function (est) {
+      if (!est || typeof est.usage !== 'number' || typeof est.quota !== 'number') {
+        self.persistInfo = null;
+        return null;
+      }
+      self.persistInfo = { usage: est.usage, quota: est.quota };
+      return self.persistInfo;
+    })
+    .catch(function () { self.persistInfo = null; return null; });
 };
 
 // 防抖落盘：内存 state 立即更新。
