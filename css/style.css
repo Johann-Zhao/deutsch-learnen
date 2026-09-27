@@ -138,6 +138,14 @@ main { max-width: 960px; margin: 0 auto; padding: 32px 24px calc(72px + env(safe
 }
 .speak-btn:hover { background: var(--paper); color: var(--ink); }
 
+/* 自动播放被浏览器拦截时的**静态**强调（iOS 需要用户手势，见 src/audio.js 头部注释）。
+   不用动画：DESIGN.md 规定动效仅限卡片翻面与答题反馈、且 ≤300ms。 */
+body.audio-blocked .speak-btn {
+  box-shadow: inset 0 0 0 1px var(--gold);
+  color: var(--ink);
+}
+.speak-hint { color: var(--gold); }
+
 /* ===== 词性色系统（低饱和，仅功能性小面积） ===== */
 .g-m { color: var(--m); }
 .g-f { color: var(--f); }

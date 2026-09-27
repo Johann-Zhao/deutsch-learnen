@@ -12,6 +12,7 @@ import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, gender
 import { buildClozePool, pickCloze, pickClozeDistractors, blankSentence, itemsFromDialogue } from '../src/cloze.js';
 import { esc as escHtml } from '../src/ui.js';
 import { pickWordSrc, pickDialogSrc, pickReadingSrc, resolveRate } from '../src/audio.js';
+import * as AudioLayer from '../src/audio.js';
 import { dialogueCardId, parseDialogueCardId, pickDictationQueue } from '../src/listen.js';
 import { classifyToken, newWordRate, isWordToken } from '../src/reader.js';
 import { getWordIpa } from '../src/data.js';
@@ -1417,6 +1418,166 @@ test('getWordIpa：命中返回音标，缺失返回 null', function () {
   } finally {
     delete globalThis.window;
   }
+});
+
+console.log('\n音频元素池与手势解锁（iOS 需要手势，见 src/audio.js 头部注释）：');
+
+/* 音频层需要 Audio / Blob / URL / document，用最小桩把真实生产代码跑起来。
+   state.impl 决定 play() 成功还是被拒（NotAllowedError 模拟 iOS 手势外的情况）。 */
+function withAudioEnv(state, fn) {
+  const prev = {
+    Audio: globalThis.Audio, Blob: globalThis.Blob, URL: globalThis.URL,
+    document: globalThis.document, window: globalThis.window
+  };
+  const created = [];
+  const listeners = {};
+  const bodyClasses = [];
+  function FakeAudio() {
+    created.push(this);
+    this.paused = true; this.currentTime = 0; this.playbackRate = 1; this.src = ''; this.handlers = {};
+  }
+  FakeAudio.prototype.play = function () { this.paused = false; return state.impl(this); };
+  FakeAudio.prototype.pause = function () { this.paused = true; };
+  FakeAudio.prototype.addEventListener = function (t, h) { (this.handlers[t] = this.handlers[t] || []).push(h); };
+  FakeAudio.prototype.removeEventListener = function (t, h) {
+    const a = this.handlers[t] || []; const i = a.indexOf(h); if (i >= 0) a.splice(i, 1);
+  };
+  globalThis.Audio = FakeAudio;
+  globalThis.Blob = function () {};
+  globalThis.URL = { createObjectURL: function () { return 'blob:silent'; }, revokeObjectURL: function () {} };
+  globalThis.document = {
+    body: { classList: { add: function (c) { bodyClasses.push(c); }, remove: function () {} } },
+    addEventListener: function (t, h) { (listeners[t] = listeners[t] || []).push(h); },
+    removeEventListener: function (t, h) { const a = listeners[t] || []; const i = a.indexOf(h); if (i >= 0) a.splice(i, 1); },
+    readyState: 'complete'
+  };
+  globalThis.window = { AUDIO_WORDS: ['greet-0', 'greet-1'] };
+  AudioLayer._resetPool();
+
+  const env = {
+    created: created, listeners: listeners, bodyClasses: bodyClasses,
+    fire: function (type) { (listeners[type] || []).slice().forEach(function (h) { h({ type: type }); }); }
+  };
+  const cleanup = function () {
+    AudioLayer._resetPool();
+    globalThis.Audio = prev.Audio; globalThis.Blob = prev.Blob; globalThis.URL = prev.URL;
+    if (prev.document === undefined) delete globalThis.document; else globalThis.document = prev.document;
+    if (prev.window === undefined) delete globalThis.window; else globalThis.window = prev.window;
+  };
+  let out;
+  try { out = fn(env); } catch (e) { cleanup(); throw e; }
+  if (out && typeof out.then === 'function') {
+    return out.then(function (v) { cleanup(); return v; }, function (e) { cleanup(); throw e; });
+  }
+  cleanup();
+  return out;
+}
+function rejectNotAllowed() {
+  const e = new Error('play() failed because the user did not interact');
+  e.name = 'NotAllowedError';
+  return Promise.reject(e);
+}
+
+test('音频元素被复用：连续播放不新建元素（iOS 解锁要求复用同一元素）', function () {
+  return withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    assert.strictEqual(AudioLayer.audio.playWord('greet-0', 'der Tag'), true);
+    assert.strictEqual(AudioLayer.audio.playWord('greet-1', 'die Nacht'), true);
+    assert.strictEqual(AudioLayer.audio.playWord('greet-0', 'der Tag'), true);
+    assert.strictEqual(env.created.length, 2,
+      '三次播放应只用池里已有的 2 个元素，实际新建了 ' + env.created.length + ' 个');
+  });
+});
+
+test('手势监听：用 WebKit 认定的四种手势，不含 pointerdown', function () {
+  return withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    assert.deepStrictEqual(Object.keys(env.listeners).sort(), ['click', 'doubleclick', 'keydown', 'touchend'],
+      'WebKit 只认 touchend/click/doubleclick/keydown 的处理函数；pointerdown 不在名单里');
+    assert.strictEqual(env.listeners.pointerdown, undefined, '不得依赖 pointerdown 解锁');
+  });
+});
+
+/* 解锁/失败上报涉及时序，必须**顺序执行**：本测试框架同步跑完所有 test 体、
+   异步断言稍后才执行，若拆成多个测试，模块级状态会被后面的测试改掉（第一版就栽在这）。 */
+test('解锁与播放失败上报（顺序断言：拒绝 / 成功 / 手势重试 / 失败可见）', async function () {
+  // ① play() 被拒 → 不得谎报已解锁，且失败必须可见可查
+  await withAudioEnv({ impl: rejectNotAllowed }, function (env) {
+    AudioLayer.init();
+    assert.strictEqual(AudioLayer.unlock(), true, 'unlock 应发起预热尝试');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), false,
+          'play() reject 时 unlocked 必须保持 false（WebKit 在手势外会拒）');
+        assert.ok(AudioLayer.lastBlockError(), '解锁失败必须上报，不能静默');
+        assert.strictEqual(AudioLayer.lastBlockError().name, 'NotAllowedError');
+        assert.ok(env.bodyClasses.indexOf('audio-blocked') >= 0, '应加 body 类，让提示真的可见');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ② play() 成功 → 才置为已解锁，且不留失败记录
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function () {
+    AudioLayer.init();
+    AudioLayer.unlock();
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), true, 'resolve 后应已解锁');
+        assert.strictEqual(AudioLayer.lastBlockError(), null, '成功路径不应留下失败记录');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ③ 手势触发解锁成功 → 摘掉监听（不再重复预热）
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    env.fire('touchend');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), true, '手势内发起 + resolve 后应已解锁');
+        assert.strictEqual((env.listeners.touchend || []).length, 0, '解锁成功后应摘掉监听');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ④ 手势触发解锁失败 → 保留监听，等下一次手势重试（否则永久哑）
+  await withAudioEnv({ impl: rejectNotAllowed }, function (env) {
+    AudioLayer.init();
+    const before = (env.listeners.touchend || []).length;
+    assert.ok(before > 0, '初次应已注册手势监听');
+    env.fire('touchend');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), false);
+        assert.strictEqual((env.listeners.touchend || []).length, before,
+          '解锁失败后监听必须保留，否则后续真正的手势再也不重试');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ⑤ 播放被拒 → 可订阅、可查询、带出错 url（供 UI 给可见提示）
+  await withAudioEnv({ impl: rejectNotAllowed }, function () {
+    AudioLayer.init();
+    let seen = null;
+    const off = AudioLayer.onBlocked(function (info) { seen = info; });
+    AudioLayer.audio.playWord('greet-0', 'der Tag');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.ok(seen, 'onBlocked 订阅者应被通知');
+        assert.strictEqual(seen.name, 'NotAllowedError');
+        assert.ok(/greet-0/.test(seen.url), '应带上出错的 url 便于排查，实际：' + seen.url);
+        assert.ok(AudioLayer.lastBlockError(), 'lastBlockError() 应可查询');
+        off();
+        AudioLayer.clearBlockError();
+        assert.strictEqual(AudioLayer.lastBlockError(), null, 'clearBlockError 应能清掉');
+        resolve();
+      }, 20);
+    });
+  });
 });
 
 Promise.all(asyncQueue).then(function () {

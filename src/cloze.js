@@ -400,7 +400,18 @@ export function quizCard(item, onAnswer, pool) {
   });
   card.appendChild(box);
   card.appendChild(fb);
-  setTimeout(function () { playSentenceAudio(item); }, 80);
+  /* 自动朗读放在**同步作用域**里：本卡片由「开始 / 下一题」等点击直接渲染，
+     同步播放才能落在 iOS 的手势窗口内（WebKit Bug 259925 只允许同步作用域调用 play()）。
+     原先这里是 setTimeout(…, 80)，脱离手势 → iOS 上必然被拒。
+     若浏览器仍然拦截（例如卡片是路由切换渲染的、根本没有手势），给**可见**提示而不是静默。 */
+  playSentenceAudio(item);
+  setTimeout(function () {
+    if (!audio.lastBlockError()) return;
+    if (card.querySelector('.speak-hint')) return;
+    const hint = UI.el('div', 'speak-hint stat-label', '自动朗读被浏览器拦截了，点上面的 🔊 播放');
+    hint.style.marginTop = '4px';
+    card.insertBefore(hint, fb);
+  }, 150);
   return card;
 }
 
