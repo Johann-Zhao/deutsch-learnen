@@ -4,7 +4,9 @@
   <img src="shots/hero.jpg" alt="Deutsch Zine — 德语学习志" width="100%">
 </p>
 
-面向中文母语者的德语自学应用，覆盖 **A1 → B1**。纯静态网页，双击 `index.html` 即用；学习数据只存在你自己的浏览器里，零服务器、零账号。
+面向中文母语者的德语自学应用，覆盖 **A1 → B1**。**以手机端为主要使用场景**（iOS / HarmonyOS / Android 浏览器），桌面端同样可用。纯静态网页、零服务器、零账号——学习数据只存在你自己的浏览器里，不上传任何东西。
+
+装到手机主屏幕后即可离线使用：**不需要应用商店，不需要注册，不需要联网**（首次安装后）。
 
 ## 为什么是「杂志」
 
@@ -40,48 +42,70 @@
 
 ## 界面
 
+> 以手机端为主场景（下列竖图为 375px 手机宽度实拍）。
+
 <p>
-  <img src="shots/final_v42__1280.png" alt="今日页（桌面端）" width="49%">
-  <img src="shots/final_v42_vocab_1280.png" alt="词汇封面墙（桌面端）" width="49%">
+  <img src="shots/final_home_375.png" alt="今日页（手机）" width="24%">
+  <img src="shots/final_review-cloze_375.png" alt="语境填空复习（手机）" width="24%">
+  <img src="shots/final_declension_375.png" alt="变格专项（手机）" width="24%">
+  <img src="shots/final_read_375.png" alt="分级阅读逐词着色（手机）" width="24%">
+</p>
+
+<p>
+  <img src="shots/final_home_1280.png" alt="今日页（桌面端）" width="49%">
+  <img src="shots/final_review-cloze_1280.png" alt="语境填空复习（桌面端）" width="49%">
 </p>
 <p>
   <img src="shots/showcase_image_choice.png" alt="图片四选一" width="49%">
   <img src="shots/showcase_image_hint.png" alt="渐进提示" width="49%">
 </p>
 <p>
+  <img src="shots/final_declension_1280.png" alt="变格词尾专项（桌面端）" width="49%">
   <img src="shots/showcase_intro_drawer.png" alt="详情抽屉" width="49%">
-  <img src="shots/final_v42_learn_375.png" alt="移动端" width="24%">
 </p>
 <p>
   <img src="shots/final_listen_1280.png" alt="听力首页（桌面端）" width="49%">
-  <img src="shots/final_listen_dialog_1280.png" alt="听力对话页（桌面端）" width="49%">
-</p>
-<p>
   <img src="shots/final_read_1280.png" alt="阅读文库（桌面端）" width="49%">
-  <img src="shots/final_read_text_1280.png" alt="阅读页三态着色（桌面端）" width="49%">
 </p>
 
-## 快速开始
+## 装到手机上（推荐方式：不上应用商店 + 装完即离线）
 
-```bash
-# 方式一：直接双击 index.html（纯静态，无需构建）
-# 方式二：起本地服务（推荐，移动端同局域网可访问）
-python -m http.server 8765
-# 打开 http://localhost:8765
-```
+**关键前提**：Service Worker（离线壳）只在**安全上下文**下注册——即 `https://` 或 `localhost`。用 `python -m http.server` 起服务、手机连同一个 WiFi 打开 `http://192.168.x.x:8765` **不算安全上下文**，离线壳不会注册，也就拿不到「装到主屏后断网可用」。所以手机端要走静态托管。
 
-### 装到桌面 / 手机（PWA）
+### 三步装好
 
-用上面的方式二打开，或部署到任意静态托管后，浏览器会提供安装入口：Chrome / Edge 点地址栏右侧的「安装」，Safari（iOS）点「分享 → 添加到主屏幕」。装好后以独立窗口打开；Service Worker 预缓存首屏与数据文件，听过/看过的音频、配图按需缓存，断网仍可继续用已缓存的部分。
+1. **部署到静态托管**（任选其一，纯静态、无需构建步骤）
+   - **GitHub Pages**（最省事，仓库已在此）：仓库 `Settings → Pages → Source: Deploy from a branch → main /(root)`，几分钟后得到 `https://<用户名>.github.io/deutsch-learnen/`
+   - 其他任意静态托管（Netlify / Vercel / Cloudflare Pages / 自己的服务器）同理，把仓库根目录整个传上去即可
+2. **手机浏览器打开那个 https 地址**
+3. **添加到主屏幕**，然后从主屏图标启动——之后**完全离线可用**
 
-> Service Worker 只在 http(s) 下注册——`file://` 双击打开时离线壳不生效（浏览器安全限制），其余功能不受影响。
+### 各平台「添加到主屏幕」的入口
+
+| 平台 | 浏览器 | 操作 |
+| --- | --- | --- |
+| **HarmonyOS** | 华为浏览器 | 打开页面 → 底部/右上角菜单 → 「添加到桌面」（不同版本菜单措辞可能略有差异） |
+| **iOS** | Safari（必须用 Safari，微信/Chrome 内置浏览器不行） | 底部「分享」按钮 → 「添加到主屏幕」 |
+| **Android** | Chrome / Edge | 地址栏右侧「安装」图标，或菜单 → 「安装应用」/「添加到主屏幕」 |
+| **桌面** | Chrome / Edge | 地址栏右侧的「安装」图标 |
+
+> iOS 没有自动安装提示（不支持 `beforeinstallprompt`），只能走上面的手动入口；Android / 桌面 Chromium 系会自动提示。
+
+### 为什么不用应用商店
+
+纯 Web 应用不需要审核、不需要开发者账号、不需要签名，改完推上去手机刷新就是新版。代价是**没有推送通知**（本项目也不需要）。
+
+### 桌面端与 `file://`
+
+- **桌面双击 `index.html`** 也能用（数据、音频、图片、学习记录全部正常，实测 IndexedDB 与 localStorage 在 `file://` 下均可写入），但 `file://` 下 Service Worker 不注册，所以没有「安装」体验，**iOS 上也走不通这条路**（iOS 没有「拷文件夹再用浏览器打开」的通路）。
+- 桌面端的本地服务：`python -m http.server 8765` 然后开 `http://localhost:8765`（`localhost` 算安全上下文，离线壳正常）。
 
 ## 开发
 
 ```bash
 npm install         # 仅 esbuild 一个构建依赖
 npm run dev         # watch 模式：src/ → js/bundle.js
-npm test            # 95 项单元测试（FSRS、判分、斩机制、图片选题、发音回退链、听力对话、阅读三态、语境填空、变格数据、词性题守卫、数据完整性）
+npm test            # 102 项单元测试（FSRS 遗忘分支、判分、斩机制、图片选题、发音回退链、听力对话、阅读三态、语境填空、变格数据、词性题守卫、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
@@ -112,7 +136,8 @@ sw.js + manifest.webmanifest  PWA 离线壳（核心壳预缓存 + 媒体运行�
 | `AGENTS.md` | 项目约定：目录结构、数据格式、命名约定、内容生产 SOP |
 | `CHANGELOG.md` | 版本历史（Keep a Changelog） |
 | `docs/技术调研与开发规划.md` | 竞品调研、架构演进、路线图 |
-| `docs/superpowers/` | S5 学习系统设计规格与实施计划 |
+| `docs/superpowers/specs/`、`plans/` | S5–S9 各阶段的设计规格与实施计划（百词斩式学习系统 / zine 视觉改版 / 发音与 IPA / 听力模块 / 阅读模块 / 语境填空+变格专项+PWA） |
+| `.tower/comms/` | 开发过程的评审记录与 findings（本地目录，不入版本库） |
 
 ## License
 
