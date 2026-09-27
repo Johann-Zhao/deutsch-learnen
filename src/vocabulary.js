@@ -529,6 +529,12 @@ function learnSession(themeId) {
         card.appendChild(slow2);
         const input = UI.el('input');
         input.type = 'text'; input.autocomplete = 'off';
+        // 德语拼写：关掉输入法自动大写/自动更正/拼写检查（findings A5；
+        // 自动纠正把 ue↔ü 之类换掉时，SRS.normalize 双向等价仍能判对）
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('lang', 'de');
         input.className = 'spell-input';
         input.placeholder = '输入德语单词';
         card.appendChild(input);
@@ -823,13 +829,13 @@ function reviewSession(onlyMistakes) {
     } else if (type === 'dict') {
       // 听写：听音频拼写整个词（名词建议带冠词）
       q.prompt = '听音频，拼写出这个词' + (/^(der|die|das) /.test(w.de) ? '（含冠词，如 der Tag）' : '') +
-        '<br><input id="cloze-input" autocomplete="off" placeholder="输入德语单词">';
+        '<br><input id="cloze-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="de" placeholder="输入德语单词">';
       q.answerText = w.de;
       q.explain = w.de + ' = ' + w.zh;
     } else {
       const blank = w.ex.replace(new RegExp('\\b' + w.de.replace(/^(der|die|das) /, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), '＿＿＿');
       q.prompt = '填空：' + UI.esc(blank) + '<br><span class="stat-label">' + UI.esc(w.exZh) + '</span>' +
-        '<br><input id="cloze-input" autocomplete="off" placeholder="输入缺少的德语词">';
+        '<br><input id="cloze-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="de" placeholder="输入缺少的德语词">';
       q.answerText = w.de.replace(/^(der|die|das) /, '');
       q.explain = w.ex + '（' + w.exZh + '）';
     }

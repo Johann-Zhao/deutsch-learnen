@@ -80,6 +80,12 @@ export function page() {
   const card = UI.el('div', 'card');
   const input = UI.el('input');
   input.type = 'text'; input.autocomplete = 'off';
+  // 德语拼写：关掉输入法的自动大写/自动更正/拼写检查（iOS 会按用户词典把
+  // ue/ae/oe/ss 替换成 ü/ä/ö/ß 或反之——见 findings A5，判分另有等价归一化兜底）
+  input.setAttribute('autocapitalize', 'off');
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('spellcheck', 'false');
+  input.setAttribute('lang', 'de');
   input.placeholder = '动词原形，如 fahren';
   input.className = 'spell-input'; input.style.maxWidth = '320px';
   card.appendChild(input);
