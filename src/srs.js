@@ -42,7 +42,9 @@ export function newCard(todayStr) {
 
 export function review(card, quality, todayStr) {
   const rating = quality + 1; // 1 Again / 2 Hard / 3 Good
-  if (!card || card.reps === 0 || !card.last) {
+  // 首评判定：`!(reps > 0)` 同时覆盖 reps === 0 / undefined / NaN
+  // （后两者不走首评分支会算出 NaN 稳定度与 'NaN-NaN-NaN' 到期日）
+  if (!card || !(card.reps > 0) || !card.last) {
     // 首次评分
     card = card || newCard(todayStr);
     card.stability = initialStability(rating);
@@ -56,13 +58,23 @@ export function review(card, quality, todayStr) {
     // 难度更新 + 均值回归
     const d1 = clamp(card.difficulty - W[6] * (rating - 3), 1, 10);
     card.difficulty = clamp(W[7] * W[4] + (1 - W[7]) * d1, 1, 10);
-    // 稳定度增长
-    function w10(x) { return W[10] * x; }
-    let inc = 1 + Math.exp(W[8]) * (11 - card.difficulty) *
-      Math.pow(card.stability, -W[9]) * (Math.exp(w10(1 - R)) - 1);
-    if (rating === 2) inc *= W[15];        // Hard 惩罚
-    if (rating === 4) inc *= W[16];        // Easy 奖励（本站未用）
-    card.stability = clamp(card.stability * inc, 0.1, MAX_S);
+    if (rating === 1) {
+      // FSRS-4.5 遗忘分支：答错按遗忘公式重算稳定度（低于 1 天 → 当天/次日再见）。
+      // 注意 W 是 0 基数组：论文的 w11..w14 即这里的 W[11]=2.1072 / W[12]=0.0793 /
+      // W[13]=0.3246 / W[14]=1.587（W[15]=0.2272 是 Hard 惩罚，不是遗忘参数）。
+      card.stability = clamp(
+        W[11] * Math.pow(card.difficulty, -W[12]) *
+        (Math.pow(card.stability + 1, W[13]) - 1) * Math.exp(W[14] * (1 - R)),
+        0.1, MAX_S);
+    } else {
+      // 稳定度增长
+      function w10(x) { return W[10] * x; }
+      let inc = 1 + Math.exp(W[8]) * (11 - card.difficulty) *
+        Math.pow(card.stability, -W[9]) * (Math.exp(w10(1 - R)) - 1);
+      if (rating === 2) inc *= W[15];        // Hard 惩罚
+      if (rating === 4) inc *= W[16];        // Easy 奖励（本站未用）
+      card.stability = clamp(card.stability * inc, 0.1, MAX_S);
+    }
     card.reps += 1;
     if (rating === 1) card.lapses += 1;
     card.last = todayStr;
@@ -95,6 +107,10 @@ export function migrate(card) {
     card.last = card.learned || card.due;
     if (!card.last) card.last = card.due;
     delete card.box;
+    // 计数器兜底：旧卡没有 reps/lapses，不补的话评分后 `undefined + 1 = NaN`（NaN !== 0
+    // 还会让首评判定永久失真）。迁移来的卡一律视为已复习过 1 次。
+    card.reps = card.reps || 1;
+    card.lapses = card.lapses || 0;
   }
   return card;
 }

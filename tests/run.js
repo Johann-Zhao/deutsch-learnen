@@ -110,6 +110,125 @@ test('newCard 不含 sealed/verify 字段', function () {
   assert.ok(!('verify' in c));
 });
 
+/* ---------- FSRS 遗忘分支（4.6.1）----------
+   缺陷：review() 对所有评分共用「回忆成功」的增长公式，已有卡答错时 stability 反向变大
+   （实测 3.71 → 13.20）、due 被推后 13 天，与「答错明天再见」的产品语义相反。 */
+console.log('DeSRS 遗忘分支（4.6.1）：');
+test('已有卡答错：稳定度下降、次日再见、lapses+1', function () {
+  const c = SRS.newCard('2026-09-20');
+  SRS.review(c, 2, '2026-09-20');           // S0 = W[2] = 3.7145，due = 2026-09-24
+  const sBefore = c.stability;
+  assert.strictEqual(c.due, '2026-09-24');
+  SRS.review(c, 0, '2026-09-25');           // t=5, R≈0.87
+  assert.ok(c.stability < sBefore, '答错后稳定度必须下降: ' + sBefore + ' -> ' + c.stability);
+  // 日期先钉格式再比大小：坏值 'NaN-NaN-NaN' 在字符串比较里反而「大于」真实日期，会让下一条断言空转
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(c.due), '答错后到期日必须是合法日期：' + c.due);
+  assert.ok(c.due <= '2026-09-26', '答错后不应晚于次日再见，实际：' + c.due);
+  assert.strictEqual(c.lapses, 1, '答错应累计 lapses');
+  assert.strictEqual(c.reps, 2);
+  assert.ok(c.stability >= 0.1 && c.stability <= 36500, '稳定度应落在 clamp 区间：' + c.stability);
+});
+test('答错走 FSRS-4.5 遗忘公式（独立 oracle 复算，防参数错位到 W[15]）', function () {
+  const c = SRS.newCard('2026-09-20');
+  SRS.review(c, 2, '2026-09-20');
+  const S0 = c.stability;                    // 3.7145
+  SRS.review(c, 0, '2026-09-25');
+  // 独立复算（不引用源码常量）：D 均值回归 → S' = w11·D^-w12·((S+1)^w13−1)·e^(w14·(1−R))
+  const R = SRS.retrievability(S0, 5);
+  const d1 = Math.min(10, Math.max(1, 5.1618 - 0.8975 * (1 - 3)));
+  const D = Math.min(10, Math.max(1, 0.031 * 5.1618 + (1 - 0.031) * d1));
+  const expect = 2.1072 * Math.pow(D, -0.0793) * (Math.pow(S0 + 1, 0.3246) - 1) * Math.exp(1.587 * (1 - R));
+  assert.ok(Math.abs(c.stability - expect) < 1e-9, '遗忘公式复算不符: ' + c.stability + ' vs ' + expect);
+  // 本仓库 W 是 0 基数组，论文 1 基的 w11..w14 = W[11..14]；docs 里那份 finding 按 1 基写，
+  // 错抄成 (0.0793, 0.3246, 1.587, 0.2272) 会算出 ≈0.468——同样「变小」故只靠大小断言抓不住，这里显式排除
+  const wrongShift = 0.0793 * Math.pow(D, -0.3246) * (Math.pow(S0 + 1, 1.587) - 1) * Math.exp(0.2272 * (1 - R));
+  assert.ok(Math.abs(c.stability - wrongShift) > 0.1, '不得与 1 基错抄的映射吻合（错抄值 ' + wrongShift + '）');
+});
+test('评分分支 oracle：rating 2/3/4 仍走增长公式（Hard 惩罚 / Easy 奖励不变）', function () {
+  // S0=3.7145（rating 3 首评）、D0=5.1618；隔 4 天重评 → t=4
+  function grown(rating) {
+    const S0 = 3.7145, D0 = 5.1618, t = 4;
+    const R = SRS.retrievability(S0, t);
+    const d1 = Math.min(10, Math.max(1, D0 - 0.8975 * (rating - 3)));
+    const D = Math.min(10, Math.max(1, 0.031 * 5.1618 + (1 - 0.031) * d1));
+    let inc = 1 + Math.exp(1.6474) * (11 - D) * Math.pow(S0, -0.1367) * (Math.exp(1.0461 * (1 - R)) - 1);
+    if (rating === 2) inc *= 0.2272;   // Hard 惩罚
+    if (rating === 4) inc *= 2.8755;   // Easy 奖励
+    return S0 * inc;
+  }
+  [[2, 1], [3, 2], [4, 3]].forEach(function (pair) {
+    const rating = pair[0], quality = pair[1]; // rating = quality + 1
+    const c = SRS.newCard('2026-09-20');
+    SRS.review(c, 2, '2026-09-20');
+    SRS.review(c, quality, '2026-09-24');
+    const expect = grown(rating);
+    assert.ok(Math.abs(c.stability - expect) < 1e-9,
+      'rating ' + rating + '（quality ' + quality + '）增长公式不再吻合: ' + c.stability + ' vs ' + expect);
+  });
+});
+test('首评（含 reps 缺失/NaN 的卡）落回首评分支，不再算出 NaN 日期', function () {
+  // 无 reps/difficulty 的卡：原判定 `reps === 0` 为假会走非首评分支 → stability/due 全 NaN
+  const c = { due: '2026-09-01', stability: 2, last: '2026-09-01' };
+  SRS.review(c, 2, '2026-09-01');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(c.due), 'due 必须是合法日期：' + c.due);
+  assert.ok(Number.isFinite(c.stability) && Number.isFinite(c.difficulty), '稳定度/难度必须有限：' + c.stability + '/' + c.difficulty);
+  assert.strictEqual(c.stability, 3.7145, '应走首评（Good 初始稳定度 W[2]）');
+  assert.strictEqual(c.reps, 1);
+  // reps 为 NaN 同理：`!(NaN > 0)` 为真 → 首评分支
+  const n = { due: '2026-09-01', stability: 2, difficulty: 5, reps: NaN, lapses: NaN, last: '2026-09-01' };
+  SRS.review(n, 2, '2026-09-01');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(n.due), 'reps=NaN 的卡也必须是合法日期：' + n.due);
+  assert.strictEqual(n.reps, 1, 'NaN reps 应被首评分支重置为 1');
+});
+test('迁移卡的 reps/lapses 不再变 NaN（SM-2 遗留卡）', function () {
+  const c = SRS.migrate({ box: 3, learned: '2026-08-01', due: '2026-08-04' });
+  assert.strictEqual(c.reps, 1, '迁移来的卡视为已复习过 1 次');
+  assert.strictEqual(c.lapses, 0);
+  SRS.review(c, 2, '2026-08-04');
+  assert.ok(Number.isFinite(c.reps), 'reps 必须有限：' + c.reps);
+  assert.ok(Number.isFinite(c.lapses), 'lapses 必须有限：' + c.lapses);
+  assert.ok(c.reps >= 1);
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(c.due), 'due 必须合法：' + c.due);
+  // 已有计数器的旧卡不得被兜底覆盖
+  const keep = SRS.migrate({ box: 2, reps: 5, lapses: 3, learned: '2026-08-01', due: '2026-08-04' });
+  assert.strictEqual(keep.reps, 5);
+  assert.strictEqual(keep.lapses, 3);
+});
+test('t>0 连错：难度不下降、稳定度不反弹成「已掌握」（绕开 t=0 的 R=1 退化）', function () {
+  const c = SRS.newCard('2026-08-01');
+  SRS.review(c, 0, '2026-08-01');            // 首评 Again → 难度高
+  const d1 = c.difficulty;
+  let tPos = 0;
+  for (let i = 0; i < 20; i++) {
+    const next = SRS.addDays(c.last, 5);     // 每次隔 5 天重评，确保 t>0
+    if (SRS.daysBetween(c.last, next) > 0) tPos++;
+    SRS.review(c, 0, next);
+    assert.ok(Number.isFinite(c.stability), '第 ' + (i + 1) + ' 次答错后 stability 非有限：' + c.stability);
+    assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(c.due), '第 ' + (i + 1) + ' 次答错后到期日非法：' + c.due);
+    // 本循环落在高难度（D→9.85）+ 低稳定度区间，遗忘公式给出的 S' ≪ 1 天 → 当天再见。
+    // （不是普适定律：FSRS 的遗忘后稳定度随 D 减小/请求延迟增大而升高，这里锁的是本场景。）
+    assert.ok(c.due <= SRS.addDays(next, 1), '第 ' + (i + 1) + ' 次答错后 due 被推后超过 1 天：' + c.due);
+  }
+  assert.strictEqual(tPos, 20, '20 次重评都必须走 t>0 路径（否则本测试会退化成 t=0 空转）');
+  assert.ok(c.difficulty >= d1 - 0.01, '连错难度不应下降: ' + d1 + ' -> ' + c.difficulty);
+  assert.ok(c.difficulty <= 10 && c.difficulty >= 1);
+  assert.ok(c.stability < SRS.MASTERED_STABILITY, '连错不该被判定为已掌握：' + c.stability);
+  assert.strictEqual(c.mastered, false);
+});
+test('答错使「已掌握」回落为未掌握（连带效果），已斩卡仍不受影响', function () {
+  // 消费方 reader.js:27 用 `sealed || mastered` 判三态着色、:346 出「已掌握 ✓」标签，views.js:22 统计已掌握数
+  const c = { stability: 30, difficulty: 5, reps: 5, lapses: 0, last: '2026-08-01', due: '2026-08-31', mastered: true };
+  SRS.review(c, 0, '2026-08-31');
+  assert.ok(/^\d{4}-\d{2}-\d{2}$/.test(c.due), '到期日必须是合法日期：' + c.due);
+  assert.ok(c.stability < SRS.MASTERED_STABILITY, '答错后稳定度应跌破掌握阈值：' + c.stability);
+  assert.strictEqual(c.mastered, false, '忘了就不算掌握');
+  // 已斩的卡永不到期：review 不清 sealed，isDue 仍为 false
+  const sealed = SRS.seal({ stability: 30, difficulty: 5, reps: 5, lapses: 0, last: '2026-08-01', due: '2026-08-31' });
+  SRS.review(sealed, 0, '2026-08-31');
+  assert.strictEqual(sealed.sealed, true, 'review 不应清除 sealed');
+  assert.ok(!SRS.isDue(sealed, '2026-12-31'), '已斩卡永不到期');
+});
+
 console.log('DeSRS.matches（判分）：');
 test('忽略大小写与首尾空格', function () {
   assert.ok(SRS.matches('  Apfel ', 'Apfel'));
