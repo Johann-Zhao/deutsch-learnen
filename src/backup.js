@@ -100,7 +100,69 @@ function typeName(v) {
   return typeof v;
 }
 
-/* 校验一份备份。返回 { ok, error, data, state, summary }，**绝不抛异常**。
+/* 安全地把任意值转成可读文本：`String({toString:1})` 会抛 TypeError，
+   而本模块的契约是「绝不抛异常」——校验器自己抛错会被上层吞成『读取文件失败』，
+   把真正的原因盖掉。 */
+function describe(v) {
+  if (v === null || typeof v !== 'object') return String(v);
+  try { return JSON.stringify(v); } catch (e) { return typeName(v); }
+}
+
+const MAP_KEYS = ['srs', 'daily', 'mistakes', 'grammarDone', 'listen', 'reading'];
+
+/* 值形状清洗：只保留「容器里每个值都是 plain object」的条目。
+   **这是 P1 修复**。只校验容器层（`srs` 是对象）远远不够——实测
+   `"srs":{"zz-0":null}` 会被原样并入并**持久化**，随后设置页在 `null.sealed` 上抛错白屏，
+   而导出/导入/重置三个自救入口**全在那一屏**（用户把自己唯一的出路打掉了），重载依旧崩。
+
+   策略选择：**丢弃坏条目 + 计数上报**，而不是整份拒绝。备份模块存在的意义就是救回进度，
+   因为一条坏记录拒绝整份文件，等于让用户丢掉其余几百条好数据。
+   清洗保证「进入写存档那一步的每一个值都是良构的」。 */
+export function sanitizeState(state) {
+  const src = isPlainObject(state) ? state : {};
+  const out = Object.assign({}, src);
+  const dropped = [];
+  MAP_KEYS.forEach(function (k) {
+    if (src[k] === undefined) { delete out[k]; return; }
+    if (!isPlainObject(src[k])) {
+      delete out[k];
+      dropped.push(k + '（整体不是对象）');
+      return;
+    }
+    const clean = {};
+    let bad = 0;
+    Object.keys(src[k]).forEach(function (id) {
+      if (isPlainObject(src[k][id])) clean[id] = src[k][id];
+      else bad++;
+    });
+    if (bad) dropped.push(k + '（' + bad + ' 条值不是对象）');
+    out[k] = clean;
+  });
+  if (src.streak !== undefined) {
+    if (!isPlainObject(src.streak)) {
+      delete out.streak;
+      dropped.push('streak（不是对象）');
+    } else if (src.streak.protected !== undefined && !Array.isArray(src.streak.protected)) {
+      // protected 必须是数组（views 里对它 forEach），坏值换成空数组而不是丢掉整份 streak
+      out.streak = Object.assign({}, src.streak, { protected: [] });
+      dropped.push('streak.protected（不是数组）');
+    }
+  }
+  if (out.settings !== undefined && !isPlainObject(out.settings)) {
+    delete out.settings;
+    dropped.push('settings（不是对象）');
+  }
+  return { state: out, dropped: dropped };
+}
+
+/* 是否含学习进度结构（值形状校验之后再看，只看容器类型） */
+function hasProgressShape(v) {
+  if (!isPlainObject(v)) return false;
+  return ['srs', 'daily', 'mistakes', 'grammarDone', 'listen', 'reading', 'streak']
+    .some(function (k) { return isPlainObject(v[k]); });
+}
+
+/* 校验一份备份。返回 { ok, error, data, state, summary, dropped }，**绝不抛异常**。
    设计原则：宁可给出可读的原因让用户重选文件，也不能让坏文件进到写存档那一步。 */
 export function validateBackup(parsed) {
   const fail = function (msg) { return { ok: false, error: msg }; };
@@ -128,7 +190,7 @@ export function validateBackup(parsed) {
     inner = parsed;
   } else {
     if (parsed.format !== BACKUP_FORMAT) {
-      return fail('不是本应用的备份文件（format 是「' + String(parsed.format) + '」，应为「' + BACKUP_FORMAT + '」）。');
+      return fail('不是本应用的备份文件（format 是「' + describe(parsed.format) + '」，应为「' + BACKUP_FORMAT + '」）。');
     }
     const version = Number(parsed.version);
     if (!isFinite(version) || version < 1) {
@@ -143,7 +205,16 @@ export function validateBackup(parsed) {
     }
     inner = parsed.state;
   }
-  return { ok: true, data: parsed, state: inner, summary: summarizeState(inner) };
+
+  // 值形状清洗：坏值绝不能进到写存档那一步（见 sanitizeState 注释）
+  const clean = sanitizeState(inner);
+  if (!hasProgressShape(clean.state)) {
+    return fail('备份里的学习进度内容无法识别（字段结构不完整），没有可安全导入的内容。');
+  }
+  return {
+    ok: true, data: parsed, state: clean.state,
+    summary: summarizeState(clean.state), dropped: clean.dropped
+  };
 }
 
 /* 从文件文本解析并校验；parse 失败也走同一条可读错误通道 */
@@ -177,16 +248,29 @@ function keepMaxNumEntry(cur, inc) {
 
 /* 同一张卡两边的进度取「更靠后」的那份：
    先比 last（最后一次复习日），再比 reps（复习次数）。这样合并结果既不会让
-   用户刚复习完的卡倒退，也不会丢掉备份里更长的复习历史。 */
+   用户刚复习完的卡倒退，也不会丢掉备份里更长的复习历史。
+   但**「已斩」是永久成就，不能跟着被丢掉**——否则已斩的卡会退回复习队列。 */
 function keepAdvancedCard(cur, inc) {
   if (!isPlainObject(cur)) return inc;
   if (!isPlainObject(inc)) return cur;
   const curLast = String(cur.last || '');
   const incLast = String(inc.last || '');
-  if (incLast > curLast) return inc;
-  if (incLast < curLast) return cur;
+  let pick;
+  if (incLast > curLast) pick = inc;
+  else if (incLast < curLast) pick = cur;
   // 同一天：取复习次数更多的一方（reps 可能缺失，按 0 处理）
-  return maxNum(inc.reps, 0) > maxNum(cur.reps, 0) ? inc : cur;
+  else pick = maxNum(inc.reps, 0) > maxNum(cur.reps, 0) ? inc : cur;
+
+  const sealed = !!(cur.sealed || inc.sealed);
+  const mastered = !!(cur.mastered || inc.mastered);
+  if (!sealed && !mastered) return pick;
+  const out = Object.assign({}, pick);
+  if (sealed) {
+    out.sealed = true;
+    out.sealedAt = pick.sealedAt || cur.sealedAt || inc.sealedAt || null;
+  }
+  if (mastered) out.mastered = true;
+  return out;
 }
 
 /* 合并两份 store 状态：cur 为当前存档（保留方），inc 为备份（并入方）。
@@ -207,7 +291,9 @@ export function mergeStates(cur, inc) {
   base.srs = Object.assign({}, base.srs);
   if (isPlainObject(add.srs)) {
     Object.keys(add.srs).forEach(function (id) {
-      base.srs[id] = keepAdvancedCard(base.srs[id], add.srs[id]);
+      const merged = keepAdvancedCard(base.srs[id], add.srs[id]);
+      // 只写良构的值：坏值绝不能进存档（否则页面会崩，见 sanitizeState 注释）
+      if (isPlainObject(merged)) base.srs[id] = merged;
     });
   }
 
@@ -222,7 +308,7 @@ export function mergeStates(cur, inc) {
   if (isPlainObject(add.mistakes)) {
     Object.keys(add.mistakes).forEach(function (id) {
       const c = base.mistakes[id], i = add.mistakes[id];
-      if (!isPlainObject(c)) { base.mistakes[id] = i; return; }
+      if (!isPlainObject(c)) { if (isPlainObject(i)) base.mistakes[id] = i; return; }
       if (!isPlainObject(i)) return;
       const out = Object.assign({}, c);
       out.wrong = maxNum(c.wrong, i.wrong);
@@ -245,7 +331,7 @@ export function mergeStates(cur, inc) {
     if (!isPlainObject(add[key])) return;
     Object.keys(add[key]).forEach(function (id) {
       const c = base[key][id], i = add[key][id];
-      if (!isPlainObject(c)) { base[key][id] = i; return; }
+      if (!isPlainObject(c)) { if (isPlainObject(i)) base[key][id] = i; return; }
       if (!isPlainObject(i)) return;
       const cf = String(c.finished || c.at || '');
       const inf = String(i.finished || i.at || '');
@@ -262,17 +348,24 @@ export function mergeStates(cur, inc) {
   if (isPlainObject(add.streak)) {
     const cs = base.streak || {};
     const incStreak = add.streak;
+    const incProt = Array.isArray(incStreak.protected) ? incStreak.protected.slice() : [];
+    const curProt = Array.isArray(cs.protected) ? cs.protected : [];
     if (String(incStreak.last || '') > String(cs.last || '')) {
       base.streak = {
         last: incStreak.last || null,
         count: incStreak.count || 0,
         freezes: incStreak.freezes || 0,
-        protected: (incStreak.protected || []).slice()
+        protected: incProt
       };
-    } else if (!cs.protected && incStreak.protected) {
-      base.streak = Object.assign({}, cs, { protected: incStreak.protected.slice() });
+    } else if (!cs.protected && incProt.length) {
+      base.streak = Object.assign({}, cs, { protected: incProt });
+    } else if (curProt.length !== (cs.protected || []).length) {
+      base.streak = Object.assign({}, cs, { protected: curProt });
     }
   }
+
+  // settings 完全保留当前值（设备偏好），但坏值要换回空对象，避免写进存档
+  if (!isPlainObject(base.settings)) base.settings = emptyState().settings;
 
   return base;
 }
@@ -399,7 +492,7 @@ export const Backup = {
   BACKUP_FORMAT, BACKUP_VERSION, BACKUP_REMIND_DAYS,
   backupFilename, todayStr,
   serializeBackup, serializeBackupText,
-  validateBackup, parseBackup,
+  validateBackup, parseBackup, sanitizeState,
   summarizeState, hasLearningData,
   mergeStates, mergePreview,
   daysSinceExport, shouldRemindBackup, snoozeUntil,

@@ -616,6 +616,86 @@ test('合并：卡片取并集，同 id 取复习更晚的一方', function () {
     { settings: {}, srs: { a: { reps: 8, last: '2026-09-01', stability: 30 } } });
   assert.strictEqual(m3.srs.a.stability, 9, '复习更晚的当前卡应保留');
   assert.strictEqual(m3.srs.a.last, '2026-09-25');
+  // 备份卡片复习时间更晚：必须取备份那一方（否则「换设备后导入旧备份」会把新进度抹掉）。
+  // 这一条原先缺失——独立复审用变异证实：删掉「备份更晚→取备份」整段，整套测试仍然全绿。
+  // 注意数据要**让 last 与 reps 指向相反方向**，否则删掉「比 last」的分支后会回退到「比 reps」
+  // 仍然选中备份侧，断言照样通过 —— 那就是一条不具判别力的用例。
+  const m4 = mergeStates({ settings: {}, srs: { a: { reps: 5, last: '2026-09-10', stability: 9 } } },
+    { settings: {}, srs: { a: { reps: 1, last: '2026-09-26', stability: 41 } } });
+  assert.strictEqual(m4.srs.a.stability, 41, '备份侧复习更晚时应取备份侧（reps 更少也不例外）');
+  assert.strictEqual(m4.srs.a.last, '2026-09-26');
+  assert.strictEqual(m4.srs.a.reps, 1);
+});
+test('合并：已斩 / 已掌握标记不因「取更晚的一方」而丢失', function () {
+  // 当前卡更晚但未斩，备份卡更早但已斩 → 合并后必须仍是已斩（否则已斩的卡会退回复习队列）
+  const m = mergeStates(
+    { settings: {}, srs: { a: { reps: 3, last: '2026-09-26', stability: 12 } } },
+    { settings: {}, srs: { a: { reps: 9, last: '2026-09-01', stability: 80, sealed: true, sealedAt: '2026-09-01' } } });
+  assert.strictEqual(m.srs.a.sealed, true, '已斩是永久成就，不能被「取更晚」丢掉');
+  assert.strictEqual(m.srs.a.sealedAt, '2026-09-01');
+  assert.strictEqual(m.srs.a.last, '2026-09-26', '复习时间仍应取更晚的一方');
+  // 反向：当前已斩、备份更晚 → 同样保留已斩
+  const m2 = mergeStates(
+    { settings: {}, srs: { a: { reps: 1, last: '2026-09-01', sealed: true, sealedAt: '2026-09-01' } } },
+    { settings: {}, srs: { a: { reps: 4, last: '2026-09-26' } } });
+  assert.strictEqual(m2.srs.a.sealed, true);
+  assert.strictEqual(m2.srs.a.last, '2026-09-26');
+});
+test('导入校验：坏值被清洗掉，绝不写进存档（P1 回归）', function () {
+  // 这一组直接对应独立复审实测的四个崩溃：srs 值为 null → 设置页白屏（且已落盘、重载仍崩）
+  const bad = {
+    format: 'deutsch-lernen-progress', version: 1,
+    state: {
+      settings: { dailyNew: 10 },
+      srs: { ok: { reps: 1, last: '2026-09-20', stability: 3 }, 'zz-0': null, 'zz-1': 'oops', 'zz-2': [] },
+      daily: { '2026-09-22': { new: 1 }, '2026-09-24': null },
+      mistakes: { ok: { wrong: 1, type: 'vocab' }, 'zz-0': null },
+      streak: { last: '2026-09-20', count: 2, protected: 'oops' }
+    }
+  };
+  const v = validateBackup(bad);
+  assert.strictEqual(v.ok, true, '有可用内容时应接受（丢弃坏条目而不是整份拒绝）');
+  assert.ok(v.dropped && v.dropped.length > 0, '必须上报丢了什么，不能静默');
+  assert.strictEqual(v.state.srs['zz-0'], undefined, 'null 卡必须被丢弃');
+  assert.strictEqual(v.state.srs['zz-1'], undefined, '字符串卡必须被丢弃');
+  assert.strictEqual(v.state.srs['zz-2'], undefined, '数组卡必须被丢弃');
+  assert.ok(v.state.srs.ok, '良构的卡必须保留');
+  assert.strictEqual(v.state.daily['2026-09-24'], undefined, 'null 日条目必须被丢弃');
+  assert.ok(Array.isArray(v.state.streak.protected), 'protected 必须是数组（views 会对它 forEach）');
+  // 合并进当前存档后，也不能出现任何非对象值
+  const m = mergeStates({ settings: { dailyNew: 10 }, srs: {} }, v.state);
+  Object.keys(m.srs).forEach(function (id) {
+    assert.ok(m.srs[id] && typeof m.srs[id] === 'object' && !Array.isArray(m.srs[id]),
+      '合并结果里 srs.' + id + ' 必须是对象，实际 ' + JSON.stringify(m.srs[id]));
+  });
+  ['daily', 'mistakes', 'grammarDone', 'listen', 'reading'].forEach(function (k) {
+    Object.keys(m[k] || {}).forEach(function (id) {
+      assert.ok(m[k][id] && typeof m[k][id] === 'object' && !Array.isArray(m[k][id]),
+        '合并结果里 ' + k + '.' + id + ' 必须是对象');
+    });
+  });
+});
+test('导入校验：绝不抛异常（违反契约的值形状也不能抛）', function () {
+  // P2-1：原实现对 {toString:1} 调 String() 抛 TypeError，被上层吞成「读取文件失败」，原因误导
+  const cases = [
+    { format: { toString: 1 } },
+    { format: 'x', version: 1, state: { settings: {}, srs: {} } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {}, streak: { protected: 42 } } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {}, streak: { protected: { a: 1 } } } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {} } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: [], daily: 'x' } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: null, srs: { a: { reps: 1 } } } }
+  ];
+  cases.forEach(function (c, i) {
+    let r = null;
+    assert.doesNotThrow(function () { r = validateBackup(c); }, '第 ' + i + ' 类输入不得抛异常');
+    assert.strictEqual(typeof r.ok, 'boolean', '第 ' + i + ' 类必须返回 ok 布尔');
+    if (!r.ok) assert.ok(typeof r.error === 'string' && r.error.length > 0, '第 ' + i + ' 类拒绝时须给可读原因');
+  });
+  // 坏值不能被写进存档：mergeStates 对 protected 为数字也不能抛
+  assert.doesNotThrow(function () {
+    mergeStates({ settings: {}, streak: { protected: [] } }, { settings: {}, streak: { protected: 42 } });
+  }, 'mergeStates 对非数组 protected 不得抛');
 });
 test('合并：每日统计取并集且同日取较大值（不清零、不覆盖）', function () {
   const m = mergeStates(

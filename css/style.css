@@ -145,9 +145,14 @@ body.audio-blocked .speak-btn {
   color: var(--ink);
 }
 /* 必须用「双类」选择器：`.speak-hint` 与下方 `.stat-label` 同为单类 (0,1,0)，
-   而 .stat-label 在本文件更靠后 → 会胜出，提示文字就与普通小字同色（已实测：
-   rgb(110,103,90) 而非金色）。.speak-hint.stat-label (0,2,0) 压过它，且不依赖声明顺序。 */
-.speak-hint.stat-label { color: var(--gold); }
+   而 .stat-label 在本文件更靠后 → 会胜出，提示文字就与普通小字同色。
+   文字色用 --ink（在纸色上约 13:1）而不是 --gold：**金色文字在纸色底上只有 2.96:1，
+   低于 DESIGN.md 硬性要求的 WCAG AA 4.5:1**；改用金色左侧细线做视觉标记，文字保持高对比。 */
+.speak-hint.stat-label {
+  color: var(--ink);
+  border-left: 2px solid var(--gold);
+  padding-left: 8px;
+}
 
 /* ===== 词性色系统（低饱和，仅功能性小面积） ===== */
 .g-m { color: var(--m); }
