@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F2EDE3">
+<link rel="icon" href="images/icons/icon-192.png">
+<title>设备能力自检 · Deutsch Zine</title>
+<style>
+  :root { --ink:#2B2620; --paper:#F2EDE3; --line:#D8CFBD; --ok:#4E7D5E; --bad:#A85B6E; --warn:#A88C4A; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px 14px calc(24px + env(safe-area-inset-bottom,0px)); background:var(--paper); color:var(--ink);
+         font:15px/1.55 -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+  h1 { font-size:19px; margin:4px 0 2px; }
+  .sub { font-size:12px; letter-spacing:.14em; text-transform:uppercase; opacity:.6; }
+  .note { font-size:12.5px; opacity:.75; margin:10px 0 16px; }
+  .card { background:#FBF8F1; border:1px solid var(--line); border-radius:6px; padding:12px 13px; margin:0 0 10px; }
+  .card h2 { font-size:14px; margin:0 0 8px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td { padding:4px 0; vertical-align:top; border-bottom:1px dotted var(--line); }
+  td:first-child { width:42%; opacity:.75; }
+  td:last-child { word-break:break-all; }
+  .ok   { color:var(--ok); font-weight:600; }
+  .bad  { color:var(--bad); font-weight:600; }
+  .warn { color:var(--warn); font-weight:600; }
+  button { font:inherit; padding:9px 14px; min-height:44px; margin:6px 6px 0 0; border:1px solid var(--ink);
+           background:var(--ink); color:var(--paper); border-radius:5px; }
+  button.ghost { background:transparent; color:var(--ink); }
+  .verdict { font-size:15px; font-weight:600; margin:2px 0 0; }
+  code { font-size:12px; background:#EDE6D8; padding:1px 4px; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<p class="sub">Deutsch Zine · DEVICE CHECK</p>
+<h1>设备能力自检</h1>
+<p class="note">
+  在**目标手机的浏览器**里打开本页，把结果截图发回即可。<br>
+  它只做只读探测与一次测试写入，不会影响学习数据。请分别测：<strong>鸿蒙（华为浏览器）</strong>与 <strong>iOS（Safari）</strong>。
+</p>
+
+<div class="card">
+  <h2>① 运行环境</h2>
+  <table id="env"></table>
+</div>
+
+<div class="card">
+  <h2>② 离线能力（最关键）</h2>
+  <p class="note" style="margin:0 0 8px">「能不能断网使用」完全取决于 Service Worker 能否注册。</p>
+  <table id="sw"></table>
+  <p class="verdict" id="swVerdict">检测中…</p>
+</div>
+
+<div class="card">
+  <h2>③ 存储与数据安全</h2>
+  <p class="note" style="margin:0 0 8px">学习记录存在本机。iOS 上若<strong>没添加到主屏</strong>，7 天不访问可能被系统清除。</p>
+  <table id="store"></table>
+</div>
+
+<div class="card">
+  <h2>④ 音频（iOS 只允许「同步」播放）</h2>
+  <table id="audioTable"></table>
+  <div>
+    <button id="btnSync">① 点这里：同步播放</button>
+    <button id="btnAsync" class="ghost">② 点这里：异步播放（模拟自动朗读）</button>
+  </div>
+  <p class="note" style="margin:8px 0 0">测试音：<code>audio/word/greet-0.mp3</code>。若「同步」成功但「异步」失败 → 就是本应用当前在 iOS 上的症状。</p>
+</div>
+
+<div class="card">
+  <h2>⑤ 屏幕与安全区</h2>
+  <table id="layout"></table>
+</div>
+
+<p class="note" id="raw" style="font-size:11px; opacity:.6"></p>
+
+<div id="probe" style="position:fixed;left:-9999px;top:-9999px" aria-hidden="true">
+  <div id="saTop" style="padding-top:env(safe-area-inset-top,0px)"></div>
+  <div id="saRight" style="padding-right:env(safe-area-inset-right,0px)"></div>
+  <div id="saBottom" style="padding-bottom:env(safe-area-inset-bottom,0px)"></div>
+  <div id="saLeft" style="padding-left:env(safe-area-inset-left,0px)"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  function row(tbody, k, v, cls) {
+    var tr = document.createElement('tr');
+    var td1 = document.createElement('td'); td1.textContent = k;
+    var td2 = document.createElement('td'); td2.textContent = v;
+    if (cls) td2.className = cls;
+    tr.appendChild(td1); tr.appendChild(td2);
+    document.getElementById(tbody).appendChild(tr);
+    return td2;   // 返回值单元格，便于后续就地更新
+  }
+  function px(id) { return Math.round(parseFloat(getComputedStyle(document.getElementById(id)).paddingTop) || 0); }
+  function side(id, prop) { return Math.round(parseFloat(getComputedStyle(document.getElementById(id))[prop]) || 0); }
+
+  /* ---------- ① 运行环境 ---------- */
+  row('env', 'User Agent', navigator.userAgent);
+  row('env', '平台 Platform', navigator.platform || '(无)');
+  row('env', '语言', navigator.language);
+  row('env', '协议', location.protocol, location.protocol === 'file:' ? 'warn' : 'ok');
+  row('env', '是否安全上下文', String(window.isSecureContext), window.isSecureContext ? 'ok' : 'bad');
+  row('env', '触屏点数', String(navigator.maxTouchPoints || 0));
+  row('env', '已装为主屏应用（display-mode）',
+      (window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : '(browser)'),
+      window.matchMedia('(display-mode: standalone)').matches ? 'ok' : 'warn');
+  row('env', 'iOS 主屏模式标志', String(navigator.standalone === true));
+
+  /* ---------- ③ 存储 ---------- */
+  try {
+    localStorage.setItem('__probe', '1');
+    row('store', 'localStorage 可写', localStorage.getItem('__probe') === '1' ? '可以' : '写后读不一致', 'ok');
+    localStorage.removeItem('__probe');
+  } catch (e) { row('store', 'localStorage 可写', e.name + ': ' + e.message, 'bad'); }
+
+  var idbReq;
+  try {
+    idbReq = indexedDB.open('__devicecheck', 1);
+  } catch (e) { row('store', 'IndexedDB 可打开', e.name + ': ' + e.message, 'bad'); }
+  if (idbReq) {
+    idbReq.onupgradeneeded = function () { idbReq.result.createObjectStore('kv'); };
+    idbReq.onerror = function () { row('store', 'IndexedDB 可打开', '错误：' + (idbReq.error && idbReq.error.name), 'bad'); };
+    idbReq.onsuccess = function () {
+      var db = idbReq.result;
+      try {
+        var tx = db.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put('1', 'probe');
+        tx.oncomplete = function () { row('store', 'IndexedDB 写入事务', '成功', 'ok'); };
+        tx.onerror = function () { row('store', 'IndexedDB 写入事务', '失败：' + (tx.error && tx.error.name), 'bad'); };
+      } catch (e) { row('store', 'IndexedDB 写入事务', e.name + ': ' + e.message, 'bad'); }
+    };
+  }
+
+  if (navigator.storage && navigator.storage.estimate) {
+    navigator.storage.estimate().then(function (e) {
+      row('store', '存储配额', Math.round((e.quota || 0) / 1048576) + ' MB');
+      row('store', '已用', Math.round((e.usage || 0) / 1048576) + ' MB');
+    }).catch(function () { row('store', '存储配额', '不可用'); });
+  } else { row('store', '存储配额', 'navigator.storage.estimate 不支持', 'warn'); }
+
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(function (p) {
+      row('store', '是否已持久化（persisted）', String(p), p ? 'ok' : 'warn');
+    }).catch(function () {});
+    navigator.storage.persist().then(function (granted) {
+      row('store', '申请持久化（persist）', granted ? '已授予' : '被拒绝（不是错误，iOS 通常拒绝）', granted ? 'ok' : 'warn');
+    }).catch(function (e) { row('store', '申请持久化（persist）', '异常：' + e.name, 'warn'); });
+  } else { row('store', 'navigator.storage.persist', '不支持', 'warn'); }
+
+  /* ---------- ② Service Worker ---------- */
+  var swSupported = ('serviceWorker' in navigator);
+  row('sw', 'API 存在', String(swSupported), swSupported ? 'ok' : 'bad');
+  if (location.protocol === 'file:') {
+    row('sw', '注册', 'file:// 下不注册（浏览器安全限制，属正常）', 'warn');
+    document.getElementById('swVerdict').textContent = '结论：file:// 打开时拿不到离线壳（预期行为）。';
+  } else if (!swSupported) {
+    row('sw', '注册', '浏览器不支持', 'bad');
+    document.getElementById('swVerdict').textContent = '结论：这个浏览器不支持 Service Worker → 无法离线使用。';
+  } else {
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      row('sw', '注册', '成功', 'ok');
+      row('sw', 'scope', reg.scope || '(未知)');
+      row('sw', '当前状态', String((reg.active && reg.active.state) || (reg.installing && reg.installing.state) || 'installing'));
+      var t0 = Date.now();
+      (function poll() {
+        if (navigator.serviceWorker.controller) {
+          row('sw', '已接管页面（controller）', '是（' + (Date.now() - t0) + ' ms）', 'ok');
+          document.getElementById('swVerdict').textContent = '结论：离线壳可用 ✓ 装到主屏后断网应该还能打开。';
+          return;
+        }
+        if (Date.now() - t0 > 12000) {
+          row('sw', '已接管页面（controller）', '否（等待超时）', 'warn');
+          document.getElementById('swVerdict').textContent = '结论：SW 注册成功但未接管本页——刷新一次再看；若仍不接管，说明该浏览器对 SW 有限制。';
+          return;
+        }
+        setTimeout(poll, 400);
+      })();
+    }).catch(function (e) {
+      row('sw', '注册', '失败：' + (e && e.name) + ' ' + (e && e.message), 'bad');
+      document.getElementById('swVerdict').textContent = '结论：Service Worker 注册失败 → 该浏览器上无法离线使用。';
+    });
+  }
+
+  /* ---------- ④ 音频 ---------- */
+  var AUDIO_SRC = 'audio/word/greet-0.mp3';
+  var synth = ('speechSynthesis' in window) ? window.speechSynthesis : null;
+  row('audioTable', 'speechSynthesis', synth ? '支持' : '不支持', synth ? 'ok' : 'warn');
+  if (synth) {
+    // 语音列表在 iOS/Android 上常异步就绪，这里做「就地更新」而不是重复追加行
+    var vCount = row('audioTable', '语音列表数量', '读取中…');
+    var vDe = row('audioTable', '德语语音（de-*）', '读取中…');
+    var reportVoices = function () {
+      var vs = synth.getVoices() || [];
+      var de = vs.filter(function (v) { return (v.lang || '').toLowerCase().indexOf('de') === 0; });
+      vCount.textContent = String(vs.length);
+      vDe.textContent = de.length ? de.map(function (v) { return v.lang + '/' + v.name; }).join('；') : '无德语语音（不影响 mp3，只影响系统语音回退）';
+      vDe.className = de.length ? 'ok' : 'warn';
+    };
+    reportVoices();
+    synth.onvoiceschanged = reportVoices;
+    setTimeout(reportVoices, 1500);   // iOS 上 voiceschanged 可能不触发，超时后补一次
+  }
+
+  var syncAudio = new Audio();
+  syncAudio.preload = 'auto';
+  document.getElementById('btnSync').addEventListener('click', function () {
+    // 严格在点击处理函数的同步作用域内发起播放（iOS 官方要求的形态）
+    var p = syncAudio.play();
+    if (p && p.then) {
+      p.then(function () { row('audioTable', '① 同步 play()', '成功', 'ok'); })
+       .catch(function (e) { row('audioTable', '① 同步 play()', '被拒：' + (e && e.name) + ' ' + (e && e.message), 'bad'); });
+    } else { row('audioTable', '① 同步 play()', '已发起（无 Promise）', 'warn'); }
+    // 官方报告里的绕法：先同步 play()，再异步换 src
+    setTimeout(function () { syncAudio.src = AUDIO_SRC; syncAudio.play().catch(function () {}); }, 0);
+  });
+
+  var asyncAudio = new Audio();
+  asyncAudio.preload = 'auto';
+  asyncAudio.src = AUDIO_SRC;
+  document.getElementById('btnAsync').addEventListener('click', function () {
+    // 故意放进 setTimeout —— 复现本应用「出题卡自动朗读」的异步形态
+    setTimeout(function () {
+      var p = asyncAudio.play();
+      if (p && p.then) {
+        p.then(function () { row('audioTable', '② 异步 play()（setTimeout 后）', '成功', 'ok'); })
+         .catch(function (e) { row('audioTable', '② 异步 play()（setTimeout 后）', '被拒：' + (e && e.name) + ' ' + (e && e.message) + ' ← iOS 上预计就是这个', 'bad'); });
+      }
+    }, 80);
+  });
+
+  /* ---------- ⑤ 屏幕与安全区 ---------- */
+  row('layout', '视口 innerWidth × innerHeight', window.innerWidth + ' × ' + window.innerHeight);
+  row('layout', '屏幕 screen', screen.width + ' × ' + screen.height);
+  row('layout', '像素比 devicePixelRatio', String(window.devicePixelRatio));
+  row('layout', '是否横向溢出', String(document.documentElement.scrollWidth > document.documentElement.clientWidth),
+      document.documentElement.scrollWidth > document.documentElement.clientWidth ? 'bad' : 'ok');
+  row('layout', '安全区 top / right / bottom / left',
+      side('saTop', 'paddingTop') + ' / ' + side('saRight', 'paddingRight') + ' / ' +
+      side('saBottom', 'paddingBottom') + ' / ' + side('saLeft', 'paddingLeft') + ' px');
+
+  document.getElementById('raw').textContent = '采集时间 ' + new Date().toISOString() + ' · 页面 ' + location.href;
+})();
+</script>
+</body>
+</html>

@@ -91,6 +91,17 @@
 
 > iOS 没有自动安装提示（不支持 `beforeinstallprompt`），只能走上面的手动入口；Android / 桌面 Chromium 系会自动提示。
 
+### ⚠️ iOS 用户请注意：不装到主屏，学习记录可能被系统清除
+
+这不是本应用的 bug，是 iOS/Safari 的策略：**在 Safari 里直接浏览的站点，7 天不访问会被清掉 Service Worker、缓存与 IndexedDB**。Apple 工程师在 [WebKit Bug 232302](https://bugs.webkit.org/show_bug.cgi?id=232302) 里明确回复「**在 Safari 里没有办法获得豁免**」，唯一的解法是**添加到主屏幕**、且应用清单使用 `standalone` 或 `fullscreen` 显示模式——本应用已经是 `display: standalone`，所以：
+
+- **添加到主屏幕后从此处启动** → 学习记录受保护，断网也能用；
+- **只在 Safari 标签页里用** → 设备 7 天不访问这个站点，**你的学习进度可能被系统清掉**。
+
+### 设备自检页（换新手机 / 换浏览器时先跑一次）
+
+部署后访问 **`device-check.html`**（例如 `https://<用户名>.github.io/deutsch-learnen/device-check.html`），它会逐项报告：Service Worker 能否注册（决定能不能离线）、是否已装为主屏应用、存储配额与持久化、音频两种播放方式（同步/异步）的结果、系统德语语音是否可用、安全区与视口。**排查问题请先跑它**。
+
 ### 为什么不用应用商店
 
 纯 Web 应用不需要审核、不需要开发者账号、不需要签名，改完推上去手机刷新就是新版。代价是**没有推送通知**（本项目也不需要）。
