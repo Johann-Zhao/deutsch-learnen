@@ -446,7 +446,7 @@ function dictationPage() {
 
     const prompt = UI.el('div', 'quiz-prompt');
     prompt.innerHTML = '听音频，拼写出这个词' + (/^(der|die|das) /.test(w.de) ? '（含冠词，如 der Tag）' : '') +
-      '<br><input id="cloze-input" autocomplete="off" placeholder="输入德语单词">';
+      '<br><input id="cloze-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="de" placeholder="输入德语单词">';
     card.appendChild(prompt);
     card.appendChild(UI.el('p', 'stat-label', '输入时可不带冠词；ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss'));
 

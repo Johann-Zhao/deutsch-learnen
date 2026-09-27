@@ -529,6 +529,12 @@ function learnSession(themeId) {
         card.appendChild(slow2);
         const input = UI.el('input');
         input.type = 'text'; input.autocomplete = 'off';
+        // 德语拼写：关掉输入法自动大写/自动更正/拼写检查（findings A5；
+        // 自动纠正把 ue↔ü 之类换掉时，SRS.normalize 双向等价仍能判对）
+        input.setAttribute('autocapitalize', 'off');
+        input.setAttribute('autocorrect', 'off');
+        input.setAttribute('spellcheck', 'false');
+        input.setAttribute('lang', 'de');
         input.className = 'spell-input';
         input.placeholder = '输入德语单词';
         card.appendChild(input);
@@ -823,17 +829,36 @@ function reviewSession(onlyMistakes) {
     } else if (type === 'dict') {
       // 听写：听音频拼写整个词（名词建议带冠词）
       q.prompt = '听音频，拼写出这个词' + (/^(der|die|das) /.test(w.de) ? '（含冠词，如 der Tag）' : '') +
-        '<br><input id="cloze-input" autocomplete="off" placeholder="输入德语单词">';
+        '<br><input id="cloze-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="de" placeholder="输入德语单词">';
       q.answerText = w.de;
       q.explain = w.de + ' = ' + w.zh;
     } else {
       const blank = w.ex.replace(new RegExp('\\b' + w.de.replace(/^(der|die|das) /, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'), '＿＿＿');
       q.prompt = '填空：' + UI.esc(blank) + '<br><span class="stat-label">' + UI.esc(w.exZh) + '</span>' +
-        '<br><input id="cloze-input" autocomplete="off" placeholder="输入缺少的德语词">';
+        '<br><input id="cloze-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" lang="de" placeholder="输入缺少的德语词">';
       q.answerText = w.de.replace(/^(der|die|das) /, '');
       q.explain = w.ex + '（' + w.exZh + '）';
     }
     return q;
+  }
+
+  /* 自动朗读被拒时给一行**可见**提示（iOS 需要手势，见 src/audio.js 头部注释）。
+     与 src/cloze.js 的做法一致：失败必须可见，不静默。此前复习池里的自动朗读只有
+     「喇叭描金边」这一个信号，文字提示只在 cloze 练一练卡片上有，主线路径够不着。 */
+  function hintBlockedAudio(card) {
+    setTimeout(function () {
+      const err = audio.lastBlockError();
+      if (!err) return;
+      if (card.querySelector('.speak-hint')) return;
+      const gated = err.name === 'NotAllowedError' || err.name === 'TTSSilent';
+      const hint = UI.el('div', 'speak-hint stat-label',
+        gated ? '自动朗读被浏览器拦截了，点上面的 🔊 播放'
+              : '读音没能播放（' + err.name + '），点上面的 🔊 重试');
+      hint.style.marginTop = '4px';
+      const anchor = card.querySelector('.quiz-prompt');
+      if (anchor && anchor.parentNode === card) card.insertBefore(hint, anchor.nextSibling);
+      else card.insertBefore(hint, card.firstChild);
+    }, 150);
   }
 
   function show(w, isRetry) {
@@ -851,6 +876,7 @@ function reviewSession(onlyMistakes) {
       const slowR = slowBtn(w.de, w.id); slowR.style.marginLeft = '6px';
       card.appendChild(slowR);
       audio.playWord(w.id, w.de);
+      hintBlockedAudio(card);
     }
     if (q.type !== 'image') {
       const p = UI.el('div', 'quiz-prompt');

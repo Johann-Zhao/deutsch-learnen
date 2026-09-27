@@ -3,7 +3,12 @@
 import assert from 'node:assert';
 import { readFileSync } from 'node:fs';
 import * as SRS from '../src/srs.js';
-import { Storage, today, KEY } from '../src/storage.js';
+import { Storage, today, KEY, isQuotaError } from '../src/storage.js';
+import {
+  serializeBackup, serializeBackupText, validateBackup, parseBackup, backupFilename,
+  summarizeState, hasLearningData, mergeStates, mergePreview, daysSinceExport,
+  shouldRemindBackup, snoozeUntil, formatBytes, BACKUP_FORMAT, BACKUP_VERSION, BACKUP_REMIND_DAYS
+} from '../src/backup.js';
 import { buildWordIndex, isGrammarCardId, isListenCardId, rebuildWordIndex, allWords } from '../src/data.js';
 import { store } from '../src/store.js';
 import { lookup } from '../src/conjugate.js';
@@ -12,6 +17,7 @@ import { maskWord, maskWordHalf, orderReviewQueue, makeRequeue, posLabel, gender
 import { buildClozePool, pickCloze, pickClozeDistractors, blankSentence, itemsFromDialogue } from '../src/cloze.js';
 import { esc as escHtml } from '../src/ui.js';
 import { pickWordSrc, pickDialogSrc, pickReadingSrc, resolveRate } from '../src/audio.js';
+import * as AudioLayer from '../src/audio.js';
 import { dialogueCardId, parseDialogueCardId, pickDictationQueue } from '../src/listen.js';
 import { classifyToken, newWordRate, isWordToken } from '../src/reader.js';
 import { getWordIpa } from '../src/data.js';
@@ -238,6 +244,29 @@ test('变元音等价输入', function () {
   assert.ok(SRS.matches('strasse', 'Straße'));
   assert.ok(SRS.matches('schoen', 'schön'));
 });
+// 输入法鲁棒性实测：界面提示写了「ä 可输 ae，ö 输 oe，ü 输 ue，ß 输 ss」，
+// 四个方向必须**双向**等价（自动更正可能把 ue 换成 ü，也可能反过来）。
+test('变元音四方向双向等价：ä/ö/ü/ß ↔ ae/oe/ue/ss 都判对', function () {
+  const pairs = [
+    ['Bär', 'Baer'], ['Baer', 'Bär'],
+    ['schön', 'schoen'], ['schoen', 'schön'],
+    ['Übung', 'uebung'], ['uebung', 'Übung'],
+    ['Straße', 'Strasse'], ['Strasse', 'Straße']
+  ];
+  pairs.forEach(function (p) {
+    assert.ok(SRS.matches(p[0], p[1]), '应判对：输入 ' + p[0] + ' / 答案 ' + p[1]);
+    assert.ok(SRS.matches(p[1], p[0]), '应判对（反向）：输入 ' + p[1] + ' / 答案 ' + p[0]);
+  });
+  // 大小写在变元音上同样不敏感（Ä→ae、ß→ss 后仍等价）
+  assert.ok(SRS.matches('AEPFEL', 'Äpfel'), '大写转写也应判对');
+  assert.ok(SRS.matches('Öl', 'oel'), 'Ö→oe 双向');
+  // 带冠词时同样走这条归一化
+  assert.ok(SRS.matches('die Strasse', 'die Straße'));
+  assert.ok(SRS.matches('die Übung', 'die Uebung'));
+  // 但真的拼错仍必须判错，别把等价放宽成模糊匹配
+  assert.ok(!SRS.matches('Baum', 'Bär'));
+  assert.ok(!SRS.matches('strase', 'Straße'));
+});
 test('名词可不带冠词', function () {
   assert.ok(SRS.matches('Apfel', 'der Apfel'));
   assert.ok(SRS.matches('der Apfel', 'Apfel'));
@@ -460,6 +489,533 @@ test('防抖 300ms 到期后自动落盘', function () {
       }, 350);
     });
   });
+});
+
+console.log('\n学习进度导出 / 导入（backup.js 纯函数）：');
+
+/* navigator.storage 的打桩说明：Node 21+ 的 globalThis.navigator 是**只有 getter** 的属性，
+   直接赋值会抛「Cannot set property navigator」。因此持久化/配额测试不走全局打桩，
+   改为把 navigator.storage 句柄**注入** Storage 的第三个构造参数（src/storage.js 的
+   storageManager()），既避开该限制，又不会与本文件里并发跑的异步用例互相踩。 */
+
+// 一份内容完整的样例存档，供各用例复用
+function sampleState(over) {
+  return Object.assign({
+    settings: { dailyNew: 10, ttsRate: 1.0, level: 'A1', lastExport: '2026-09-20' },
+    srs: { 'greet-0': { stability: 3, difficulty: 5, reps: 2, lapses: 0, due: '2026-09-25', last: '2026-09-22' } },
+    daily: { '2026-09-22': { new: 5, reviewed: 3, correct: 7 } },
+    mistakes: { 'g-praesens#1': { type: 'grammar', wrong: 2, last: '2026-09-22' } },
+    grammarDone: { 'g-praesens': 80 },
+    listen: { 'dl-a1-greet': { right: 3, total: 4, at: '2026-09-21' } },
+    reading: { 'rd-a1-park': { finished: '2026-09-21', added: 4 } },
+    streak: { last: '2026-09-22', count: 4, freezes: 1, protected: [] }
+  }, over || {});
+}
+
+test('导出信封带 format/version/exportedAt，state 是整份存档', function () {
+  const env = serializeBackup(sampleState(), new Date(2026, 8, 27));
+  assert.strictEqual(env.format, BACKUP_FORMAT);
+  assert.strictEqual(env.version, BACKUP_VERSION);
+  assert.strictEqual(env.exportedAt, '2026-09-27');
+  assert.strictEqual(env.state.srs['greet-0'].stability, 3);
+  assert.strictEqual(env.state.streak.count, 4);
+});
+test('文件名带日期：deutsch-progress-YYYY-MM-DD.json', function () {
+  assert.strictEqual(backupFilename(new Date(2026, 8, 27)), 'deutsch-progress-2026-09-27.json');
+  assert.strictEqual(backupFilename(new Date(2026, 0, 5)), 'deutsch-progress-2026-01-05.json');
+});
+test('序列化往返：导出文本 → 解析 → 校验 → 合并结果与原状态一致', function () {
+  const st = sampleState();
+  const text = serializeBackupText(st, new Date(2026, 8, 27));
+  assert.strictEqual(typeof text, 'string');
+  const res = parseBackup(text);
+  assert.ok(res.ok, '往返后应校验通过：' + res.error);
+  assert.deepStrictEqual(res.state.srs, st.srs);
+  assert.deepStrictEqual(res.state.daily, st.daily);
+  assert.deepStrictEqual(res.state.streak, st.streak);
+  assert.deepStrictEqual(mergeStates(st, res.state), mergeStates(st, st));
+});
+
+// ---- 坏输入必须被拒绝，且给出可读理由（绝不能写坏存档）----
+test('坏输入：空文本 / 空文件', function () {
+  assert.ok(!parseBackup('').ok);
+  assert.ok(!parseBackup('   ').ok);
+  assert.ok(!parseBackup(null).ok);
+  assert.ok(/空/.test(parseBackup('').error), '错误文案应说明文件为空：' + parseBackup('').error);
+});
+test('坏输入：截断或语法错误的 JSON', function () {
+  const cut = serializeBackupText(sampleState()).slice(0, 40); // 故意截断
+  const r = parseBackup(cut);
+  assert.ok(!r.ok, '截断的 JSON 必须被拒绝');
+  assert.ok(/JSON/.test(r.error), '错误文案应提示 JSON 无效：' + r.error);
+  assert.ok(!parseBackup('{broken json').ok);
+  assert.ok(!parseBackup('<html>not json</html>').ok);
+});
+test('坏输入：顶层是数组 / 数字 / null', function () {
+  assert.ok(!parseBackup('[]').ok);
+  assert.ok(!parseBackup('[1,2,3]').ok);
+  assert.ok(!parseBackup('42').ok);
+  assert.ok(!parseBackup('null').ok);
+  assert.ok(!parseBackup('"a string"').ok);
+});
+test('坏输入：JSON 合法但不是本应用的备份（format 不符）', function () {
+  const r = validateBackup({ format: 'something-else', version: 1, state: sampleState() });
+  assert.ok(!r.ok);
+  assert.ok(/format/.test(r.error), '应指出 format 不符：' + r.error);
+});
+test('坏输入：version 高于本应用支持的版本（拒绝而不是猜着读）', function () {
+  const r = validateBackup({ format: BACKUP_FORMAT, version: BACKUP_VERSION + 1, state: sampleState() });
+  assert.ok(!r.ok);
+  assert.ok(/更新/.test(r.error), '应说明来自更新的版本：' + r.error);
+});
+test('坏输入：缺少 version / state', function () {
+  assert.ok(!validateBackup({ format: BACKUP_FORMAT, state: sampleState() }).ok, '缺 version 应拒绝');
+  const r = validateBackup({ format: BACKUP_FORMAT, version: 1 });
+  assert.ok(!r.ok);
+  assert.ok(/state/.test(r.error), '应指出 state 无效：' + r.error);
+});
+test('坏输入：state 不是对象 / 只有数字没有学习进度字段', function () {
+  assert.ok(!validateBackup({ format: BACKUP_FORMAT, version: 1, state: 'x' }).ok);
+  assert.ok(!validateBackup({ format: BACKUP_FORMAT, version: 1, state: [1, 2] }).ok);
+  const r = validateBackup({ format: BACKUP_FORMAT, version: 1, state: { srs: 5, daily: 7 } });
+  assert.ok(!r.ok, 'srs/daily 是数字时不算学习进度，应拒绝');
+});
+test('字段缺失容错：裸 store.state（旧版导出）仍可导入', function () {
+  const bare = sampleState();
+  const r = validateBackup(bare);
+  assert.ok(r.ok, '旧版裸存档应兼容：' + r.error);
+  // 只有 settings + 一个字段也应通过
+  assert.ok(validateBackup({ settings: { dailyNew: 10 }, srs: {} }).ok);
+});
+test('字段缺失容错：只有 settings 的裸存档被拒绝（不是学习进度）', function () {
+  assert.ok(!validateBackup({ settings: { dailyNew: 10 } }).ok);
+});
+test('字段缺失容错：缺 daily/mistakes/listen/reading 的备份能合并出完整结构', function () {
+  const res = validateBackup({ settings: { dailyNew: 10 }, srs: { 'a-1': { stability: 1 } } });
+  assert.ok(res.ok);
+  const merged = mergeStates({ settings: { dailyNew: 10 }, srs: {} }, res.state);
+  ['srs', 'daily', 'mistakes', 'grammarDone', 'listen', 'reading', 'streak', 'settings'].forEach(function (k) {
+    assert.ok(merged[k] && typeof merged[k] === 'object', k + ' 应被补成对象');
+  });
+  assert.strictEqual(merged.settings.dailyNew, 10);
+});
+
+// ---- 合并策略 ----
+test('合并：卡片取并集，同 id 取复习更晚的一方', function () {
+  const cur = { settings: {}, srs: { a: { reps: 1, last: '2026-09-20', stability: 1 } } };
+  const inc = { settings: {}, srs: { b: { reps: 9, last: '2026-01-01', stability: 40 } } };
+  const m = mergeStates(cur, inc);
+  assert.strictEqual(Object.keys(m.srs).length, 2);
+  assert.strictEqual(m.srs.b.stability, 40, '备份独有的卡应并入');
+  // 同一天两边都有：取 reps 更大的
+  const m2 = mergeStates({ settings: {}, srs: { a: { reps: 1, last: '2026-09-20' } } },
+    { settings: {}, srs: { a: { reps: 5, last: '2026-09-20' } } });
+  assert.strictEqual(m2.srs.a.reps, 5);
+  // 当前卡片复习时间更晚：不能被备份里的旧卡拉回去
+  const m3 = mergeStates({ settings: {}, srs: { a: { reps: 2, last: '2026-09-25', stability: 9 } } },
+    { settings: {}, srs: { a: { reps: 8, last: '2026-09-01', stability: 30 } } });
+  assert.strictEqual(m3.srs.a.stability, 9, '复习更晚的当前卡应保留');
+  assert.strictEqual(m3.srs.a.last, '2026-09-25');
+  // 备份卡片复习时间更晚：必须取备份那一方（否则「换设备后导入旧备份」会把新进度抹掉）。
+  // 这一条原先缺失——独立复审用变异证实：删掉「备份更晚→取备份」整段，整套测试仍然全绿。
+  // 注意数据要**让 last 与 reps 指向相反方向**，否则删掉「比 last」的分支后会回退到「比 reps」
+  // 仍然选中备份侧，断言照样通过 —— 那就是一条不具判别力的用例。
+  const m4 = mergeStates({ settings: {}, srs: { a: { reps: 5, last: '2026-09-10', stability: 9 } } },
+    { settings: {}, srs: { a: { reps: 1, last: '2026-09-26', stability: 41 } } });
+  assert.strictEqual(m4.srs.a.stability, 41, '备份侧复习更晚时应取备份侧（reps 更少也不例外）');
+  assert.strictEqual(m4.srs.a.last, '2026-09-26');
+  assert.strictEqual(m4.srs.a.reps, 1);
+});
+test('合并：已斩 / 已掌握标记不因「取更晚的一方」而丢失', function () {
+  // 当前卡更晚但未斩，备份卡更早但已斩 → 合并后必须仍是已斩（否则已斩的卡会退回复习队列）
+  const m = mergeStates(
+    { settings: {}, srs: { a: { reps: 3, last: '2026-09-26', stability: 12 } } },
+    { settings: {}, srs: { a: { reps: 9, last: '2026-09-01', stability: 80, sealed: true, sealedAt: '2026-09-01' } } });
+  assert.strictEqual(m.srs.a.sealed, true, '已斩是永久成就，不能被「取更晚」丢掉');
+  assert.strictEqual(m.srs.a.sealedAt, '2026-09-01');
+  assert.strictEqual(m.srs.a.last, '2026-09-26', '复习时间仍应取更晚的一方');
+  // 反向：当前已斩、备份更晚 → 同样保留已斩
+  const m2 = mergeStates(
+    { settings: {}, srs: { a: { reps: 1, last: '2026-09-01', sealed: true, sealedAt: '2026-09-01' } } },
+    { settings: {}, srs: { a: { reps: 4, last: '2026-09-26' } } });
+  assert.strictEqual(m2.srs.a.sealed, true);
+  assert.strictEqual(m2.srs.a.last, '2026-09-26');
+});
+test('导入校验：坏值被清洗掉，绝不写进存档（P1 回归）', function () {
+  // 这一组直接对应独立复审实测的四个崩溃：srs 值为 null → 设置页白屏（且已落盘、重载仍崩）
+  const bad = {
+    format: 'deutsch-lernen-progress', version: 1,
+    state: {
+      settings: { dailyNew: 10 },
+      srs: { ok: { reps: 1, last: '2026-09-20', stability: 3 }, 'zz-0': null, 'zz-1': 'oops', 'zz-2': [] },
+      daily: { '2026-09-22': { new: 1 }, '2026-09-24': null },
+      mistakes: { ok: { wrong: 1, type: 'vocab' }, 'zz-0': null },
+      // grammarDone 的值是**数字**（最佳正确率），不是对象——这里必须带上它，
+      // 否则这个用例对 grammarDone 一无所知，清洗器把它整个丢掉也测不出来（r2 复审的 P1）
+      grammarDone: { 'g-praesens': 5, 'g-kasus': 4, 'dc-article': 6, bad: 'x', bad2: null, bad3: [] },
+      streak: { last: '2026-09-20', count: 2, protected: 'oops' }
+    }
+  };
+  const v = validateBackup(bad);
+  assert.strictEqual(v.ok, true, '有可用内容时应接受（丢弃坏条目而不是整份拒绝）');
+  assert.ok(v.dropped && v.dropped.length > 0, '必须上报丢了什么，不能静默');
+  assert.strictEqual(v.state.srs['zz-0'], undefined, 'null 卡必须被丢弃');
+  assert.strictEqual(v.state.srs['zz-1'], undefined, '字符串卡必须被丢弃');
+  assert.strictEqual(v.state.srs['zz-2'], undefined, '数组卡必须被丢弃');
+  assert.ok(v.state.srs.ok, '良构的卡必须保留');
+  assert.strictEqual(v.state.daily['2026-09-24'], undefined, 'null 日条目必须被丢弃');
+  assert.ok(Array.isArray(v.state.streak.protected), 'protected 必须是数组（views 会对它 forEach）');
+  /* protected 的**元素**也必须是日期字符串——只判「是不是数组」不够：
+     `['2026-09-23', null, 42, {a:1}]` 不会崩，但坏值不该进存档。 */
+  const v3 = validateBackup({
+    format: 'deutsch-lernen-progress', version: 1,
+    state: {
+      settings: {}, srs: {},
+      streak: { last: '2026-09-20', count: 1, protected: ['2026-09-23', null, 42, { a: 1 }, 'not-a-date', ''] }
+    }
+  });
+  assert.strictEqual(v3.ok, true, '有可用内容时应接受');
+  assert.deepStrictEqual(v3.state.streak.protected, ['2026-09-23'],
+    'protected 只保留合法的日期字符串，实际 ' + JSON.stringify(v3.state.streak.protected));
+  assert.ok(v3.dropped.some(function (s) { return /protected/.test(s); }), '丢弃 protected 坏元素必须上报');
+  // grammarDone 是数字 map：良构的必须**原样保留**（这是 r2 复审的 P1——清洗器曾把它整片丢掉）
+  assert.strictEqual(v.state.grammarDone['g-praesens'], 5, '语法完成数必须保留');
+  assert.strictEqual(v.state.grammarDone['g-kasus'], 4);
+  assert.strictEqual(v.state.grammarDone['dc-article'], 6, '变格专题也走同一个 map');
+  assert.strictEqual(v.state.grammarDone.bad, undefined, '字符串值必须被丢弃');
+  assert.strictEqual(v.state.grammarDone.bad2, undefined, 'null 值必须被丢弃');
+  assert.strictEqual(v.state.grammarDone.bad3, undefined, '数组值必须被丢弃');
+  // 合并进当前存档后，也不能出现任何非对象值
+  const m = mergeStates({ settings: { dailyNew: 10 }, srs: {} }, v.state);
+  Object.keys(m.srs).forEach(function (id) {
+    assert.ok(m.srs[id] && typeof m.srs[id] === 'object' && !Array.isArray(m.srs[id]),
+      '合并结果里 srs.' + id + ' 必须是对象，实际 ' + JSON.stringify(m.srs[id]));
+  });
+  // 注意：grammarDone 不在这个循环里——它的值是数字，把它当对象断言会把错误的契约固化进测试
+  ['daily', 'mistakes', 'listen', 'reading'].forEach(function (k) {
+    Object.keys(m[k] || {}).forEach(function (id) {
+      assert.ok(m[k][id] && typeof m[k][id] === 'object' && !Array.isArray(m[k][id]),
+        '合并结果里 ' + k + '.' + id + ' 必须是对象');
+    });
+  });
+});
+test('导入校验：本应用自己导出的备份必须原样往返（尤其 grammarDone 的数字）', function () {  const state = {
+    settings: { dailyNew: 10, ttsRate: 1, level: 'A1' },
+    srs: {
+      'greet-0': { stability: 3.7, difficulty: 5.1, reps: 2, lapses: 1, due: '2026-09-30', last: '2026-09-26', sealed: true, sealedAt: '2026-09-26' },
+      'greet-1': { stability: 1.2, difficulty: 6, reps: 1, lapses: 0, due: '2026-09-29', last: '2026-09-28' }
+    },
+    daily: { '2026-09-26': { new: 3, reviewed: 5, correct: 7 } },
+    mistakes: { 'greet-1': { wrong: 1, type: 'vocab', last: '2026-09-28' } },
+    grammarDone: { 'g-praesens': 5, 'g-kasus': 4, 'dc-article': 6 },
+    listen: { 'dl-a1-greet': { right: 3, total: 4, finished: '2026-09-26' } },
+    reading: { 'rd-a1-park': { right: 2, total: 3, at: '2026-09-26' } },
+    streak: { last: '2026-09-28', count: 3, freezes: 1, protected: ['2026-09-23'] }
+  };
+  const res = parseBackup(serializeBackupText(state, new Date('2026-09-28T10:00:00')));
+  assert.strictEqual(res.ok, true, '应用自己导出的备份必须能导入：' + (res.error || ''));
+  assert.strictEqual(res.dropped.length, 0, '自己导出的备份不该有任何条目被丢弃：' + JSON.stringify(res.dropped));
+  assert.deepStrictEqual(res.state.grammarDone, state.grammarDone,
+    'grammarDone（数字 map）必须原样往返，不能被清洗器当对象 map 丢掉');
+  assert.strictEqual(res.summary.grammarDone, 3, '统计里语法完成数应仍是 3');
+  Object.keys(state.srs).forEach(function (id) {
+    assert.deepStrictEqual(res.state.srs[id], state.srs[id], 'SRS 卡 ' + id + ' 应原样往返');
+  });
+  assert.deepStrictEqual(res.state.streak.protected, state.streak.protected);
+  // 合并回一份空存档：所有进度都必须救回来（这是「存档被清后用备份救回」的核心场景）
+  const m = mergeStates({ settings: { dailyNew: 10, ttsRate: 1, level: 'A1' } }, res.state);
+  assert.strictEqual(Object.keys(m.grammarDone).length, 3, '导入空存档后语法完成数不应丢失');
+  assert.strictEqual(m.grammarDone['g-praesens'], 5);
+  assert.strictEqual(m.srs['greet-0'].sealed, true);
+  assert.strictEqual(Object.keys(m.srs).length, 2);
+});
+test('导入校验：绝不抛异常（违反契约的值形状也不能抛）', function () {
+  // P2-1：原实现对 {toString:1} 调 String() 抛 TypeError，被上层吞成「读取文件失败」，原因误导
+  const cases = [
+    { format: { toString: 1 } },
+    { format: 'x', version: 1, state: { settings: {}, srs: {} } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {}, streak: { protected: 42 } } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {}, streak: { protected: { a: 1 } } } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: {} } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: {}, srs: [], daily: 'x' } },
+    { format: 'deutsch-lernen-progress', version: 1, state: { settings: null, srs: { a: { reps: 1 } } } }
+  ];
+  cases.forEach(function (c, i) {
+    let r = null;
+    assert.doesNotThrow(function () { r = validateBackup(c); }, '第 ' + i + ' 类输入不得抛异常');
+    assert.strictEqual(typeof r.ok, 'boolean', '第 ' + i + ' 类必须返回 ok 布尔');
+    if (!r.ok) assert.ok(typeof r.error === 'string' && r.error.length > 0, '第 ' + i + ' 类拒绝时须给可读原因');
+  });
+  // 坏值不能被写进存档：mergeStates 对 protected 为数字也不能抛
+  assert.doesNotThrow(function () {
+    mergeStates({ settings: {}, streak: { protected: [] } }, { settings: {}, streak: { protected: 42 } });
+  }, 'mergeStates 对非数组 protected 不得抛');
+});
+test('合并：每日统计取并集且同日取较大值（不清零、不覆盖）', function () {
+  const m = mergeStates(
+    { settings: {}, daily: { '2026-09-22': { new: 2, reviewed: 1, correct: 3 } } },
+    { settings: {}, daily: { '2026-09-22': { new: 5, reviewed: 0, correct: 7 }, '2026-09-01': { new: 9, reviewed: 4, correct: 13 } } });
+  assert.strictEqual(m.daily['2026-09-22'].new, 5);
+  assert.strictEqual(m.daily['2026-09-22'].correct, 7);
+  assert.strictEqual(m.daily['2026-09-01'].new, 9);
+  assert.strictEqual(Object.keys(m.daily).length, 2);
+});
+test('合并：错题次数取较大值，last 取更晚', function () {
+  const m = mergeStates(
+    { settings: {}, mistakes: { 'g-1#0': { type: 'grammar', wrong: 5, last: '2026-09-22' } } },
+    { settings: {}, mistakes: { 'g-1#0': { type: 'grammar', wrong: 2, last: '2026-09-25' }, 'g-1#1': { type: 'grammar', wrong: 1, last: '2026-09-10' } } });
+  assert.strictEqual(m.mistakes['g-1#0'].wrong, 5);
+  assert.strictEqual(m.mistakes['g-1#0'].last, '2026-09-25');
+  assert.strictEqual(m.mistakes['g-1#1'].wrong, 1);
+});
+test('合并：grammarDone / listen / reading 取并集，完成度不倒退', function () {
+  const m = mergeStates(
+    { settings: {}, grammarDone: { 'g-1': 90 }, listen: { 'dl-a1-greet': { right: 4, total: 4, at: '2026-09-25' } }, reading: { 'rd-a1-park': { finished: '2026-09-20', added: 5 } } },
+    { settings: {}, grammarDone: { 'g-1': 60, 'g-2': 100 }, listen: { 'dl-a1-greet': { right: 1, total: 4, at: '2026-09-01' } }, reading: { 'rd-a1-park': { finished: '2026-09-27', added: 2 }, 'rd-a2-camping': { finished: '2026-09-10', added: 3 } } });
+  assert.strictEqual(m.grammarDone['g-1'], 90, '语法完成度取较大值');
+  assert.strictEqual(m.grammarDone['g-2'], 100, '备份独有专题应并入');
+  assert.strictEqual(m.listen['dl-a1-greet'].right, 4, '听力取完成更晚的一方');
+  assert.strictEqual(m.reading['rd-a1-park'].finished, '2026-09-27', '阅读取完成更晚的一方');
+  assert.strictEqual(m.reading['rd-a1-park'].added, 2);
+  assert.ok(m.reading['rd-a2-camping'], '备份独有短文应并入');
+});
+test('合并：连胜取 last 更晚的一份（不拼出假连胜）', function () {
+  const m = mergeStates(
+    { settings: {}, streak: { last: '2026-09-22', count: 4, freezes: 1, protected: [] } },
+    { settings: {}, streak: { last: '2026-09-27', count: 11, freezes: 2, protected: ['2026-09-26'] } });
+  assert.strictEqual(m.streak.count, 11);
+  assert.strictEqual(m.streak.last, '2026-09-27');
+  assert.deepStrictEqual(m.streak.protected, ['2026-09-26']);
+  const m2 = mergeStates(
+    { settings: {}, streak: { last: '2026-09-27', count: 11, freezes: 2, protected: [] } },
+    { settings: {}, streak: { last: '2026-09-01', count: 99, freezes: 2, protected: [] } });
+  assert.strictEqual(m2.streak.count, 11, '更早的备份连胜不应覆盖当前连胜');
+});
+test('合并：设置完全保留当前值（不被备份改掉）', function () {
+  const m = mergeStates({ settings: { dailyNew: 20, ttsRate: 0.75, level: 'B1' } },
+    { settings: { dailyNew: 5, ttsRate: 1.0, level: 'A1' } });
+  assert.strictEqual(m.settings.dailyNew, 20);
+  assert.strictEqual(m.settings.ttsRate, 0.75);
+  assert.strictEqual(m.settings.level, 'B1');
+});
+test('合并幂等：同一份备份导入两次结果相同', function () {
+  const cur = sampleState();
+  const once = mergeStates(cur, sampleState());
+  const twice = mergeStates(once, sampleState());
+  assert.deepStrictEqual(twice, once);
+});
+test('合并不修改入参（当前存档与备份都不被就地改写）', function () {
+  const cur = sampleState(), inc = sampleState({ srs: { 'greet-9': { stability: 1 } } });
+  const curSnap = JSON.stringify(cur), incSnap = JSON.stringify(inc);
+  mergeStates(cur, inc);
+  assert.strictEqual(JSON.stringify(cur), curSnap);
+  assert.strictEqual(JSON.stringify(inc), incSnap);
+});
+test('导入预览：合并后总数 = 并集，新增数正确', function () {
+  const cur = sampleState({ srs: { a: { reps: 1, last: '2026-09-20' } }, mistakes: {}, daily: {} });
+  const inc = sampleState({ srs: { b: { reps: 1, last: '2026-09-20' } }, mistakes: { 'g#0': { wrong: 1 } }, daily: {} });
+  const pv = mergePreview(cur, inc);
+  assert.strictEqual(pv.before.srs, 1);
+  assert.strictEqual(pv.incoming.srs, 1);
+  assert.strictEqual(pv.after.srs, 2);
+  assert.strictEqual(pv.addedCards, 1);
+  assert.strictEqual(pv.addedMistakes, 1);
+});
+test('summary / hasLearningData：空存档没有学习数据，有卡片就有', function () {
+  assert.strictEqual(hasLearningData({ settings: {}, srs: {}, daily: {}, mistakes: {}, grammarDone: {}, listen: {}, reading: {} }), false);
+  assert.ok(hasLearningData(sampleState()));
+  assert.strictEqual(hasLearningData(null), false);
+  const c = summarizeState(sampleState());
+  assert.strictEqual(c.srs, 1);
+  assert.strictEqual(c.daily, 1);
+  assert.strictEqual(c.streak, 4);
+  // daily 里全是 0 的一天不算打卡日
+  assert.strictEqual(summarizeState({ daily: { '2026-09-22': { new: 0, reviewed: 0 } } }).daily, 0);
+});
+
+// ---- 备份提醒 ----
+test('提醒：没有学习数据时从不提示', function () {
+  assert.strictEqual(shouldRemindBackup({ srs: {}, daily: {} }, null, new Date(2026, 8, 27)), null);
+  assert.strictEqual(shouldRemindBackup(sampleState(), null, new Date(2026, 8, 27)) === null, false, '有数据且从未导出应提示');
+});
+test('提醒：从未导出 → 提示；导出后 4 天不提示，5 天起提示', function () {
+  const st = sampleState();
+  const now = new Date(2026, 8, 27);
+  assert.strictEqual(shouldRemindBackup(st, null, now).never, true);
+  assert.strictEqual(daysSinceExport('2026-09-27', now), 0);
+  assert.strictEqual(daysSinceExport('2026-09-23', now), 4);
+  assert.strictEqual(shouldRemindBackup(st, '2026-09-23', now), null, '4 天不提示');
+  assert.strictEqual(daysSinceExport('2026-09-22', now), 5);
+  assert.strictEqual(shouldRemindBackup(st, '2026-09-22', now).days, 5, '第 5 天应提示');
+  assert.strictEqual(BACKUP_REMIND_DAYS, 5);
+  assert.strictEqual(daysSinceExport(null, now), null);
+  assert.strictEqual(daysSinceExport('not-a-date', now), null);
+});
+test('提醒：可推迟 5 天，推迟期内不提示，导出后重新计时', function () {
+  const st = sampleState();
+  const now = new Date(2026, 8, 27);
+  st.settings.backupSnoozeUntil = snoozeUntil(now, 5);
+  assert.strictEqual(st.settings.backupSnoozeUntil, '2026-10-02');
+  assert.strictEqual(shouldRemindBackup(st, '2026-09-01', now), null, '推迟期内不提示');
+  // 推迟期一过又开始提示
+  assert.ok(shouldRemindBackup(st, '2026-09-01', new Date(2026, 9, 3)), '推迟期结束后应恢复提示');
+  // 导出会清掉推迟标记（exportProgress 里 delete），这里验证时间戳归零
+  st.settings.lastExport = '2026-09-27';
+  delete st.settings.backupSnoozeUntil;
+  assert.strictEqual(shouldRemindBackup(st, st.settings.lastExport, now), null);
+});
+test('formatBytes：估算不可用时返回 null，避免显示 NaN', function () {
+  assert.strictEqual(formatBytes(undefined), null);
+  assert.strictEqual(formatBytes(NaN), null);
+  assert.strictEqual(formatBytes(-1), null);
+  assert.strictEqual(formatBytes(512), '512 B');
+  assert.strictEqual(formatBytes(2048), '2 KB');
+  assert.strictEqual(formatBytes(5 * 1024 * 1024), '5 MB');
+});
+
+// ---- 配额与持久化（storage.js） ----
+test('isQuotaError：识别 name / legacy code 两种写法', function () {
+  assert.ok(isQuotaError({ name: 'QuotaExceededError' }));
+  assert.ok(isQuotaError({ name: 'NS_ERROR_DOM_QUOTA_REACHED' }));
+  assert.ok(isQuotaError({ code: 22 }));
+  assert.ok(isQuotaError({ code: 1014 }));
+  assert.ok(!isQuotaError({ name: 'AbortError' }));
+  assert.ok(!isQuotaError(null));
+});
+test('落盘配额写满：localStorage 路径明确上报，不静默失败', function () {
+  const b = mockBackend();
+  const s = new Storage(b);
+  s.state.srs['x'] = { stability: 1 };
+  s.flush();
+  assert.strictEqual(s.writeError(), null, '正常写入不应有错误');
+  b.setItem = function () { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; };
+  s.state.srs['y'] = { stability: 1 };
+  s.flush();
+  const err = s.writeError();
+  assert.ok(err, '配额写满必须被捕获并保留，不能静默');
+  assert.strictEqual(err.kind, 'quota');
+  s.clearWriteError();
+  assert.strictEqual(s.writeError(), null);
+});
+test('写入失败会通知订阅者（UI 据此把「保存失败」刷出来），且只通知一次进入失败态', function () {
+  const b = mockBackend();
+  const s = new Storage(b);
+  s.state.srs['x'] = { stability: 1 };
+  s.flush();
+  const seen = [];
+  const off = s.onWriteError(function (e) { seen.push(e && e.kind); });
+  b.setItem = function () { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; };
+  s.flush();
+  s.flush();
+  assert.deepStrictEqual(seen, ['quota'], '进入失败态只通知一次（防抖期间不刷屏），实际 ' + JSON.stringify(seen));
+  assert.strictEqual(s.writeError().kind, 'quota');
+  off();
+  s.flush();
+  assert.deepStrictEqual(seen, ['quota'], '取消订阅后不再通知');
+  // 普通写错误不应把已报过的配额错误降级
+  s._noteWriteError({ name: 'UnknownError' });
+  assert.strictEqual(s.writeError().kind, 'quota', '已报配额错误时不被普通写错误覆盖');
+});
+test('镜像写失败但主存成功：也保留错误记录（配额写满时镜像先被拒）', function () {
+  const b = mockBackend();
+  const asyncBE = fakeAsyncBackend();
+  const s = new Storage(b, asyncBE);
+  return s.ready().then(function () {
+    b.setItem = function () { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; };
+    s.state.srs['x'] = { stability: 1 };
+    s.flush();
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.ok(s.writeError(), '镜像被拒也要留痕');
+        assert.strictEqual(s.writeError().kind, 'quota');
+        resolve();
+      }, 0);
+    });
+  });
+});
+test('落盘配额写满：IndexedDB 路径同样上报（并用 localStorage 镜像兜底）', function () {
+  const b = mockBackend();
+  const asyncBE = fakeAsyncBackend();
+  asyncBE.set = function () { const e = new Error('quota'); e.name = 'QuotaExceededError'; return Promise.reject(e); };
+  const s = new Storage(b, asyncBE);
+  return s.ready().then(function () {
+    s.state.srs['x'] = { stability: 1 };
+    s.flush();
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.ok(s.writeError(), 'IDB 配额错误应被捕获');
+        assert.strictEqual(s.writeError().kind, 'quota');
+        assert.ok(b.getItem(KEY), 'IDB 写失败时应仍有 localStorage 镜像');
+        assert.strictEqual(JSON.parse(b.getItem(KEY)).srs.x.stability, 1);
+        resolve();
+      }, 0);
+    });
+  });
+});
+test('持久化：未授予时才申请 persist()，结果如实记录', function () {
+  const calls = { persisted: 0, persist: 0, estimate: 0 };
+  const granted = { v: false };
+  const sm = {
+    persisted: function () { calls.persisted++; return Promise.resolve(granted.v); },
+    persist: function () { calls.persist++; granted.v = true; return Promise.resolve(true); },
+    estimate: function () { calls.estimate++; return Promise.resolve({ usage: 1234, quota: 5678 }); }
+  };
+  // 句柄按实例注入（并发跑的异步用例不会互相踩 navigator.storage）
+  const s = new Storage(mockBackend(), null, sm);
+  return s.initPersistence().then(function (ok) {
+    assert.strictEqual(calls.persisted, 1, '应查一次 persisted()');
+    assert.strictEqual(calls.persist, 1, '未持久化时应申请一次');
+    assert.strictEqual(ok, true);
+    assert.strictEqual(s.persistGranted, true);
+    // 已持久化：不再申请
+    const s2 = new Storage(mockBackend(), null, sm);
+    return s2.initPersistence();
+  }).then(function () {
+    assert.strictEqual(calls.persisted, 2, '第二次也应查一次 persisted()');
+    assert.strictEqual(calls.persist, 1, '已持久化就不应重复申请');
+    return s.refreshQuota();
+  }).then(function (info) {
+    assert.deepStrictEqual(info, { usage: 1234, quota: 5678 });
+    assert.strictEqual(formatBytes(info.usage), '1.2 KB');
+  });
+});
+test('持久化：被拒 persist() 不是错误，如实记为未授予', function () {
+  const sm = {
+    persisted: function () { return Promise.resolve(false); },
+    persist: function () { return Promise.resolve(false); }, // iOS 常见结果
+    estimate: function () { return Promise.resolve({}); }
+  };
+  const s = new Storage(mockBackend(), null, sm);
+  return s.initPersistence().then(function (ok) {
+    assert.strictEqual(ok, false);
+    assert.strictEqual(s.persistGranted, false, '被拒应如实记为 false，不抛错');
+    return s.refreshQuota();
+  }).then(function (info) {
+    assert.strictEqual(info, null, 'estimate 缺字段时不显示用量');
+    assert.strictEqual(s.persistInfo, null);
+  });
+});
+test('持久化：API 不存在（老内核 / Node）时不抛错并标记未知', function () {
+  const s = new Storage(mockBackend(), null, null); // 显式「没有 navigator.storage」
+  return s.initPersistence().then(function (ok) {
+    assert.strictEqual(ok, null);
+    assert.strictEqual(s.persistGranted, null, '不支持时应为「未查询」而不是 false');
+    return s.refreshQuota();
+  }).then(function (info) {
+    assert.strictEqual(info, null);
+  });
+});
+test('持久化：persisted() 抛错时降级为「未查询」，不影响启动', function () {
+  const sm = {
+    persisted: function () { throw new Error('security error'); },
+    persist: function () { return Promise.resolve(true); },
+    estimate: function () { return Promise.reject(new Error('nope')); }
+  };
+  const s = new Storage(mockBackend(), null, sm);
+  return s.initPersistence().then(function (ok) {
+    assert.strictEqual(ok, null, '查询失败不应抛到启动链上');
+    return s.refreshQuota();
+  }).then(function (info) { assert.strictEqual(info, null); });
 });
 
 console.log('\n词汇索引 buildWordIndex：');
@@ -1416,6 +1972,239 @@ test('getWordIpa：命中返回音标，缺失返回 null', function () {
     assert.strictEqual(getWordIpa('greet-9'), null);
   } finally {
     delete globalThis.window;
+  }
+});
+
+console.log('\n音频元素池与手势解锁（iOS 需要手势，见 src/audio.js 头部注释）：');
+
+/* 音频层需要 Audio / Blob / URL / document，用最小桩把真实生产代码跑起来。
+   state.impl 决定 play() 成功还是被拒（NotAllowedError 模拟 iOS 手势外的情况）。 */
+function withAudioEnv(state, fn) {
+  const prev = {
+    Audio: globalThis.Audio, Blob: globalThis.Blob, URL: globalThis.URL,
+    document: globalThis.document, window: globalThis.window
+  };
+  const created = [];
+  const listeners = {};
+  const bodyClasses = [];
+  const blobs = [];
+  function FakeAudio() {
+    created.push(this);
+    this.paused = true; this.currentTime = 0; this.playbackRate = 1; this.src = '';
+    this.handlers = {}; this.playCalls = 0;
+  }
+  FakeAudio.prototype.play = function () { this.playCalls++; this.paused = false; return state.impl(this); };
+  FakeAudio.prototype.pause = function () { this.paused = true; };
+  FakeAudio.prototype.addEventListener = function (t, h) { (this.handlers[t] = this.handlers[t] || []).push(h); };
+  FakeAudio.prototype.removeEventListener = function (t, h) {
+    const a = this.handlers[t] || []; const i = a.indexOf(h); if (i >= 0) a.splice(i, 1);
+  };
+  globalThis.Audio = FakeAudio;
+  // 记录 Blob 的原始字节，供「静音 WAV 是不是合法 RIFF」的断言取回校验
+  globalThis.Blob = function (parts) { blobs.push(parts); };
+  globalThis.URL = { createObjectURL: function () { return 'blob:silent'; }, revokeObjectURL: function () {} };
+  globalThis.document = {
+    body: { classList: { add: function (c) { bodyClasses.push(c); }, remove: function () {} } },
+    addEventListener: function (t, h) { (listeners[t] = listeners[t] || []).push(h); },
+    removeEventListener: function (t, h) { const a = listeners[t] || []; const i = a.indexOf(h); if (i >= 0) a.splice(i, 1); },
+    readyState: 'complete'
+  };
+  globalThis.window = { AUDIO_WORDS: ['greet-0', 'greet-1'] };
+  AudioLayer._resetPool();
+
+  const env = {
+    created: created, listeners: listeners, bodyClasses: bodyClasses, blobs: blobs,
+    fire: function (type) { (listeners[type] || []).slice().forEach(function (h) { h({ type: type }); }); }
+  };
+  const cleanup = function () {
+    AudioLayer._resetPool();
+    globalThis.Audio = prev.Audio; globalThis.Blob = prev.Blob; globalThis.URL = prev.URL;
+    if (prev.document === undefined) delete globalThis.document; else globalThis.document = prev.document;
+    if (prev.window === undefined) delete globalThis.window; else globalThis.window = prev.window;
+  };
+  let out;
+  try { out = fn(env); } catch (e) { cleanup(); throw e; }
+  if (out && typeof out.then === 'function') {
+    return out.then(function (v) { cleanup(); return v; }, function (e) { cleanup(); throw e; });
+  }
+  cleanup();
+  return out;
+}
+function rejectNotAllowed() {
+  const e = new Error('play() failed because the user did not interact');
+  e.name = 'NotAllowedError';
+  return Promise.reject(e);
+}
+
+test('音频元素被复用：连续播放不新建元素（iOS 解锁要求复用同一元素）', function () {
+  return withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    assert.strictEqual(AudioLayer.audio.playWord('greet-0', 'der Tag'), true);
+    assert.strictEqual(AudioLayer.audio.playWord('greet-1', 'die Nacht'), true);
+    assert.strictEqual(AudioLayer.audio.playWord('greet-0', 'der Tag'), true);
+    assert.strictEqual(env.created.length, 2,
+      '三次播放应只用池里已有的 2 个元素，实际新建了 ' + env.created.length + ' 个');
+  });
+});
+
+test('手势监听：用 WebKit 认定的四种手势，不含 pointerdown', function () {
+  return withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    assert.deepStrictEqual(Object.keys(env.listeners).sort(), ['click', 'doubleclick', 'keydown', 'touchend'],
+      'WebKit 只认 touchend/click/doubleclick/keydown 的处理函数；pointerdown 不在名单里');
+    assert.strictEqual(env.listeners.pointerdown, undefined, '不得依赖 pointerdown 解锁');
+  });
+});
+
+/* 解锁/失败上报涉及时序，必须**顺序执行**：本测试框架同步跑完所有 test 体、
+   异步断言稍后才执行，若拆成多个测试，模块级状态会被后面的测试改掉（第一版就栽在这）。 */
+test('解锁与播放失败上报（顺序断言：拒绝 / 成功 / 手势重试 / 失败可见 / 清除 / 静音素材 / 选元素）', async function () {
+  // ① play() 被拒 → 不得谎报已解锁，且失败必须可见可查
+  await withAudioEnv({ impl: rejectNotAllowed }, function (env) {
+    AudioLayer.init();
+    assert.strictEqual(AudioLayer.unlock(), true, 'unlock 应发起预热尝试');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), false,
+          'play() reject 时 unlocked 必须保持 false（WebKit 在手势外会拒）');
+        assert.ok(AudioLayer.lastBlockError(), '解锁失败必须上报，不能静默');
+        assert.strictEqual(AudioLayer.lastBlockError().name, 'NotAllowedError');
+        assert.ok(env.bodyClasses.indexOf('audio-blocked') >= 0, '应加 body 类，让提示真的可见');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ② play() 成功 → 才置为已解锁，且不留失败记录
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function () {
+    AudioLayer.init();
+    AudioLayer.unlock();
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), true, 'resolve 后应已解锁');
+        assert.strictEqual(AudioLayer.lastBlockError(), null, '成功路径不应留下失败记录');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ③ 手势触发解锁成功 → 摘掉监听（不再重复预热）
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    env.fire('touchend');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), true, '手势内发起 + resolve 后应已解锁');
+        assert.strictEqual((env.listeners.touchend || []).length, 0, '解锁成功后应摘掉监听');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ④ 手势触发解锁失败 → 保留监听，等下一次手势重试（否则永久哑）
+  await withAudioEnv({ impl: rejectNotAllowed }, function (env) {
+    AudioLayer.init();
+    const before = (env.listeners.touchend || []).length;
+    assert.ok(before > 0, '初次应已注册手势监听');
+    env.fire('touchend');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.strictEqual(AudioLayer.isUnlocked(), false);
+        assert.strictEqual((env.listeners.touchend || []).length, before,
+          '解锁失败后监听必须保留，否则后续真正的手势再也不重试');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ⑤ 播放被拒 → 可订阅、可查询、带出错 url（供 UI 给可见提示）
+  await withAudioEnv({ impl: rejectNotAllowed }, function () {
+    AudioLayer.init();
+    let seen = null;
+    const off = AudioLayer.onBlocked(function (info) { seen = info; });
+    AudioLayer.audio.playWord('greet-0', 'der Tag');
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        assert.ok(seen, 'onBlocked 订阅者应被通知');
+        assert.strictEqual(seen.name, 'NotAllowedError');
+        assert.ok(/greet-0/.test(seen.url), '应带上出错的 url 便于排查，实际：' + seen.url);
+        assert.ok(AudioLayer.lastBlockError(), 'lastBlockError() 应可查询');
+        off();
+        AudioLayer.clearBlockError();
+        assert.strictEqual(AudioLayer.lastBlockError(), null, 'clearBlockError 应能清掉');
+        resolve();
+      }, 20);
+    });
+  });
+
+  // ⑥ 失败后一旦播放**成功**，必须自动清掉「被拦截」状态
+  //    （否则：历史上失败过一次 → 此后每张卡都弹假提示、全站喇叭永久描金边）
+  {
+    let mode = 'reject';
+    await withAudioEnv({
+      impl: function () { return mode === 'reject' ? rejectNotAllowed() : Promise.resolve(); }
+    }, function (env) {
+      AudioLayer.init();
+      AudioLayer.audio.playWord('greet-0', 'der Tag');
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          assert.ok(AudioLayer.lastBlockError(), '先制造一次失败');
+          assert.ok(env.bodyClasses.indexOf('audio-blocked') >= 0, '失败时应有可见标记');
+          mode = 'resolve';
+          AudioLayer.audio.playWord('greet-0', 'der Tag');
+          setTimeout(function () {
+            assert.strictEqual(AudioLayer.lastBlockError(), null,
+              '播放成功后必须自动清掉失败状态，否则历史上失败过一次就会永久弹假提示、喇叭永久描金边');
+            resolve();
+          }, 20);
+        }, 20);
+      });
+    });
+  }
+
+  // ⑦ 解锁素材：运行时生成的静音 WAV 必须是合法 RIFF（iOS 上非法音频换不来播放许可）
+  await withAudioEnv({ impl: function () { return Promise.resolve(); } }, function (env) {
+    AudioLayer.init();
+    AudioLayer.unlock();
+    assert.strictEqual(env.blobs.length >= 1, true, '解锁应构造了静音 Blob');
+    const bytes = new Uint8Array(env.blobs[0][0]);
+    const tag = function (o) { return String.fromCharCode(bytes[o], bytes[o + 1], bytes[o + 2], bytes[o + 3]); };
+    assert.strictEqual(bytes.length, 844, '静音 WAV 应为 44 字节头 + 800 采样 = 844 字节');
+    assert.strictEqual(tag(0), 'RIFF', '应以 RIFF 开头');
+    assert.strictEqual(tag(8), 'WAVE', '应为 WAVE');
+    assert.strictEqual(tag(12), 'fmt ', '应含 fmt 块');
+    assert.strictEqual(tag(36), 'data', '应含 data 块');
+    assert.strictEqual(bytes[44], 0x80, '8-bit PCM 的静音电平应为 0x80');
+    assert.strictEqual(bytes[843], 0x80, '末尾采样也应是静音');
+    assert.strictEqual(env.created.length, 2, '池应为 2 个元素');
+    env.created.forEach(function (a, i) {
+      assert.strictEqual(a.src, 'blob:silent', '第 ' + i + ' 个元素应被指向静音源');
+    });
+  });
+
+  // ⑧ 播放选元素：优先复用**已预热成功**的元素，不轮转到预热失败的（否则又被拒一次）
+  {
+    let n = 0;
+    await withAudioEnv({
+      impl: function () { n++; return n === 1 ? Promise.resolve() : rejectNotAllowed(); }
+    }, function (env) {
+      AudioLayer.init();
+      AudioLayer.unlock();
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          AudioLayer.audio.playWord('greet-0', 'der Tag');
+          AudioLayer.audio.playWord('greet-1', 'die Nacht');
+          setTimeout(function () {
+            // 元素 0：1 次预热 + 2 次业务播放；元素 1：只有 1 次（失败的）预热
+            assert.strictEqual(env.created[0].playCalls, 3,
+              '业务播放应都落在已预热的元素 0 上，实际 playCalls=' + env.created[0].playCalls);
+            assert.strictEqual(env.created[1].playCalls, 1,
+              '预热失败的元素 1 不应再被业务播放选中（否则又被拒一次），实际 playCalls=' + env.created[1].playCalls);
+            resolve();
+          }, 20);
+        }, 20);
+      });
+    });
   }
 });
 

@@ -68,6 +68,11 @@ export function renderExerciseItem(ex, number, onAnswer, nextText) {
   } else {
     input = UI.el('input');
     input.type = 'text'; input.autocomplete = 'off';
+    // 德语拼写：关掉输入法自动大写/自动更正/拼写检查（findings A5）
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('spellcheck', 'false');
+    input.setAttribute('lang', 'de');
     input.className = 'spell-input';
     input.placeholder = '输入答案（不区分大小写）';
     item.appendChild(input);

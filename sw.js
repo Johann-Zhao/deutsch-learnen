@@ -1,11 +1,12 @@
 /* deutsch-zine Service Worker — 核心壳预缓存 + 媒体运行时 CacheFirst。
    版本号随发布手工递增（AGENTS.md SOP）。 */
-const CACHE = 'deutsch-zine-v4.6.1';
+const CACHE = 'deutsch-zine-v4.7.0';
 
 /* 核心壳：首屏与全部数据文件（路径相对 SW 作用域 = 部署目录）。 */
 const CORE = [
   './',
   'index.html',
+  'manifest.webmanifest',
   'css/style.css',
   'js/bundle.js',
   'data/vocabulary.js',
