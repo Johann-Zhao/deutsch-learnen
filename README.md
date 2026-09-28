@@ -126,7 +126,7 @@
 ```bash
 npm install         # 仅 esbuild 一个构建依赖
 npm run dev         # watch 模式：src/ → js/bundle.js
-npm test            # 142 项单元测试（FSRS 遗忘分支、判分、斩机制、图片选题、发音回退链与手势解锁、导出导入合并、存储降级、听力对话、阅读三态、语境填空、变格数据、词性题守卫、数据完整性）
+npm test            # 146 项单元测试（FSRS 遗忘分支、判分、斩机制、图片选题、发音回退链与手势解锁、导出导入校验与合并、存储降级、听力对话、阅读三态、语境填空、变格数据、词性题守卫、数据完整性）
 npm run build       # 生产构建（IIFE + ES2018 + sourcemap + minify）
 ```
 
